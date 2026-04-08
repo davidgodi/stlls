@@ -44,6 +44,32 @@
     font-size: 13px; display: flex; flex-direction: column;
   }
 
+  /* ── SPLASH SCREEN ── */
+  #splashScreen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  #splashScreen[hidden] { display: none; }
+  #splashContent {
+    display: flex; align-items: baseline; gap: 8px;
+    animation: splashAnim 2.4s ease forwards;
+  }
+  #splashContent h1 {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  #splashContent span {
+    font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em;
+  }
+  @keyframes splashAnim {
+    0%   { opacity: 0; transform: translateY(6px); }
+    22%  { opacity: 1; transform: translateY(0); }
+    78%  { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0;  transform: translateY(0); }
+  }
+
   /* ── HOME SCREEN ── */
   #homeScreen {
     position: fixed; inset: 0; z-index: 300;
@@ -140,14 +166,53 @@
     width: 100%; aspect-ratio: 1/1;
     background: var(--surface2);
     display: flex; align-items: center; justify-content: center;
-    overflow: hidden;
+    overflow: hidden; position: relative;
   }
   .board-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .board-thumb-empty { color: var(--text-dim); font-size: 24px; opacity: 0.2; }
-  .board-meta {
-    padding: 8px 10px 6px;
+  /* Name + date overlay at bottom of thumbnail */
+  .board-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.38);
+    padding: 8px 10px 7px;
+    display: flex; flex-direction: column; gap: 2px;
   }
-  .board-date { font-size: 10px; color: var(--text-dim); letter-spacing: 0.03em; }
+  .board-name {
+    font-size: 11px; color: #fff; font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+  .board-date { font-size: 9px; color: rgba(255,255,255,0.55); letter-spacing: 0.03em; }
+
+  /* Rename modal */
+  #renameOverlay {
+    position: fixed; inset: 0; z-index: 510;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #renameOverlay[hidden] { display: none; }
+  .rename-box {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 22px 24px;
+    min-width: 240px; display: flex; flex-direction: column; gap: 14px;
+  }
+  .rename-box p { font-size: 13px; color: var(--text); font-weight: 500; }
+  #renameInput {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text);
+    font-size: 13px; font-family: inherit;
+    padding: 9px 11px; outline: none; width: 100%;
+    transition: border-color 0.15s;
+  }
+  #renameInput:focus { border-color: var(--muted); }
+  .rename-btns { display: flex; gap: 8px; }
+  .rename-btns button {
+    flex: 1; padding: 9px; border-radius: var(--rsm);
+    font-family: inherit; font-size: 12px; cursor: pointer; border: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #renameCancelBtn { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  #renameSaveBtn { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
   .board-menu-btn {
     position: absolute; top: 6px; right: 6px;
     background: rgba(0,0,0,0.55); border: none; border-radius: 4px;
@@ -517,7 +582,7 @@
     background: var(--bg); display: flex; flex-direction: column;
   }
   #manualScrubber[hidden] { display: none; }
-  #manualScrubber.opening { animation: spIn 0.22s ease forwards; }
+  #manualScrubber.opening { animation: pageIn 0.22s ease forwards; }
   .ms-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 18px 18px 14px; flex-shrink: 0; border-bottom: 1px solid var(--border);
@@ -724,6 +789,24 @@
   }
   #resetConfirm[hidden] { display: none; }
 
+  /* ── Shared page transition keyframes ── */
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pageOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-10px); }
+  }
+  @keyframes pageOutDown {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(14px); }
+  }
+
+  /* Home screen transitions */
+  #homeScreen.entering { animation: pageIn 0.38s cubic-bezier(0.4,0,0.2,1) forwards; }
+  #homeScreen.leaving  { animation: pageOut 0.32s cubic-bezier(0.4,0,0.2,1) forwards; }
+
   /* ── Settings panel ── */
   #settingsPanel {
     position: fixed; inset: 0; z-index: 400;
@@ -731,13 +814,8 @@
     display: flex; flex-direction: column;
   }
   #settingsPanel[hidden] { display: none; }
-  #settingsPanel.opening {
-    animation: spIn 0.22s ease forwards;
-  }
-  @keyframes spIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
+  #settingsPanel.entering { animation: pageIn 0.32s cubic-bezier(0.4,0,0.2,1) forwards; }
+  #settingsPanel.leaving  { animation: pageOutDown 0.28s cubic-bezier(0.4,0,0.2,1) forwards; }
   .sp-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 22px 36px 0; flex-shrink: 0; gap: 12px;
@@ -1074,7 +1152,20 @@
 
 <!-- Board context menu popup -->
 <div id="boardMenu" hidden>
+  <button class="bm-item" id="bmRename">Rename</button>
   <button class="bm-item danger" id="bmDelete">Delete</button>
+</div>
+
+<!-- Rename board modal -->
+<div id="renameOverlay" hidden>
+  <div class="rename-box">
+    <p>Rename board</p>
+    <input type="text" id="renameInput" placeholder="Board name" autocomplete="off" autocorrect="off">
+    <div class="rename-btns">
+      <button id="renameCancelBtn">Cancel</button>
+      <button id="renameSaveBtn">Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- Delete confirm overlay -->
@@ -1381,6 +1472,14 @@
   </div>
 </div>
 
+<!-- Splash screen — shown only on fresh launch -->
+<div id="splashScreen">
+  <div id="splashContent">
+    <h1>STLLS</h1>
+    <span>by David Godi</span>
+  </div>
+</div>
+
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────
 const CANONICAL_W = 1080;
@@ -1528,12 +1627,20 @@ function renderBoardsList() {
       thumb.appendChild(ph);
     }
 
-    const meta = document.createElement('div');
-    meta.className = 'board-meta';
-    const dateEl = document.createElement('div');
+    // Name + date overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'board-overlay';
+    if (board.name) {
+      const nameEl = document.createElement('span');
+      nameEl.className = 'board-name';
+      nameEl.textContent = board.name;
+      overlay.appendChild(nameEl);
+    }
+    const dateEl = document.createElement('span');
     dateEl.className = 'board-date';
     dateEl.textContent = new Date(board.updatedAt).toLocaleDateString();
-    meta.appendChild(dateEl);
+    overlay.appendChild(dateEl);
+    thumb.appendChild(overlay);
 
     const menuBtn = document.createElement('button');
     menuBtn.className = 'board-menu-btn';
@@ -1548,16 +1655,24 @@ function renderBoardsList() {
     });
 
     card.appendChild(thumb);
-    card.appendChild(meta);
     card.appendChild(menuBtn);
     card.addEventListener('click', () => openBoard(board.id));
     boardsGrid.appendChild(card);
   });
 }
 
+function leaveHome(then) {
+  homeScreen.classList.add('leaving');
+  homeScreen.addEventListener('animationend', () => {
+    homeScreen.hidden = true;
+    homeScreen.classList.remove('leaving');
+    if (then) then();
+  }, { once: true });
+}
+
 function openBoard(id) {
   _currentBoardId = id;
-  homeScreen.hidden = true;
+  leaveHome();
 }
 
 function generateThumbnail() {
@@ -1589,18 +1704,27 @@ function generateThumbnail() {
 }
 
 function goHome() {
-  // Save thumbnail snapshot of current board before leaving
   if (_currentBoardId) {
-    const thumb = generateThumbnail();
-    const board = boards.find(b => b.id === _currentBoardId);
-    if (board) {
-      if (thumb) board.thumbnail = thumb;
-      board.updatedAt = Date.now();
+    if (state.images.length > 0) {
+      // Save thumbnail snapshot
+      const thumb = generateThumbnail();
+      const board = boards.find(b => b.id === _currentBoardId);
+      if (board) {
+        if (thumb) board.thumbnail = thumb;
+        board.updatedAt = Date.now();
+        saveBoards();
+      }
+    } else {
+      // No images — remove the board entry so empty boards never appear
+      boards = boards.filter(b => b.id !== _currentBoardId);
       saveBoards();
     }
   }
-  homeScreen.hidden = false;
   renderBoardsList();
+  homeScreen.hidden = false;
+  homeScreen.classList.remove('leaving');
+  homeScreen.classList.add('entering');
+  homeScreen.addEventListener('animationend', () => homeScreen.classList.remove('entering'), { once: true });
 }
 
 const homeBtn = document.getElementById('homeBtn');
@@ -1610,20 +1734,56 @@ homeNewBtn.addEventListener('click', () => {
   _currentBoardId = Date.now().toString(36) + Math.random().toString(36).slice(2);
   boards.push({ id: _currentBoardId, updatedAt: Date.now(), thumbnail: null });
   saveBoards();
-  homeScreen.hidden = true;
-  // Reset editor state for new board
+  // Reset editor state (happens during the exit animation, invisible to user)
   state.images = [];
   undoHistory.length = 0;
   redoHistory.length = 0;
   updateUndoBtn();
   renderList();
   buildLayout();
+  leaveHome();
 });
 
 // Board menu actions
 document.addEventListener('click', e => {
   if (!boardMenu.hidden && !boardMenu.contains(e.target)) boardMenu.hidden = true;
 });
+const bmRename       = document.getElementById('bmRename');
+const renameOverlay  = document.getElementById('renameOverlay');
+const renameInput    = document.getElementById('renameInput');
+const renameCancelBtn = document.getElementById('renameCancelBtn');
+const renameSaveBtn  = document.getElementById('renameSaveBtn');
+
+bmRename.addEventListener('click', () => {
+  boardMenu.hidden = true;
+  const board = boards.find(b => b.id === _boardMenuId);
+  renameInput.value = board?.name || '';
+  renameOverlay.hidden = false;
+  requestAnimationFrame(() => renameInput.focus());
+});
+
+renameCancelBtn.addEventListener('click', () => {
+  renameOverlay.hidden = true;
+  _boardMenuId = null;
+});
+
+renameSaveBtn.addEventListener('click', () => {
+  const board = boards.find(b => b.id === _boardMenuId);
+  if (board) {
+    board.name = renameInput.value.trim();
+    saveBoards();
+    renderBoardsList();
+  }
+  renameOverlay.hidden = true;
+  _boardMenuId = null;
+});
+
+// Save on Enter key
+renameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') renameSaveBtn.click();
+  if (e.key === 'Escape') renameCancelBtn.click();
+});
+
 bmDelete.addEventListener('click', () => {
   boardMenu.hidden = true;
   deleteConfirm.hidden = false;
@@ -2641,10 +2801,17 @@ const themeToggle   = document.getElementById('themeToggle');
 
 function openSettings() {
   settingsPanel.hidden = false;
-  settingsPanel.classList.add('opening');
-  settingsPanel.addEventListener('animationend', () => settingsPanel.classList.remove('opening'), { once: true });
+  settingsPanel.classList.remove('leaving');
+  settingsPanel.classList.add('entering');
+  settingsPanel.addEventListener('animationend', () => settingsPanel.classList.remove('entering'), { once: true });
 }
-function closeSettings() { settingsPanel.hidden = true; }
+function closeSettings() {
+  settingsPanel.classList.add('leaving');
+  settingsPanel.addEventListener('animationend', () => {
+    settingsPanel.hidden = true;
+    settingsPanel.classList.remove('leaving');
+  }, { once: true });
+}
 
 settingsBtn.addEventListener('click', openSettings);
 settingsClose.addEventListener('click', closeSettings);
@@ -2796,6 +2963,18 @@ window.exportComplete = function(success) {
     exportBarLabel.textContent = '0%';
   }, 1300);
 };
+
+// ── Splash screen ────────────────────────────────────────────────────────────
+(function() {
+  const splash = document.getElementById('splashScreen');
+  if (!sessionStorage.getItem('stlls-launched')) {
+    sessionStorage.setItem('stlls-launched', '1');
+    // Hide after animation completes (2.4s + small buffer)
+    setTimeout(() => { splash.hidden = true; }, 2500);
+  } else {
+    splash.hidden = true;
+  }
+})();
 </script>
 </body>
 </html>

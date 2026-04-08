@@ -44,9 +44,167 @@
     font-size: 13px; display: flex; flex-direction: column;
   }
 
+  /* ── HOME SCREEN ── */
+  #homeScreen {
+    position: fixed; inset: 0; z-index: 300;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+  }
+  #homeScreen[hidden] { display: none; }
+  #homeScreen::-webkit-scrollbar { display: none; }
+
+  /* Home screen top bar: brand left, settings right */
+  #homeTopBar {
+    display: flex; align-items: center;
+    padding: max(24px, env(safe-area-inset-top) + 10px) 28px 0;
+    flex-shrink: 0;
+  }
+  #homeTopBar h1 {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  #homeTopBar span {
+    font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em;
+    margin-left: 8px;
+  }
+  /* Settings gear — pushed to far right */
+  #homeSettingsBtn {
+    margin-left: auto;
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 6px; border-radius: var(--rsm);
+    display: flex; align-items: center;
+    transition: color 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  #homeSettingsBtn:hover { color: var(--text-mid); }
+
+  /* New-board area: fills space, button sits toward the bottom */
+  #homeNewArea {
+    flex: 1;
+    min-height: 200px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+
+  #homeNewBtn {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: none;
+    border: 1.5px solid var(--border2);
+    color: var(--text-dim);
+    font-size: 32px; font-weight: 300; line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s, color 0.2s, transform 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #homeNewBtn:hover { border-color: var(--muted); color: var(--text-mid); transform: scale(1.06); }
+
+  /* Separator between new-board area and boards list */
+  .home-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0 28px;
+    flex-shrink: 0;
+  }
+
+  /* Boards section */
+  #homeBoardsSection {
+    flex: 1;
+    padding: 28px 28px 60px;
+  }
+  .home-boards-label {
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 14px;
+  }
+  #boardsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .board-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .board-card:hover { border-color: var(--border2); }
+  .board-thumb {
+    width: 100%; aspect-ratio: 1/1;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .board-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .board-thumb-empty { color: var(--text-dim); font-size: 24px; opacity: 0.2; }
+  .board-meta {
+    padding: 8px 10px 6px;
+  }
+  .board-date { font-size: 10px; color: var(--text-dim); letter-spacing: 0.03em; }
+  .board-menu-btn {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(0,0,0,0.55); border: none; border-radius: 4px;
+    color: #fff; width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 14px; opacity: 0;
+    transition: opacity 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  .board-card:hover .board-menu-btn { opacity: 1; }
+  @media (hover: none) { .board-menu-btn { opacity: 1; } }
+
+  /* Board context menu popup */
+  #boardMenu {
+    position: fixed; z-index: 500;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 4px;
+    min-width: 130px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+  #boardMenu[hidden] { display: none; }
+  .bm-item {
+    display: block; width: 100%; text-align: left;
+    background: none; border: none; font-family: inherit;
+    font-size: 12px; padding: 8px 12px; cursor: pointer;
+    border-radius: var(--rsm); color: var(--text);
+    transition: background 0.1s; -webkit-tap-highlight-color: transparent;
+  }
+  .bm-item:hover { background: var(--surface2); }
+  .bm-item.danger { color: #ef4444; }
+
+  /* Delete confirm inline overlay */
+  #deleteConfirm {
+    position: fixed; inset: 0; z-index: 510;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #deleteConfirm[hidden] { display: none; }
+  .dc-box {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 24px 28px;
+    text-align: center; min-width: 220px;
+  }
+  .dc-box p { font-size: 13px; color: var(--text); margin-bottom: 18px; }
+  .dc-btns { display: flex; gap: 8px; }
+  .dc-btns button {
+    flex: 1; padding: 8px; border-radius: var(--rsm);
+    font-family: inherit; font-size: 12px; cursor: pointer; border: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #dcCancel { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  #dcYes { background: #ef4444; color: #fff; font-weight: 600; }
+
   /* ── HEADER ── */
   header {
-    padding: 22px 36px 0; display: flex; align-items: baseline;
+    padding: 22px 36px 0; display: flex; align-items: center;
     gap: 10px; flex-shrink: 0;
   }
   header h1 {
@@ -59,12 +217,18 @@
   .workspace {
     flex: 1; display: flex; min-height: 0;
     padding: 20px 36px 32px; gap: 24px;
+    transition: padding 0.68s cubic-bezier(0.4,0,0.2,1),
+                gap 0.68s cubic-bezier(0.4,0,0.2,1);
   }
 
   /* ── PREVIEW ── */
   #previewOuter {
     flex: 1; display: flex; align-items: center; justify-content: center;
     min-width: 0; min-height: 0; position: relative;
+  }
+  #previewWrap {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 100%;
   }
   #emptyState {
     color: var(--text-dim); font-size: 12px; text-align: center;
@@ -81,13 +245,70 @@
   .slot.grabbing { cursor: grabbing; }
   .slot-img { position: absolute; pointer-events: none; -webkit-user-drag: none; display: block; }
 
+  /* ── Preview expand button ── */
+  #previewExpandBtn {
+    position: absolute; bottom: 10px; right: 10px;
+    width: 32px; height: 32px;
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--rsm); color: var(--text-mid);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s, opacity 0.2s;
+    z-index: 10; -webkit-tap-highlight-color: transparent;
+    opacity: 0.55;
+  }
+  #previewExpandBtn:hover { background: rgba(0,0,0,0.7); color: var(--text); opacity: 1; }
+  body.preview-expanded #previewExpandBtn { opacity: 1; }
+
+  /* Preview expanded state — shared across all screen sizes */
+  body.preview-expanded .panel {
+    opacity: 0;
+    pointer-events: none;
+  }
+
   /* ── PANEL ── */
   .panel {
     width: 244px; flex-shrink: 0; order: -1;
-    display: flex; flex-direction: column; gap: 22px;
-    overflow-y: auto; scrollbar-width: none;
+    display: flex; flex-direction: column; gap: 16px;
+    overflow: hidden;
+    min-height: 0;
+    max-height: 2000px;
+    transition: width 0.68s cubic-bezier(0.4,0,0.2,1),
+                max-height 0.68s cubic-bezier(0.4,0,0.2,1),
+                opacity 0.6s ease,
+                transform 0.68s cubic-bezier(0.4,0,0.2,1);
   }
-  .panel::-webkit-scrollbar { display: none; }
+
+  /* ── Export bar (desktop) — fixed bottom strip ── */
+  @media (min-width: 640px) {
+    #psExport {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 200;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 36px calc(10px + env(safe-area-inset-bottom));
+      display: flex; align-items: center;
+    }
+    #psExport .section-label { display: none; }
+    #psExport .ctrl {
+      width: 100%; flex-direction: row; align-items: center; gap: 10px;
+    }
+    #psExport .export-selects { gap: 8px; }
+    #psExport .export-btn {
+      flex: 1; max-width: 220px; padding: 8px 16px; margin: 0;
+    }
+    .workspace { padding-bottom: 62px; }
+
+    /* Desktop expand: collapse panel sideways */
+    body.preview-expanded .panel {
+      width: 0;
+      transform: translateX(-16px);
+    }
+    body.preview-expanded .workspace {
+      padding: 0 0 50px;
+      gap: 0;
+    }
+  }
 
   /* Panel section */
   .ps { display: flex; flex-direction: column; gap: 0; }
@@ -261,21 +482,23 @@
   }
   .video-pick-btn:hover, .video-pick-btn:active { border-color: var(--muted); color: var(--text); }
 
-  /* Success row shown after video stills are committed */
-  #videoSuccessRow {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border);
-    border-radius: var(--rsm); margin-bottom: 10px; transition: opacity 0.25s;
+  /* Video analysis progress row (shown during auto video processing) */
+  #videoAnalysisRow {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: var(--rsm);
+    margin-bottom: 8px;
   }
-  #videoSuccessRow[hidden] { display: none; }
-  #videoSuccessRow span { font-size: 11px; color: var(--text-mid); }
-  #videoResetBtn {
+  #videoAnalysisRow[hidden] { display: none; }
+  #videoAnalysisRow span { font-size: 11px; color: var(--text-mid); flex: 1; }
+  #videoCancelBtn {
     background: none; border: none; color: var(--text-dim); cursor: pointer;
-    font-size: 11px; padding: 3px 6px; border-radius: var(--rsm);
-    font-family: inherit; transition: color 0.15s, background 0.15s;
-    -webkit-tap-highlight-color: transparent;
+    font-size: 16px; line-height: 1; padding: 2px 4px; border-radius: 3px;
+    transition: color 0.15s; -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
   }
-  #videoResetBtn:hover { color: var(--text); background: var(--border); }
+  #videoCancelBtn:hover { color: var(--text); }
+
 
   .m-video-btn {
     display: none;
@@ -313,9 +536,32 @@
     display: flex; align-items: center; justify-content: center; overflow: hidden;
   }
   #msVideo { width: 100%; height: 100%; object-fit: contain; display: block; cursor: pointer; }
+
+  /* Transport row: prev-frame | play | next-frame */
+  .ms-transport-row {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 10px 16px 4px; flex-shrink: 0;
+  }
+  #msPrevFrameBtn, #msNextFrameBtn {
+    width: 38px; height: 38px; flex-shrink: 0;
+    background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
+    color: var(--text-mid); font-size: 13px; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent; transition: color 0.15s;
+  }
+  #msPrevFrameBtn:hover, #msNextFrameBtn:hover { color: var(--text); }
+  #msPlayBtn {
+    width: 48px; height: 48px; flex-shrink: 0;
+    background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
+    color: var(--text); font-size: 17px; cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Scrubber row: time | track | time */
   .ms-scrub-row {
     display: flex; align-items: center; gap: 10px;
-    padding: 14px 16px 6px; flex-shrink: 0;
+    padding: 6px 16px 6px; flex-shrink: 0;
   }
   .ms-time { font-size: 11px; color: var(--text-dim); min-width: 34px; font-variant-numeric: tabular-nums; }
   #msScrubber {
@@ -329,13 +575,6 @@
   }
   .ms-action-row {
     display: flex; gap: 8px; padding: 8px 16px 10px; flex-shrink: 0;
-  }
-  #msPlayBtn {
-    width: 44px; height: 44px; flex-shrink: 0;
-    background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
-    color: var(--text); font-size: 15px; cursor: pointer; font-family: inherit;
-    display: flex; align-items: center; justify-content: center;
-    -webkit-tap-highlight-color: transparent;
   }
   #msGrabBtn {
     flex: 1; height: 44px; background: var(--accent); color: var(--accent-fg);
@@ -393,6 +632,13 @@
     color: #fff;
     pointer-events: none;
   }
+  #exportBarX {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: rgba(255,255,255,0.6);
+    font-size: 16px; cursor: pointer; line-height: 1; padding: 4px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #exportBarX:hover { color: #fff; }
   @media (max-width: 639px) {
     #exportBar {
       bottom: 0; left: 0; right: 0; width: auto;
@@ -404,6 +650,16 @@
     #exportBarTrack { height: 44px; }
   }
 
+  /* ── Home button (centered in header) ── */
+  #homeBtn {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 6px; border-radius: var(--rsm);
+    display: flex; align-items: center;
+    transition: color 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  #homeBtn:hover { color: var(--text-mid); }
+
   /* ── Settings button ── */
   header { position: relative; }
   .settings-btn {
@@ -414,6 +670,59 @@
     flex-shrink: 0;
   }
   .settings-btn:hover { color: var(--text-mid); }
+
+  /* ── Undo/Redo buttons in header ── */
+  .header-right {
+    margin-left: auto; display: flex; align-items: center;
+    gap: 0; flex-shrink: 0;
+  }
+  .undo-wrap {
+    display: flex; align-items: center;
+    gap: 0; position: relative; flex-shrink: 0;
+  }
+  #undoBtn {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 4px 6px; border-radius: var(--rsm);
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, opacity 0.2s; -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0; opacity: 0.35;
+  }
+  #undoBtn.has-history { opacity: 1; }
+  #undoBtn:hover { color: var(--text); }
+
+  /* Floating dropdown */
+  #undoDropdown {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--radius); overflow: hidden;
+    z-index: 350; box-shadow: 0 8px 30px rgba(0,0,0,0.55);
+    min-width: 160px;
+  }
+  #undoDropdown[hidden] { display: none; }
+  /* Top row holds Undo + optional Redo side by side */
+  .undo-top-row { display: flex; }
+  .undo-item {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+    background: none; border: none; font-family: inherit;
+    font-size: 13px; padding: 13px 16px; cursor: pointer; color: var(--text-mid);
+    transition: background 0.1s, color 0.1s; -webkit-tap-highlight-color: transparent;
+    white-space: nowrap;
+  }
+  .undo-item:hover:not(:disabled) { background: var(--surface2); color: var(--text); }
+  .undo-item:disabled { opacity: 0.3; cursor: default; }
+  /* Redo sits beside Undo — separator line between them */
+  #redoDoBtn { border-left: 1px solid var(--border); }
+  .undo-divider { height: 1px; background: var(--border); }
+  .undo-item.danger { color: #ef4444; }
+  .undo-item.danger:hover { background: rgba(239,68,68,0.08); color: #ef4444; }
+
+  /* Reset confirm overlay */
+  #resetConfirm {
+    position: fixed; inset: 0; z-index: 510;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #resetConfirm[hidden] { display: none; }
 
   /* ── Settings panel ── */
   #settingsPanel {
@@ -513,6 +822,7 @@
       border-radius: 12px;
       overflow: hidden;
     }
+
 
     .ps {
       padding: 12px 16px;
@@ -705,28 +1015,144 @@
       padding: 12px 8px;
       font-size: 12px;
     }
+
+    /* Home screen mobile adjustments */
+    #homeTopBar { padding: max(20px, env(safe-area-inset-top) + 8px) 18px 0; }
+    #homeNewArea { min-height: 160px; }
+    #homeBoardsSection { padding: 22px 16px 60px; }
+    .home-divider { margin: 0 18px; }
+    #boardsGrid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+
+    /* ── Mobile expand: collapse panel card downward, canvas fills screen ── */
+    body.preview-expanded .panel {
+      max-height: 0;
+      margin: 0;
+      border: none;
+    }
+    body.preview-expanded .workspace {
+      padding: 8px 0 calc(52px + env(safe-area-inset-bottom));
+      gap: 0;
+    }
+    body.preview-expanded #previewOuter {
+      width: 100%;
+    }
   }
 </style>
 </head>
 <body>
 
+<!-- ── HOME SCREEN ── -->
+<div id="homeScreen">
+
+  <!-- Top bar: brand left, settings right -->
+  <div id="homeTopBar">
+    <h1>STLLS</h1>
+    <span>by David Godi</span>
+    <button id="homeSettingsBtn" aria-label="Settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- New board area: + sits toward the bottom -->
+  <div id="homeNewArea">
+    <button id="homeNewBtn" aria-label="New board">+</button>
+  </div>
+
+  <!-- Separator -->
+  <hr class="home-divider">
+
+  <!-- Boards list -->
+  <div id="homeBoardsSection">
+    <div class="home-boards-label">My Boards</div>
+    <div id="boardsGrid"></div>
+  </div>
+
+</div>
+
+<!-- Board context menu popup -->
+<div id="boardMenu" hidden>
+  <button class="bm-item danger" id="bmDelete">Delete</button>
+</div>
+
+<!-- Delete confirm overlay -->
+<div id="deleteConfirm" hidden>
+  <div class="dc-box">
+    <p>Delete this board?</p>
+    <div class="dc-btns">
+      <button id="dcCancel">Cancel</button>
+      <button id="dcYes">Delete</button>
+    </div>
+  </div>
+</div>
+
 <header>
   <h1>STLLS</h1>
   <span>by David Godi</span>
-  <button class="settings-btn" id="settingsBtn" aria-label="Settings">
+
+  <!-- Home button — centered absolutely in header -->
+  <button id="homeBtn" aria-label="Go home">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
     </svg>
   </button>
+
+  <!-- Right-side controls: undo left of settings, both in corner -->
+  <div class="header-right">
+    <div class="undo-wrap">
+      <button id="undoBtn" aria-label="Undo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>
+        </svg>
+      </button>
+      <div id="undoDropdown" hidden>
+        <div class="undo-top-row">
+          <button class="undo-item" id="undoDoBtn" disabled>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3"/>
+            </svg>
+            Undo
+          </button>
+          <button class="undo-item" id="redoDoBtn" hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 15 21 9m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3"/>
+            </svg>
+            Redo
+          </button>
+        </div>
+        <div class="undo-divider"></div>
+        <button class="undo-item danger" id="resetAllBtn">Reset all</button>
+      </div>
+    </div>
+    <button class="settings-btn" id="settingsBtn" aria-label="Settings">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
 </header>
 
 <div class="workspace">
 
   <!-- ── PREVIEW ── -->
   <div id="previewOuter">
-    <div id="emptyState"><span class="big">◻</span>Add images to begin</div>
-    <div id="layoutPreview"></div>
+    <div id="previewWrap">
+      <div id="emptyState"><span class="big">◻</span>Add images to begin</div>
+      <div id="layoutPreview"></div>
+      <!-- Expand button -->
+      <button id="previewExpandBtn" aria-label="Expand preview">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 3 21 3 21 9"/>
+          <polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/>
+          <line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <!-- ── PANEL ── -->
@@ -736,10 +1162,10 @@
     <div class="ps">
       <div class="section-label">Images</div>
 
-      <!-- Video done row (shown after stills committed from video) -->
-      <div id="videoSuccessRow" hidden>
-        <span>Video stills added</span>
-        <button id="videoResetBtn">↺ Reset</button>
+      <!-- Video analysis row (shown during processVideo) -->
+      <div id="videoAnalysisRow" hidden>
+        <span id="videoAnalysisLabel">Analysing video…</span>
+        <button id="videoCancelBtn" aria-label="Cancel video analysis">✕</button>
       </div>
 
       <!-- Import mode picker -->
@@ -754,11 +1180,13 @@
         </button>
       </div>
 
-      <!-- Stills import UI -->
-      <div class="dropzone" id="dropzone">
-        <input type="file" id="fileInput" accept="image/*" multiple>
-        <div class="dropzone-icon">⊕</div>
-        <p><strong>Drop images here</strong><br>or click to browse</p>
+      <!-- Stills import UI — always visible, never collapsible -->
+      <div id="importSection">
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" accept="image/*" multiple>
+          <div class="dropzone-icon">⊕</div>
+          <p><strong>Drop images here</strong><br>or click to browse</p>
+        </div>
       </div>
 
       <!-- Video import UI (hidden until video mode selected) -->
@@ -853,31 +1281,29 @@
       </div>
     </div>
 
-    <hr class="divider">
-
-    <!-- EXPORT -->
-    <div class="ps" id="psExport">
-      <div class="section-label">Export</div>
-      <div class="ctrl">
-        <div class="export-selects">
-          <label>Format</label>
-          <select id="exportFormat">
-            <option value="png">PNG</option>
-            <option value="jpg">JPG</option>
-          </select>
-          <label style="margin-left:auto;">Scale</label>
-          <select id="exportScale">
-            <option value="1">1×</option>
-            <option value="2" selected>2×</option>
-            <option value="3">3×</option>
-          </select>
-        </div>
-        <button class="export-btn" id="exportBtn" disabled>Export</button>
-      </div>
-    </div>
-
   </div><!-- /panel -->
 </div><!-- /workspace -->
+
+<!-- Export bar — fixed at screen bottom on both desktop and mobile -->
+<div class="ps" id="psExport">
+  <div class="section-label">Export</div>
+  <div class="ctrl">
+    <div class="export-selects">
+      <label>Format</label>
+      <select id="exportFormat">
+        <option value="png">PNG</option>
+        <option value="jpg">JPG</option>
+      </select>
+      <label style="margin-left:auto;">Scale</label>
+      <select id="exportScale">
+        <option value="1">1×</option>
+        <option value="2" selected>2×</option>
+        <option value="3">3×</option>
+      </select>
+    </div>
+    <button class="export-btn" id="exportBtn" disabled>Export</button>
+  </div>
+</div>
 
 <!-- Manual still picker overlay -->
 <div id="manualScrubber" hidden>
@@ -889,13 +1315,27 @@
   <div class="ms-video-wrap">
     <video id="msVideo" playsinline muted></video>
   </div>
+  <!-- Transport row: prev-frame | play | next-frame -->
+  <div class="ms-transport-row">
+    <button id="msPrevFrameBtn" aria-label="Previous frame">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>
+      </svg>
+    </button>
+    <button id="msPlayBtn">▶</button>
+    <button id="msNextFrameBtn" aria-label="Next frame">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+      </svg>
+    </button>
+  </div>
+  <!-- Scrubber row: time | track | time -->
   <div class="ms-scrub-row">
     <span class="ms-time" id="msTimeCur">0:00</span>
     <input type="range" id="msScrubber" min="0" max="1" step="0.001" value="0">
     <span class="ms-time" id="msTimeDur">0:00</span>
   </div>
   <div class="ms-action-row">
-    <button id="msPlayBtn">▶</button>
     <button id="msGrabBtn">Grab Still</button>
   </div>
   <div class="ms-grabbed-strip" id="msGrabbed"></div>
@@ -926,6 +1366,18 @@
   <div id="exportBarTrack">
     <div id="exportBarFill"></div>
     <span id="exportBarLabel">0%</span>
+    <button id="exportBarX" aria-label="Cancel export">✕</button>
+  </div>
+</div>
+
+<!-- Reset confirm overlay -->
+<div id="resetConfirm" hidden>
+  <div class="dc-box">
+    <p>Reset everything?</p>
+    <div class="dc-btns">
+      <button id="rcCancel">Cancel</button>
+      <button id="rcYes" style="background:#ef4444;color:#fff;font-weight:600;">Yes, reset</button>
+    </div>
   </div>
 </div>
 
@@ -951,25 +1403,247 @@ function itemT(item) {
   return (item.transforms[state.layout] ||= { scale: 1, fx: 0, fy: 0 });
 }
 
+// ── Undo/Redo ──────────────────────────────────────────────────────────────
+const undoHistory = [];
+const redoHistory = [];
+const MAX_HISTORY = 20;
+
+function snapshotImages() {
+  return state.images.map(item => ({
+    id: item.id,
+    name: item.name,
+    img: item.img,
+    transforms: JSON.parse(JSON.stringify(item.transforms)),
+  }));
+}
+
+function pushHistory() {
+  const snap = snapshotImages();
+  // Deduplicate: skip if transforms unchanged from last snapshot
+  if (undoHistory.length > 0) {
+    const last = undoHistory[undoHistory.length - 1];
+    if (last.length === snap.length) {
+      const same = last.every((s, i) =>
+        s.id === snap[i].id &&
+        JSON.stringify(s.transforms) === JSON.stringify(snap[i].transforms)
+      );
+      if (same) return;
+    }
+  }
+  if (undoHistory.length >= MAX_HISTORY) undoHistory.shift();
+  undoHistory.push(snap);
+  redoHistory.length = 0;
+  updateUndoBtn();
+}
+
+function applySnapshot(snap) {
+  state.images = snap.map(s => ({
+    id: s.id,
+    name: s.name,
+    img: s.img,
+    transforms: JSON.parse(JSON.stringify(s.transforms)),
+  }));
+  renderList();
+  buildLayout();
+}
+
+function updateUndoBtn() {
+  const hasUndo = undoHistory.length > 0;
+  undoBtn.classList.toggle('has-history', hasUndo);
+  undoDoBtn.disabled = !hasUndo;
+  redoDoBtn.hidden = redoHistory.length === 0;
+}
+
 // ── DOM refs ───────────────────────────────────────────────────────────────
-const dropzone      = document.getElementById('dropzone');
-const fileInput     = document.getElementById('fileInput');
-const mAddBtn       = document.getElementById('mAddBtn');
-const imageList     = document.getElementById('imageList');
-const previewOuter  = document.getElementById('previewOuter');
-const layoutPreview = document.getElementById('layoutPreview');
-const emptyState    = document.getElementById('emptyState');
-const exportBtn     = document.getElementById('exportBtn');
-const gapSlider     = document.getElementById('gapSlider');
-const gapVal        = document.getElementById('gapVal');
-const padSlider     = document.getElementById('padSlider');
-const padVal        = document.getElementById('padVal');
-const bgColor       = document.getElementById('bgColor');
-const exportFmt     = document.getElementById('exportFormat');
-const exportScaleEl = document.getElementById('exportScale');
-const gridOptsWrap  = document.getElementById('gridOptsWrap');
-const colsVal       = document.getElementById('colsVal');
-const rowsVal       = document.getElementById('rowsVal');
+const dropzone       = document.getElementById('dropzone');
+const fileInput      = document.getElementById('fileInput');
+const mAddBtn        = document.getElementById('mAddBtn');
+const imageList      = document.getElementById('imageList');
+const previewOuter   = document.getElementById('previewOuter');
+const previewWrap    = document.getElementById('previewWrap');
+const layoutPreview  = document.getElementById('layoutPreview');
+const emptyState     = document.getElementById('emptyState');
+const exportBtn      = document.getElementById('exportBtn');
+const gapSlider      = document.getElementById('gapSlider');
+const gapVal         = document.getElementById('gapVal');
+const padSlider      = document.getElementById('padSlider');
+const padVal         = document.getElementById('padVal');
+const bgColor        = document.getElementById('bgColor');
+const exportFmt      = document.getElementById('exportFormat');
+const exportScaleEl  = document.getElementById('exportScale');
+const gridOptsWrap   = document.getElementById('gridOptsWrap');
+const colsVal        = document.getElementById('colsVal');
+const rowsVal        = document.getElementById('rowsVal');
+const undoBtn        = document.getElementById('undoBtn');
+const undoDropdown   = document.getElementById('undoDropdown');
+const undoDoBtn      = document.getElementById('undoDoBtn');
+const redoDoBtn      = document.getElementById('redoDoBtn');
+const resetAllBtn    = document.getElementById('resetAllBtn');
+const previewExpandBtn = document.getElementById('previewExpandBtn');
+
+// ── Home screen ────────────────────────────────────────────────────────────
+const homeScreen     = document.getElementById('homeScreen');
+const homeNewBtn     = document.getElementById('homeNewBtn');
+const homeNewArea    = document.getElementById('homeNewArea');
+const homeSettingsBtn = document.getElementById('homeSettingsBtn');
+const boardsGrid     = document.getElementById('boardsGrid');
+const boardMenu      = document.getElementById('boardMenu');
+const bmDelete       = document.getElementById('bmDelete');
+const deleteConfirm  = document.getElementById('deleteConfirm');
+const dcCancel       = document.getElementById('dcCancel');
+const dcYes          = document.getElementById('dcYes');
+
+// Simple in-memory boards store (IndexedDB-lite fallback for this version)
+let boards = JSON.parse(localStorage.getItem('stlls-boards') || '[]');
+let _boardMenuId = null;
+let _currentBoardId = null;
+
+function saveBoards() {
+  // Store metadata only (no image src to avoid quota issues in simple version)
+  try { localStorage.setItem('stlls-boards', JSON.stringify(boards)); } catch(e) {}
+}
+
+function renderBoardsList() {
+  boardsGrid.innerHTML = '';
+  if (boards.length === 0) {
+    boardsGrid.innerHTML = '<div style="color:var(--text-dim);font-size:11px;grid-column:1/-1;padding:8px 0;">No boards yet. Tap + to create one.</div>';
+    return;
+  }
+  const sorted = [...boards].sort((a,b) => b.updatedAt - a.updatedAt);
+  sorted.forEach(board => {
+    const card = document.createElement('div');
+    card.className = 'board-card';
+    card.dataset.id = board.id;
+
+    const thumb = document.createElement('div');
+    thumb.className = 'board-thumb';
+    if (board.thumbnail) {
+      const img = document.createElement('img');
+      img.src = board.thumbnail;
+      thumb.appendChild(img);
+    } else {
+      const ph = document.createElement('span');
+      ph.className = 'board-thumb-empty';
+      ph.textContent = '◻';
+      thumb.appendChild(ph);
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'board-meta';
+    const dateEl = document.createElement('div');
+    dateEl.className = 'board-date';
+    dateEl.textContent = new Date(board.updatedAt).toLocaleDateString();
+    meta.appendChild(dateEl);
+
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'board-menu-btn';
+    menuBtn.textContent = '···';
+    menuBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      _boardMenuId = board.id;
+      const r = menuBtn.getBoundingClientRect();
+      boardMenu.style.top = (r.bottom + 4) + 'px';
+      boardMenu.style.left = Math.min(r.left, window.innerWidth - 150) + 'px';
+      boardMenu.hidden = false;
+    });
+
+    card.appendChild(thumb);
+    card.appendChild(meta);
+    card.appendChild(menuBtn);
+    card.addEventListener('click', () => openBoard(board.id));
+    boardsGrid.appendChild(card);
+  });
+}
+
+function openBoard(id) {
+  _currentBoardId = id;
+  homeScreen.hidden = true;
+}
+
+function generateThumbnail() {
+  if (state.images.length === 0) return null;
+  const [cW, cH] = canonicalDims();
+  const SIZE = 320;
+  const cvs = document.createElement('canvas');
+  cvs.width = SIZE; cvs.height = SIZE;
+  const ctx = cvs.getContext('2d');
+  // Fill background
+  ctx.fillStyle = state.bg;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  // Cover-fill: scale up so the layout fills the square, cropping edges
+  const scale = Math.max(SIZE / cW, SIZE / cH);
+  const tW = cW * scale, tH = cH * scale;
+  const ox = (SIZE - tW) / 2, oy = (SIZE - tH) / 2;
+  ctx.save();
+  ctx.translate(ox, oy);
+  getSlots(tW, tH).forEach(({ item, x, y, w, h }) => {
+    const { img } = item; const t = itemT(item);
+    const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+    const totalS = coverS * t.scale;
+    const left = (w - img.naturalWidth  * totalS) / 2 + t.fx * w;
+    const top  = (h - img.naturalHeight * totalS) / 2 + t.fy * h;
+    ctx.drawImage(img, -left / totalS, -top / totalS, w / totalS, h / totalS, x, y, w, h);
+  });
+  ctx.restore();
+  return cvs.toDataURL('image/jpeg', 0.82);
+}
+
+function goHome() {
+  // Save thumbnail snapshot of current board before leaving
+  if (_currentBoardId) {
+    const thumb = generateThumbnail();
+    const board = boards.find(b => b.id === _currentBoardId);
+    if (board) {
+      if (thumb) board.thumbnail = thumb;
+      board.updatedAt = Date.now();
+      saveBoards();
+    }
+  }
+  homeScreen.hidden = false;
+  renderBoardsList();
+}
+
+const homeBtn = document.getElementById('homeBtn');
+homeBtn.addEventListener('click', goHome);
+
+homeNewBtn.addEventListener('click', () => {
+  _currentBoardId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+  boards.push({ id: _currentBoardId, updatedAt: Date.now(), thumbnail: null });
+  saveBoards();
+  homeScreen.hidden = true;
+  // Reset editor state for new board
+  state.images = [];
+  undoHistory.length = 0;
+  redoHistory.length = 0;
+  updateUndoBtn();
+  renderList();
+  buildLayout();
+});
+
+// Board menu actions
+document.addEventListener('click', e => {
+  if (!boardMenu.hidden && !boardMenu.contains(e.target)) boardMenu.hidden = true;
+});
+bmDelete.addEventListener('click', () => {
+  boardMenu.hidden = true;
+  deleteConfirm.hidden = false;
+});
+dcCancel.addEventListener('click', () => { deleteConfirm.hidden = true; _boardMenuId = null; });
+dcYes.addEventListener('click', () => {
+  if (_boardMenuId) {
+    boards = boards.filter(b => b.id !== _boardMenuId);
+    saveBoards();
+    renderBoardsList();
+  }
+  deleteConfirm.hidden = true;
+  _boardMenuId = null;
+});
+
+// Home settings opens the same settings panel
+homeSettingsBtn.addEventListener('click', openSettings);
+
+// Show home screen on load
+renderBoardsList();
 
 // ── Preview sizing ─────────────────────────────────────────────────────────
 let previewW = 0, previewH = 0;
@@ -987,11 +1661,11 @@ function computePreviewSize() {
   layoutPreview.style.height = previewH + 'px';
 }
 
-// Debounce the resize observer to prevent loops
-let roTimer = null;
+// Use rAF so the canvas tracks layout changes (e.g. panel expand/collapse) every frame
+let roRaf = null;
 const ro = new ResizeObserver(() => {
-  clearTimeout(roTimer);
-  roTimer = setTimeout(() => { computePreviewSize(); buildLayout(); }, 30);
+  if (roRaf) cancelAnimationFrame(roRaf);
+  roRaf = requestAnimationFrame(() => { computePreviewSize(); buildLayout(); });
 });
 ro.observe(previewOuter);
 
@@ -1107,8 +1781,17 @@ window.addEventListener('mousemove', e => {
 window.addEventListener('mouseup', () => {
   if (!activeDrag) return;
   activeDrag.slotDiv.classList.remove('grabbing');
+  // snapshot after pan ends
+  pushHistory();
   activeDrag = null;
 });
+
+// Scroll-wheel zoom end debounce
+let _wheelTimer = null;
+function onWheelEnd() {
+  clearTimeout(_wheelTimer);
+  _wheelTimer = setTimeout(() => pushHistory(), 300);
+}
 
 // ── Per-slot interactions ──────────────────────────────────────────────────
 function attachSlotEvents(slotDiv, item) {
@@ -1130,6 +1813,7 @@ function attachSlotEvents(slotDiv, item) {
       e.clientX - r.left, e.clientY - r.top,
       itemT(item).scale * (e.deltaY > 0 ? 0.92 : 1 / 0.92));
     positionSlotImage(gi(), item, r.width, r.height);
+    onWheelEnd();
   }, { passive: false });
 
   // Double-click reset
@@ -1137,6 +1821,7 @@ function attachSlotEvents(slotDiv, item) {
   slotDiv.addEventListener('click', () => {
     const now = Date.now();
     if (now - lclick < 300) {
+      pushHistory();
       item.transforms[state.layout] = { scale: 1, fx: 0, fy: 0 };
       const r = slotDiv.getBoundingClientRect();
       positionSlotImage(gi(), item, r.width, r.height);
@@ -1155,6 +1840,7 @@ function attachSlotEvents(slotDiv, item) {
     if (e.touches.length === 1) {
       const now = Date.now();
       if (now - prevTap < 320) {
+        pushHistory();
         item.transforms[state.layout] = { scale: 1, fx: 0, fy: 0 };
         positionSlotImage(gi(), item, rect.width, rect.height);
         ts = null; slotDiv._lt = 0; return;
@@ -1214,8 +1900,11 @@ function attachSlotEvents(slotDiv, item) {
 
   slotDiv.addEventListener('touchend', e => {
     if (!ts) return;
-    if (e.touches.length === 0) { slotDiv._lt = ts.lastTap; ts = null; }
-    else if (e.touches.length === 1) {
+    if (e.touches.length === 0) {
+      // snapshot after touch gesture ends
+      pushHistory();
+      slotDiv._lt = ts.lastTap; ts = null;
+    } else if (e.touches.length === 1) {
       ts = { mode: 'pan', lx: e.touches[0].clientX, ly: e.touches[0].clientY, lastTap: 0 };
     }
   }, { passive: false });
@@ -1257,6 +1946,7 @@ function buildLayout() {
 
 // ── File handling ──────────────────────────────────────────────────────────
 function loadFiles(files) {
+  pushHistory();
   [...files].forEach(file => {
     if (file.type.startsWith('video/')) { handleVideoFile(file); return; }
     if (!file.type.startsWith('image/')) return;
@@ -1276,6 +1966,16 @@ function loadFiles(files) {
   });
 }
 
+// ── Video processing with cancellation ────────────────────────────────────
+let _processVideoCtrl = null;
+const videoAnalysisRow   = document.getElementById('videoAnalysisRow');
+const videoAnalysisLabel = document.getElementById('videoAnalysisLabel');
+const videoCancelBtn     = document.getElementById('videoCancelBtn');
+
+videoCancelBtn.addEventListener('click', () => {
+  if (_processVideoCtrl) _processVideoCtrl.cancelled = true;
+});
+
 async function processVideo(file) {
   // ── helpers ──────────────────────────────────────────────────────────────
   function seekTo(vid, t) {
@@ -1288,6 +1988,14 @@ async function processVideo(file) {
     exportBarFill.style.width = pct + '%';
     exportBarLabel.textContent = label;
   }
+
+  // ── cancellation object ───────────────────────────────────────────────────
+  const ctrl = { cancelled: false };
+  _processVideoCtrl = ctrl;
+
+  // ── show analysis row ─────────────────────────────────────────────────────
+  videoAnalysisLabel.textContent = 'Analysing video…';
+  videoAnalysisRow.hidden = false;
 
   // ── show progress bar ─────────────────────────────────────────────────────
   exportBarFill.style.transition = 'none';
@@ -1307,29 +2015,36 @@ async function processVideo(file) {
       video.addEventListener('error', rej, { once: true });
     });
   } catch {
-    exportBar.hidden = true; return;
+    exportBar.hidden = true; videoAnalysisRow.hidden = true; _processVideoCtrl = null; return;
+  }
+
+  if (ctrl.cancelled) {
+    exportBar.hidden = true; videoAnalysisRow.hidden = true;
+    URL.revokeObjectURL(video.src); _processVideoCtrl = null; return;
   }
 
   const duration = video.duration;
-  if (!duration || !isFinite(duration)) { exportBar.hidden = true; return; }
+  if (!duration || !isFinite(duration)) {
+    exportBar.hidden = true; videoAnalysisRow.hidden = true; _processVideoCtrl = null; return;
+  }
 
-  // ── comparison canvas (small = fast pixel diff) ───────────────────────────
+  // ── comparison canvas ─────────────────────────────────────────────────────
   const CW = 128, CH = Math.max(1, Math.round(128 * video.videoHeight / video.videoWidth));
   const cmpCvs = Object.assign(document.createElement('canvas'), { width: CW, height: CH });
   const cmpCtx = cmpCvs.getContext('2d', { willReadFrequently: true });
 
-  // Adaptive step: keep total seeks under ~150 for responsiveness
   const STEP      = Math.max(0.25, duration / 150);
-  const THRESHOLD = 28;   // mean abs pixel diff (0–255) that signals a cut
-  const MIN_SHOT  = Math.max(STEP * 1.5, 1.0); // min shot length in seconds
+  const THRESHOLD = 28;
+  const MIN_SHOT  = Math.max(STEP * 1.5, 1.0);
 
   let prevData  = null;
   let shotStart = 0;
   const shotMids = [];
   const totalSteps = Math.ceil(duration / STEP);
 
-  // ── scan pass: detect cuts ────────────────────────────────────────────────
+  // ── scan pass ─────────────────────────────────────────────────────────────
   for (let s = 0; s <= totalSteps; s++) {
+    if (ctrl.cancelled) break;
     const t = Math.min(s * STEP, duration);
     await seekTo(video, t);
     cmpCtx.drawImage(video, 0, 0, CW, CH);
@@ -1342,22 +2057,32 @@ async function processVideo(file) {
       diff /= (data.length / 4) * 3;
 
       if (diff > THRESHOLD && (t - shotStart) >= MIN_SHOT) {
-        shotMids.push((shotStart + (t - STEP)) / 2); // midpoint of completed shot
+        shotMids.push((shotStart + (t - STEP)) / 2);
         shotStart = t;
       }
     }
     prevData = data;
-    setBar(Math.round((s / totalSteps) * 60), `Scanning… ${Math.round((s / totalSteps) * 100)}%`);
+    const pct = Math.round((s / totalSteps) * 100);
+    videoAnalysisLabel.textContent = `Analysing video… ${pct}%`;
+    setBar(Math.round((s / totalSteps) * 60), `Scanning… ${pct}%`);
   }
-  shotMids.push((shotStart + duration) / 2); // always capture last shot
 
-  // ── capture pass: extract full-res frames at each midpoint ────────────────
+  if (ctrl.cancelled) {
+    exportBar.hidden = true; videoAnalysisRow.hidden = true;
+    URL.revokeObjectURL(video.src); _processVideoCtrl = null; return;
+  }
+
+  shotMids.push((shotStart + duration) / 2);
+
+  // ── capture pass ──────────────────────────────────────────────────────────
   const capCvs = Object.assign(document.createElement('canvas'),
     { width: video.videoWidth, height: video.videoHeight });
   const capCtx = capCvs.getContext('2d');
   const base   = file.name.replace(/\.[^.]+$/, '');
 
+  pushHistory();
   for (let i = 0; i < shotMids.length; i++) {
+    if (ctrl.cancelled) break;
     await seekTo(video, shotMids[i]);
     capCtx.drawImage(video, 0, 0);
     const img = await new Promise(res => {
@@ -1368,12 +2093,19 @@ async function processVideo(file) {
     state.images.push({ id: Date.now() + Math.random(), name: `${base}_${i+1}.jpg`, img, transforms: {} });
     imgStripOuter.classList.remove('collapsed');
     photosToggle.classList.remove('closed');
+    videoAnalysisLabel.textContent = `Extracting ${i+1} / ${shotMids.length}`;
     setBar(60 + Math.round(((i + 1) / shotMids.length) * 38), `Extracting ${i+1} / ${shotMids.length}`);
   }
 
   URL.revokeObjectURL(video.src);
+  _processVideoCtrl = null;
+  videoAnalysisRow.hidden = true;
   renderList(); buildLayout();
   if (state.images.length) exportBtn.disabled = false;
+
+  if (ctrl.cancelled) {
+    exportBar.hidden = true; return;
+  }
 
   // ── finish ────────────────────────────────────────────────────────────────
   exportBarFill.style.transition = 'width 0.3s ease';
@@ -1397,7 +2129,6 @@ photosToggle.addEventListener('click', () => {
     const previewH  = previewEl.offsetHeight;
     const dur = 260;
 
-    // Measure how much height the strip occupies (or will occupy)
     const cs = window.getComputedStyle(imgStripOuter);
     const delta = isOpen
       ? imgStripOuter.offsetHeight + parseFloat(cs.marginTop || 0)
@@ -1407,7 +2138,6 @@ photosToggle.addEventListener('click', () => {
       ? previewH + delta
       : Math.max(80, previewH - delta);
 
-    // Pin preview at current height, then animate to target
     previewEl.style.flex       = 'none';
     previewEl.style.height     = previewH + 'px';
     previewEl.style.transition = '';
@@ -1445,7 +2175,12 @@ function renderList() {
     name.className = 'image-name'; name.textContent = item.name;
     const rm = document.createElement('button');
     rm.className = 'image-remove'; rm.textContent = '×';
-    rm.addEventListener('click', e => { e.stopPropagation(); state.images.splice(i, 1); renderList(); buildLayout(); });
+    rm.addEventListener('click', e => {
+      e.stopPropagation();
+      pushHistory();
+      state.images.splice(i, 1);
+      renderList(); buildLayout();
+    });
     div.appendChild(thumb); div.appendChild(name); div.appendChild(rm);
     div.addEventListener('dragstart', () => { listDragSrc = i; div.classList.add('dragging'); });
     div.addEventListener('dragend', () => { div.classList.remove('dragging'); listDragSrc = null; renderList(); });
@@ -1454,6 +2189,7 @@ function renderList() {
     div.addEventListener('drop', e => {
       e.preventDefault(); div.classList.remove('drag-target');
       if (listDragSrc === null || listDragSrc === i) return;
+      pushHistory();
       state.images.splice(i, 0, state.images.splice(listDragSrc, 1)[0]);
       renderList(); buildLayout();
     });
@@ -1564,7 +2300,6 @@ function onMobileMove(e) {
   ghost.style.left = (touch.clientX - ox) + 'px';
   ghost.style.top  = fixedTop + 'px';
 
-  // Edge auto-scroll
   const sr = imgStripOuter.getBoundingClientRect();
   const edgeZone = 60;
   mDrag.scrollDir = touch.clientX < sr.left + edgeZone ? -1
@@ -1592,6 +2327,7 @@ function onMobileEnd() {
   if (mScrollRaf) { cancelAnimationFrame(mScrollRaf); mScrollRaf = null; }
 
   // Commit new visual order → state.images
+  pushHistory();
   const newImages = [...imageList.children].map(el => state.images[+el.dataset.index]);
   state.images = newImages;
 
@@ -1649,8 +2385,6 @@ let videoSubMode = 'auto';
 
 const videoImportArea  = document.getElementById('videoImportArea');
 const importModeRow    = document.getElementById('importModeRow');
-const videoSuccessRow  = document.getElementById('videoSuccessRow');
-const videoResetBtn    = document.getElementById('videoResetBtn');
 
 document.querySelectorAll('.import-mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1660,7 +2394,6 @@ document.querySelectorAll('.import-mode-btn').forEach(btn => {
     const isVideo = importMode === 'video';
     dropzone.hidden        = isVideo;
     videoImportArea.hidden = !isVideo;
-    // Retune the single file input for the active mode
     if (isVideo) {
       fileInput.accept = 'video/*';
       fileInput.removeAttribute('multiple');
@@ -1687,43 +2420,9 @@ function handleVideoFile(file) {
 }
 
 function onVideoComplete() {
-  // Fade out import mode row + video area, then show success row
-  importModeRow.style.transition = 'opacity 0.25s';
-  videoImportArea.style.transition = 'opacity 0.25s';
-  importModeRow.style.opacity = '0';
-  videoImportArea.style.opacity = '0';
-  setTimeout(() => {
-    importModeRow.hidden = true;
-    videoImportArea.hidden = true;
-    importModeRow.style.opacity = '';
-    videoImportArea.style.opacity = '';
-    videoSuccessRow.hidden = false;
-    // Restore file input to images for future still imports
-    fileInput.accept = 'image/*';
-    fileInput.setAttribute('multiple', '');
-  }, 260);
+  // Leave the import UI exactly as-is — buttons stay visible for another pick
 }
 
-videoResetBtn.addEventListener('click', () => {
-  videoSuccessRow.hidden = true;
-  importModeRow.hidden = false;
-  importModeRow.style.opacity = '0';
-  videoImportArea.hidden = false;
-  videoImportArea.style.opacity = '0';
-  // Ensure video mode is active
-  document.querySelectorAll('.import-mode-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('.import-mode-btn[data-imode="video"]').classList.add('active');
-  importMode = 'video';
-  dropzone.hidden = true;
-  fileInput.accept = 'video/*';
-  fileInput.removeAttribute('multiple');
-  requestAnimationFrame(() => {
-    importModeRow.style.transition = 'opacity 0.25s';
-    videoImportArea.style.transition = 'opacity 0.25s';
-    importModeRow.style.opacity = '1';
-    videoImportArea.style.opacity = '1';
-  });
-});
 
 // ── Manual still picker ──────────────────────────────────────────────────
 const manualScrubber = document.getElementById('manualScrubber');
@@ -1732,6 +2431,8 @@ const msScrubber     = document.getElementById('msScrubber');
 const msTimeCur      = document.getElementById('msTimeCur');
 const msTimeDur      = document.getElementById('msTimeDur');
 const msPlayBtn      = document.getElementById('msPlayBtn');
+const msPrevFrameBtn = document.getElementById('msPrevFrameBtn');
+const msNextFrameBtn = document.getElementById('msNextFrameBtn');
 const msGrabBtn      = document.getElementById('msGrabBtn');
 const msDoneBtn      = document.getElementById('msDoneBtn');
 const msCancelBtn    = document.getElementById('msCancelBtn');
@@ -1739,6 +2440,9 @@ const msGrabbed      = document.getElementById('msGrabbed');
 
 let msFrames = [];
 let msRaf    = null;
+
+// Frame-step seek debounce flag
+let msSeeking = false;
 
 function fmtTime(s) {
   const m = Math.floor(s / 60), sec = Math.floor(s % 60);
@@ -1751,6 +2455,7 @@ function openManualScrubber(file) {
   msDoneBtn.disabled = true;
   msDoneBtn.textContent = 'Done';
   msPlayBtn.textContent = '▶';
+  msSeeking = false;
 
   msVideo.src = URL.createObjectURL(file);
   msVideo.load();
@@ -1777,6 +2482,7 @@ function closeManualScrubber() {
 msCancelBtn.addEventListener('click', closeManualScrubber);
 
 msDoneBtn.addEventListener('click', () => {
+  pushHistory();
   msFrames.forEach(img => {
     state.images.push({ id: Date.now() + Math.random(), name: `still_${Date.now()}.jpg`, img, transforms: {} });
   });
@@ -1814,6 +2520,25 @@ msPlayBtn.addEventListener('click', () => {
 msVideo.addEventListener('click', () => msPlayBtn.click());
 msVideo.addEventListener('ended', () => { msPlayBtn.textContent = '▶'; cancelAnimationFrame(msRaf); msRaf = null; });
 
+// Frame step buttons with debounce — ignore if still seeking
+function stepFrame(delta) {
+  if (msSeeking) return;
+  msSeeking = true;
+  msVideo.pause();
+  msPlayBtn.textContent = '▶';
+  cancelAnimationFrame(msRaf); msRaf = null;
+  const newTime = Math.min(Math.max(msVideo.currentTime + delta, 0), msVideo.duration || 0);
+  msVideo.currentTime = newTime;
+  msVideo.addEventListener('seeked', () => {
+    msScrubber.value = msVideo.currentTime;
+    msTimeCur.textContent = fmtTime(msVideo.currentTime);
+    msSeeking = false;
+  }, { once: true });
+}
+
+msPrevFrameBtn.addEventListener('click', () => stepFrame(-1/30));
+msNextFrameBtn.addEventListener('click', () => stepFrame(1/30));
+
 // Grab current frame as still
 msGrabBtn.addEventListener('click', () => {
   if (!msVideo.videoWidth) return;
@@ -1825,11 +2550,9 @@ msGrabBtn.addEventListener('click', () => {
   img.src = cvs.toDataURL('image/jpeg', 0.92);
   msFrames.push(img);
 
-  // Visual flash feedback
   msGrabBtn.style.opacity = '0.3';
   setTimeout(() => msGrabBtn.style.opacity = '', 120);
 
-  // Add to grabbed strip
   const item = document.createElement('div');
   item.className = 'ms-grab-item';
   const thumb = document.createElement('img'); thumb.src = img.src;
@@ -1849,6 +2572,66 @@ function updateMsDone() {
   msDoneBtn.disabled = n === 0;
   msDoneBtn.textContent = n ? `Done (${n})` : 'Done';
 }
+
+// ── Undo/Redo UI ───────────────────────────────────────────────────────────
+// Toggle undo dropdown
+undoBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  undoDropdown.hidden = !undoDropdown.hidden;
+});
+document.addEventListener('click', e => {
+  if (!undoDropdown.hidden && !e.target.closest('.undo-wrap')) undoDropdown.hidden = true;
+});
+
+undoDoBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (undoHistory.length === 0) return;
+  redoHistory.push(snapshotImages());
+  applySnapshot(undoHistory.pop());
+  updateUndoBtn();
+});
+
+redoDoBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (redoHistory.length === 0) return;
+  undoHistory.push(snapshotImages());
+  applySnapshot(redoHistory.pop());
+  updateUndoBtn();
+});
+
+resetAllBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  undoDropdown.hidden = true;
+  resetConfirm.hidden = false;
+});
+
+const resetConfirm = document.getElementById('resetConfirm');
+document.getElementById('rcCancel').addEventListener('click', () => { resetConfirm.hidden = true; });
+document.getElementById('rcYes').addEventListener('click', () => {
+  undoHistory.length = 0;
+  redoHistory.length = 0;
+  state.images = [];
+  state.ratio = '9:16';
+  state.layout = 'vertical';
+  state.gridCols = 2;
+  state.gridRows = 2;
+  state.gap = 6;
+  state.padding = 0;
+  state.bg = '#000000';
+  // Reset UI controls
+  document.querySelectorAll('[data-ratio]').forEach(b => b.classList.toggle('active', b.dataset.ratio === '9:16'));
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === 'vertical'));
+  gapSlider.value = 6; gapVal.textContent = 6;
+  padSlider.value = 0; padVal.textContent = 0;
+  bgColor.value = '#000000';
+  gridOptsWrap.hidden = true;
+  updateUndoBtn();
+  renderList(); buildLayout();
+  resetConfirm.hidden = true;
+});
+
+// Initialize undo button state
+updateUndoBtn();
 
 // ── Settings ───────────────────────────────────────────────────────────────
 const settingsBtn   = document.getElementById('settingsBtn');
@@ -1880,21 +2663,63 @@ themeToggle.addEventListener('change', () => {
 
 applyTheme(localStorage.getItem('stlls-theme') === 'light');
 
+// ── Preview expand/collapse ─────────────────────────────────────────────────
+let previewExpanded = false;
+
+previewExpandBtn.addEventListener('click', () => {
+  previewExpanded = !previewExpanded;
+  document.body.classList.toggle('preview-expanded', previewExpanded);
+
+  // Update icon: expand arrows vs compress arrows
+  if (previewExpanded) {
+    previewExpandBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/>
+      <line x1="10" y1="14" x2="3" y2="21"/><line x1="21" y1="3" x2="14" y2="10"/>
+    </svg>`;
+  } else {
+    previewExpandBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+      <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+    </svg>`;
+  }
+
+  // Poll every frame for the full transition duration so both width AND height
+  // changes are caught (padding transition doesn't always fire ResizeObserver)
+  const start = performance.now();
+  const duration = 750;
+  (function poll(now) {
+    computePreviewSize();
+    buildLayout();
+    if (now - start < duration) requestAnimationFrame(poll);
+  })(performance.now());
+});
+
 // ── Export ─────────────────────────────────────────────────────────────────
 const exportBar      = document.getElementById('exportBar');
 const exportBarFill  = document.getElementById('exportBarFill');
 const exportBarLabel = document.getElementById('exportBarLabel');
+const exportBarX     = document.getElementById('exportBarX');
 
+let _exportCancelled = false;
 let _labelRaf = null;
 
+exportBarX.addEventListener('click', () => {
+  _exportCancelled = true;
+  cancelAnimationFrame(_labelRaf);
+  exportBar.hidden = true;
+  exportBarFill.style.transition = 'none';
+  exportBarFill.style.width = '0%';
+  exportBarLabel.textContent = '0%';
+});
+
 function startExportBar() {
+  _exportCancelled = false;
   exportBarFill.style.transition = 'none';
   exportBarFill.style.width = '0%';
   exportBarLabel.textContent = '0%';
   exportBar.hidden = false;
 
-  // Animate label counter in sync with the CSS ease-out transition
-  const duration = 1100; // ms — matches CSS transition below
+  const duration = 1100;
   const target   = 90;
   const start    = performance.now();
   const easeOut  = t => 1 - Math.pow(1 - t, 2);
@@ -1905,6 +2730,7 @@ function startExportBar() {
   }));
 
   function tick(now) {
+    if (_exportCancelled) return;
     const p = Math.min((now - start) / duration, 1);
     exportBarLabel.textContent = Math.round(easeOut(p) * target) + '%';
     if (p < 1) _labelRaf = requestAnimationFrame(tick);
@@ -1912,9 +2738,11 @@ function startExportBar() {
   _labelRaf = requestAnimationFrame(tick);
 }
 
-let _exportFmt; // keep fmt for exportComplete
+let _exportFmt;
 
-exportBtn.addEventListener('click', () => {
+exportBtn.addEventListener('click', doExport);
+
+function doExport() {
   const expScale = +exportScaleEl.value;
   _exportFmt     = exportFmt.value;
   const mime     = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
@@ -1938,6 +2766,7 @@ exportBtn.addEventListener('click', () => {
   });
 
   cvs.toBlob(blob => {
+    if (_exportCancelled) return;
     if (window.webkit?.messageHandlers?.exportImage) {
       const reader = new FileReader();
       reader.onload = () => window.webkit.messageHandlers.exportImage.postMessage(reader.result);
@@ -1950,9 +2779,10 @@ exportBtn.addEventListener('click', () => {
       window.exportComplete(true);
     }
   }, mime, qual);
-});
+}
 
 window.exportComplete = function(success) {
+  if (_exportCancelled) return;
   cancelAnimationFrame(_labelRaf);
 
   exportBarFill.style.transition = 'width 0.3s ease-out';

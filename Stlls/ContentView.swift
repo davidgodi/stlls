@@ -4,6 +4,7 @@ import UIKit
 import Photos
 import PhotosUI
 import UniformTypeIdentifiers
+import AVFoundation
 
 // MARK: - JS → Swift bridge for image export
 
@@ -46,13 +47,226 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+// MARK: - JS → Swift bridge for native video frame extraction
+
+class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControllerDelegate {
+
+    weak var viewController: UIViewController?
+    weak var webView: WKWebView?
+
+    // AVAssets stored by UUID key, with their temp file URLs for cleanup
+    private var assets: [String: AVAsset] = [:]
+    private var tempFiles: [String: URL] = [:]
+
+    // Active image generators keyed by assetKey — cancellable for scrubber debouncing
+    private var activeGenerators: [String: AVAssetImageGenerator] = [:]
+
+    // MARK: Message routing
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        switch message.name {
+        case "requestVideoSelection":
+            DispatchQueue.main.async { self.presentVideoPicker() }
+        case "extractVideoFrame":
+            guard let body = message.body as? [String: Any] else { return }
+            extractFrame(body)
+        case "releaseVideoAsset":
+            guard let key = message.body as? String else { return }
+            releaseAsset(key)
+        default:
+            break
+        }
+    }
+
+    // MARK: Video picker
+
+    private func presentVideoPicker() {
+        var cfg = PHPickerConfiguration(photoLibrary: .shared())
+        cfg.selectionLimit = 1
+        cfg.filter = .videos
+        let picker = PHPickerViewController(configuration: cfg)
+        picker.delegate = self
+        viewController?.present(picker, animated: true)
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true)
+
+        guard let result = results.first,
+              result.itemProvider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) else {
+            sendToJS("window.nativeVideoReady(null)")
+            return
+        }
+
+        result.itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { [weak self] url, _ in
+            guard let url = url else {
+                self?.sendToJS("window.nativeVideoReady(null)")
+                return
+            }
+
+            // Create a persistent reference via hardlink (instant, zero data copy).
+            // Falls back to a full copy if hardlink fails (different volume etc.).
+            let dest = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + "." + url.pathExtension)
+
+            do {
+                try FileManager.default.linkItem(at: url, to: dest)
+            } catch {
+                do {
+                    try FileManager.default.copyItem(at: url, to: dest)
+                } catch {
+                    self?.sendToJS("window.nativeVideoReady(null)")
+                    return
+                }
+            }
+
+            let asset = AVURLAsset(url: dest)
+
+            asset.loadValuesAsynchronously(forKeys: ["duration", "tracks"]) { [weak self] in
+                var duration = 0.0
+                var w = 1920, h = 1080
+                var fps: Float = 30.0
+
+                if asset.statusOfValue(forKey: "duration", error: nil) == .loaded {
+                    duration = max(0, CMTimeGetSeconds(asset.duration))
+                }
+
+                if asset.statusOfValue(forKey: "tracks", error: nil) == .loaded,
+                   let track = asset.tracks(withMediaType: .video).first {
+                    // Apply preferred transform to get correct display orientation
+                    let sz = track.naturalSize.applying(track.preferredTransform)
+                    w = Int(abs(sz.width))
+                    h = Int(abs(sz.height))
+                    if w == 0 { w = Int(track.naturalSize.width) }
+                    if h == 0 { h = Int(track.naturalSize.height) }
+                    if track.nominalFrameRate > 0 { fps = track.nominalFrameRate }
+                }
+
+                let key = UUID().uuidString
+
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    self.assets[key] = asset
+                    self.tempFiles[key] = dest
+
+                    let payload: [String: Any] = [
+                        "assetKey": key,
+                        "duration": duration,
+                        "width": w,
+                        "height": h,
+                        "frameRate": fps
+                    ]
+                    self.webView?.callAsyncJavaScript(
+                        "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)",
+                        arguments: ["payload": payload],
+                        in: nil,
+                        in: .page,
+                        completionHandler: nil
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: Frame extraction
+
+    private func extractFrame(_ body: [String: Any]) {
+        guard let assetKey = body["assetKey"] as? String,
+              let time     = body["time"]     as? Double,
+              let reqId    = body["requestId"] as? String else { return }
+
+        let isPreview = body["preview"] as? Bool ?? false
+
+        guard let asset = assets[assetKey] else {
+            sendFrame(requestId: reqId, dataURL: nil)
+            return
+        }
+
+        // Cancel any in-flight preview generator for this asset (scrubber debounce)
+        if isPreview {
+            activeGenerators[assetKey]?.cancelAllCGImageGeneration()
+            activeGenerators.removeValue(forKey: assetKey)
+        }
+
+        let gen = AVAssetImageGenerator(asset: asset)
+        gen.appliesPreferredTrackTransform = true
+        // Wide tolerance on preview = near-keyframe seeks = fast even for ProRes 4K
+        let tol = CMTime(seconds: isPreview ? 1.0 : 0.2, preferredTimescale: 600)
+        gen.requestedTimeToleranceBefore = tol
+        gen.requestedTimeToleranceAfter  = tol
+        if isPreview {
+            gen.maximumSize = CGSize(width: 1280, height: 720)
+            activeGenerators[assetKey] = gen
+        }
+
+        let cmTime = CMTime(seconds: max(0, time), preferredTimescale: 600)
+
+        gen.generateCGImagesAsynchronously(forTimes: [NSValue(time: cmTime)]) { [weak self] _, cgImage, _, _, _ in
+            var dataURL: String? = nil
+
+            if let cgImage = cgImage {
+                let quality: CGFloat = isPreview ? 0.75 : 0.90
+                if let jpeg = UIImage(cgImage: cgImage).jpegData(compressionQuality: quality) {
+                    dataURL = "data:image/jpeg;base64," + jpeg.base64EncodedString()
+                }
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                if isPreview { self?.activeGenerators.removeValue(forKey: assetKey) }
+                self?.sendFrame(requestId: reqId, dataURL: dataURL)
+            }
+        }
+    }
+
+    private func sendFrame(requestId: String, dataURL: String?) {
+        let payload: [String: Any] = [
+            "requestId": requestId,
+            "dataURL": dataURL ?? NSNull()
+        ]
+        webView?.callAsyncJavaScript(
+            "if (typeof window.nativeVideoFrame === 'function') window.nativeVideoFrame(payload)",
+            arguments: ["payload": payload],
+            in: nil,
+            in: .page,
+            completionHandler: nil
+        )
+    }
+
+    // MARK: Asset cleanup
+
+    private func releaseAsset(_ key: String) {
+        activeGenerators[key]?.cancelAllCGImageGeneration()
+        activeGenerators.removeValue(forKey: key)
+        assets.removeValue(forKey: key)
+        if let url = tempFiles.removeValue(forKey: key) {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    // MARK: Helpers
+
+    private func sendToJS(_ js: String) {
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+}
+
 // MARK: - UIViewController that hosts WKWebView
 
 class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerDelegate {
 
     private var webView: WKWebView!
     private let exportHandler = ExportMessageHandler()
+    private let videoHandler  = VideoMessageHandler()
     private var filePickerCompletionHandler: (([URL]?) -> Void)?
+
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        return .portrait
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -64,6 +278,9 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
     private func setupWebView() {
         let userContent = WKUserContentController()
         userContent.add(exportHandler, name: "exportImage")
+        userContent.add(videoHandler,  name: "requestVideoSelection")
+        userContent.add(videoHandler,  name: "extractVideoFrame")
+        userContent.add(videoHandler,  name: "releaseVideoAsset")
 
         let config = WKWebViewConfiguration()
         config.userContentController = userContent
@@ -76,9 +293,11 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.translatesAutoresizingMaskIntoConstraints = false
-        webView.uiDelegate = self   // ← enables custom file picker
+        webView.uiDelegate = self
 
         exportHandler.webView = webView
+        videoHandler.webView  = webView
+        videoHandler.viewController = self
 
         view.addSubview(webView)
         NSLayoutConstraint.activate([
@@ -97,27 +316,29 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         webView.loadFileURL(indexURL, allowingReadAccessTo: webDir)
     }
 
-    // MARK: - WKUIDelegate — intercept file inputs (iOS 16+)
+    // MARK: - WKUIDelegate — intercept file inputs (images only)
 
+    @available(iOS 18.4, *)
     func webView(
         _ webView: WKWebView,
         runOpenPanelWith parameters: WKOpenPanelParameters,
         initiatedByFrame frame: WKFrameInfo,
         completionHandler: @escaping ([URL]?) -> Void
     ) {
+        // Video is now handled natively via requestVideoSelection message.
+        // This delegate only handles image selection.
         filePickerCompletionHandler = completionHandler
 
         var config = PHPickerConfiguration(photoLibrary: .shared())
-        // multiple=true means stills mode; single means video mode
-        config.selectionLimit = parameters.allowsMultipleSelection ? 0 : 1
-        config.filter = parameters.allowsMultipleSelection ? .images : .videos
+        config.selectionLimit = 0
+        config.filter = .images
 
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
         present(picker, animated: true)
     }
 
-    // MARK: - PHPickerViewControllerDelegate
+    // MARK: - PHPickerViewControllerDelegate (images)
 
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(animated: true)
@@ -134,36 +355,18 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
 
         for result in results {
             let provider = result.itemProvider
-
-            let typeId: String
-            if provider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) {
-                typeId = UTType.movie.identifier
-            } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-                typeId = UTType.image.identifier
-            } else {
-                continue
-            }
+            guard provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) else { continue }
 
             group.enter()
-            provider.loadFileRepresentation(forTypeIdentifier: typeId) { url, _ in
+            provider.loadFileRepresentation(forTypeIdentifier: UTType.image.identifier) { url, _ in
                 defer { group.leave() }
                 guard let url = url else { return }
-
-                if typeId == UTType.image.identifier {
-                    // Convert to JPEG for reliable web decoding (handles HEIC etc.)
-                    if let data = try? Data(contentsOf: url),
-                       let uiImage = UIImage(data: data),
-                       let jpeg = uiImage.jpegData(compressionQuality: 0.9) {
-                        let dest = tempDir.appendingPathComponent(UUID().uuidString + ".jpg")
-                        try? jpeg.write(to: dest)
-                        urls.append(dest)
-                    }
-                } else {
-                    // Copy video to a stable temp path WKWebView can read
-                    let dest = tempDir.appendingPathComponent(
-                        UUID().uuidString + "." + url.pathExtension
-                    )
-                    try? FileManager.default.copyItem(at: url, to: dest)
+                // Convert to JPEG for reliable web decoding (handles HEIC etc.)
+                if let data = try? Data(contentsOf: url),
+                   let uiImage = UIImage(data: data),
+                   let jpeg = uiImage.jpegData(compressionQuality: 0.9) {
+                    let dest = tempDir.appendingPathComponent(UUID().uuidString + ".jpg")
+                    try? jpeg.write(to: dest)
                     urls.append(dest)
                 }
             }

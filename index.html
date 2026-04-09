@@ -688,6 +688,13 @@
     padding: 18px 18px 14px; flex-shrink: 0; border-bottom: 1px solid var(--border);
   }
   .ms-title { font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); }
+  #msFileName {
+    font-size: 11px; color: var(--text-dim); letter-spacing: 0.01em;
+    text-align: center; padding: 0 18px 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex-shrink: 0;
+  }
+  #msFileName[hidden] { display: none; }
   #msCancelBtn, #msDoneBtn {
     background: none; border: none; cursor: pointer; font-family: inherit;
     font-size: 13px; padding: 4px 6px; -webkit-tap-highlight-color: transparent;
@@ -768,9 +775,9 @@
   }
   #msGrabBtn:active { opacity: 0.6; }
   .ms-grabbed-strip {
-    display: flex; gap: 6px; overflow-x: auto; flex-shrink: 0;
-    padding: 10px 16px; padding-bottom: max(10px, env(safe-area-inset-bottom));
-    min-height: 82px; max-height: 82px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0;
+    padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+    min-height: 116px; max-height: 116px; border-top: 1px solid var(--border);
     scrollbar-width: none; -webkit-overflow-scrolling: touch; align-items: center;
   }
   .ms-grabbed-strip:empty::before {
@@ -780,7 +787,7 @@
   }
   .ms-grabbed-strip::-webkit-scrollbar { display: none; }
   .ms-grab-item { position: relative; flex-shrink: 0; }
-  .ms-grab-item img { width: 58px; height: 58px; border-radius: 6px; object-fit: cover; display: block; }
+  .ms-grab-item img { width: 84px; height: 84px; border-radius: 8px; object-fit: cover; display: block; }
   .ms-grab-remove {
     position: absolute; top: -5px; right: -5px; width: 18px; height: 18px;
     background: #1c1c1c; border: 1px solid var(--border2); border-radius: 50%;
@@ -1695,6 +1702,7 @@
     <span class="ms-title">Pick Stills</span>
     <button id="msDoneBtn" disabled>Done</button>
   </div>
+  <div id="msFileName" hidden></div>
   <div class="ms-video-wrap">
     <video id="msVideo" playsinline muted></video>
     <img id="msFrameImg" hidden alt="">
@@ -1707,7 +1715,7 @@
         <polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>
       </svg>
     </button>
-    <button id="msPlayBtn">▶</button>
+    <button id="msPlayBtn"><svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg></button>
     <button id="msNextFrameBtn" aria-label="Next frame">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
@@ -3026,6 +3034,7 @@ let _nativeMsSeeking      = false;
 let _nativeMsFrame        = null;   // dataURL of current frame (for Grab)
 let _nativeMsPlayInterval = null;
 let _nativeWebURL         = null;   // stlls-video:// URL for H.264/HEVC
+let _nativeFileName       = null;   // original filename from native picker
 
 const isNativeVideo = () => !!(window.webkit?.messageHandlers?.requestVideoSelection);
 
@@ -3035,11 +3044,12 @@ const isNativeVideo = () => !!(window.webkit?.messageHandlers?.requestVideoSelec
 window.nativeVideoReady = function(payload) {
   videoAnalysisRow.hidden = true;
   if (!payload) return;
-  _nativeAssetKey = payload.assetKey;
-  _nativeDuration = payload.duration  || 0;
-  _nativeFps      = payload.frameRate || 30;
-  _nativeVideoW   = payload.width     || 1920;
-  _nativeVideoH   = payload.height    || 1080;
+  _nativeAssetKey  = payload.assetKey;
+  _nativeDuration  = payload.duration  || 0;
+  _nativeFps       = payload.frameRate || 30;
+  _nativeVideoW    = payload.width     || 1920;
+  _nativeVideoH    = payload.height    || 1080;
+  _nativeFileName  = payload.fileName  || null;
 
   if (payload.webURL) {
     // H.264 / HEVC — let the browser handle seeking via <video> (fast)
@@ -3196,6 +3206,7 @@ async function processVideoNative() {
 // ── Manual scrubber — native image mode ───────────────────────────────────
 const msFrameImg        = document.getElementById('msFrameImg');
 const msFrameImgLoading = document.getElementById('msFrameImgLoading');
+const msFileName        = document.getElementById('msFileName');
 
 async function _nativeMsSeekTo(t) {
   t = Math.min(Math.max(t, 0), _nativeDuration);
@@ -3217,9 +3228,13 @@ async function openManualScrubberNative() {
   msGrabbed.innerHTML = '';
   msDoneBtn.disabled  = true;
   msDoneBtn.textContent = 'Done';
-  msPlayBtn.textContent = '▶';
+  msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>';
   msSeeking = false;
   _nativeMsTime = 0; _nativeMsSeeking = false;
+
+  // Show filename
+  msFileName.textContent = _nativeFileName || '';
+  msFileName.hidden = !_nativeFileName;
 
   // Show img, hide video element
   msVideo.hidden = true;
@@ -3279,9 +3294,14 @@ function openManualScrubber(fileOrURL) {
   msGrabbed.innerHTML = '';
   msDoneBtn.disabled = true;
   msDoneBtn.textContent = 'Done';
-  msPlayBtn.textContent = '▶';
+  msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>';
   msSeeking = false;
   _msIsURL = typeof fileOrURL === 'string';
+
+  // Show filename — available for File objects; native path sets via _nativeFileName
+  const name = (!_msIsURL && fileOrURL instanceof File) ? fileOrURL.name : (_nativeFileName || '');
+  msFileName.textContent = name;
+  msFileName.hidden = !name;
 
   msVideo.src = _msIsURL ? fileOrURL : URL.createObjectURL(fileOrURL);
   msVideo.load();
@@ -3317,6 +3337,8 @@ function closeManualScrubber() {
     }
     _msIsURL = false;
   }
+  msFileName.hidden = true;
+  msFileName.textContent = '';
   manualScrubber.hidden = true;
 }
 
@@ -3354,21 +3376,21 @@ function msRafLoop() {
   msScrubber.value = msVideo.currentTime;
   msTimeCur.textContent = fmtTime(msVideo.currentTime);
   if (!msVideo.paused && !msVideo.ended) msRaf = requestAnimationFrame(msRafLoop);
-  else { msRaf = null; msPlayBtn.textContent = '▶'; }
+  else { msRaf = null; msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>'; }
 }
 
 msPlayBtn.addEventListener('click', () => {
   if (_nativeMs) {
     if (_nativeMsPlayInterval) {
       clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null;
-      msPlayBtn.textContent = '▶';
+      msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>';
     } else {
-      msPlayBtn.textContent = '⏸';
+      msPlayBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>';
       const frameInterval = Math.round(1000 / Math.min(6, _nativeFps));
       _nativeMsPlayInterval = setInterval(async () => {
         if (_nativeMsTime >= _nativeDuration) {
           clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null;
-          msPlayBtn.textContent = '▶'; return;
+          msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>'; return;
         }
         const next = Math.min(_nativeMsTime + 1 / _nativeFps, _nativeDuration);
         await _nativeMsSeekTo(next);
@@ -3382,20 +3404,20 @@ msPlayBtn.addEventListener('click', () => {
     if (!msRaf) msRaf = requestAnimationFrame(msRafLoop);
   } else {
     msVideo.pause();
-    msPlayBtn.textContent = '▶';
+    msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>';
     cancelAnimationFrame(msRaf); msRaf = null;
   }
 });
 
 msVideo.addEventListener('click', () => msPlayBtn.click());
-msVideo.addEventListener('ended', () => { msPlayBtn.textContent = '▶'; cancelAnimationFrame(msRaf); msRaf = null; });
+msVideo.addEventListener('ended', () => { msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>'; cancelAnimationFrame(msRaf); msRaf = null; });
 
 // Frame step buttons with debounce — ignore if still seeking
 async function stepFrame(delta) {
   if (_nativeMs) {
     if (_nativeMsSeeking) return;
     _nativeMsSeeking = true;
-    if (_nativeMsPlayInterval) { clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null; msPlayBtn.textContent = '▶'; }
+    if (_nativeMsPlayInterval) { clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null; msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>'; }
     await _nativeMsSeekTo(_nativeMsTime + delta);
     _nativeMsSeeking = false;
     return;
@@ -3403,7 +3425,7 @@ async function stepFrame(delta) {
   if (msSeeking) return;
   msSeeking = true;
   msVideo.pause();
-  msPlayBtn.textContent = '▶';
+  msPlayBtn.innerHTML = '<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg>';
   cancelAnimationFrame(msRaf); msRaf = null;
   const newTime = Math.min(Math.max(msVideo.currentTime + delta, 0), msVideo.duration || 0);
   msVideo.currentTime = newTime;

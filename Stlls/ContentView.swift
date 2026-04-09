@@ -224,7 +224,7 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                 await MainActor.run {
                     self.tempFiles[key] = dest
 
-                    let fileName = dest.lastPathComponent
+                    let fileName = url.lastPathComponent
                     let jsCallback = "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)"
 
                     if useWebPath {

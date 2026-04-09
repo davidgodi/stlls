@@ -129,6 +129,91 @@
   }
   #homeNewBtn:hover { border-color: var(--muted); color: var(--text-mid); transform: scale(1.06); }
 
+  #homeNewGroup {
+    display: flex; flex-direction: column;
+    align-items: center; gap: 12px;
+  }
+  #homeNewLabel {
+    font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-dim);
+    pointer-events: none; user-select: none;
+  }
+
+  /* ── WELCOME OVERLAY ── */
+  #welcomeOverlay {
+    position: fixed; inset: 0; z-index: 5000;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 48px 36px calc(48px + env(safe-area-inset-bottom));
+    gap: 0;
+  }
+  #welcomeOverlay[hidden] { display: none !important; }
+  @keyframes welcomeIn {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes welcomeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-12px); }
+  }
+  #welcomeOverlay.entering { animation: welcomeIn 0.45s cubic-bezier(0.4,0,0.2,1) forwards; }
+  #welcomeOverlay.leaving  { animation: welcomeOut 0.32s cubic-bezier(0.4,0,0.2,1) forwards; }
+
+  #welcomeInner {
+    width: 100%; max-width: 300px;
+    display: flex; flex-direction: column; gap: 28px;
+  }
+  #welcomeHeading {
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  #welcomeHeading h2 {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent); margin: 0;
+  }
+  #welcomeHeading p {
+    font-size: 13px; color: var(--text-dim); margin: 0; line-height: 1.5;
+  }
+  #welcomeForm {
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  #welcomeNameInput {
+    width: 100%; box-sizing: border-box;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text);
+    font-size: 15px; font-weight: 500;
+    padding: 13px 14px; outline: none;
+    transition: border-color 0.18s;
+    -webkit-appearance: none;
+    font-family: inherit;
+  }
+  #welcomeNameInput::placeholder { color: var(--text-dim); font-weight: 400; }
+  #welcomeNameInput:focus { border-color: var(--muted); }
+  #welcomeContinueBtn {
+    width: 100%; padding: 13px;
+    background: var(--accent); color: var(--accent-fg);
+    border: none; border-radius: var(--rsm);
+    font-size: 13px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; cursor: pointer;
+    transition: opacity 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  #welcomeContinueBtn:active { opacity: 0.8; }
+  #welcomeContinueBtn:disabled { opacity: 0.35; cursor: default; }
+
+  /* ── HOME GREETING ── */
+  #homeGreeting {
+    padding: 10px 28px 0;
+    flex-shrink: 0;
+  }
+  #homeGreeting p {
+    font-size: 24px; font-weight: 400;
+    color: var(--text); margin: 0; line-height: 1.3;
+    letter-spacing: -0.02em;
+  }
+  #homeGreeting p strong {
+    font-weight: 700;
+  }
+
   /* Separator between new-board area and boards list */
   .home-divider {
     border: none;
@@ -282,8 +367,8 @@
   .workspace {
     flex: 1; display: flex; min-height: 0;
     padding: 20px 36px 32px; gap: 24px;
-    transition: padding 0.68s cubic-bezier(0.4,0,0.2,1),
-                gap 0.68s cubic-bezier(0.4,0,0.2,1);
+    transition: padding 0.88s cubic-bezier(0,0,0.2,1),
+                gap 0.88s cubic-bezier(0,0,0.2,1);
   }
 
   /* ── PREVIEW ── */
@@ -337,10 +422,10 @@
     overflow: hidden;
     min-height: 0;
     max-height: 2000px;
-    transition: width 0.68s cubic-bezier(0.4,0,0.2,1),
-                max-height 0.68s cubic-bezier(0.4,0,0.2,1),
-                opacity 0.6s ease,
-                transform 0.68s cubic-bezier(0.4,0,0.2,1);
+    transition: width 0.88s cubic-bezier(0,0,0.2,1),
+                max-height 0.88s cubic-bezier(0,0,0.2,1),
+                opacity 0.78s cubic-bezier(0,0,0.2,1),
+                transform 0.88s cubic-bezier(0,0,0.2,1);
   }
 
   /* ── Export bar (desktop) — fixed bottom strip ── */
@@ -841,6 +926,30 @@
     padding: 13px 0; border-bottom: 1px solid var(--border);
   }
   .sp-row-label { font-size: 13px; color: var(--text); }
+  .sp-row--name { align-items: center; gap: 12px; }
+  .sp-name-field {
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  #settingsNameInput {
+    width: 130px; background: var(--surface);
+    border: 1px solid var(--border2); border-radius: var(--rsm);
+    color: var(--text); font-size: 13px; font-weight: 500;
+    padding: 7px 10px; outline: none;
+    transition: border-color 0.18s; font-family: inherit;
+    -webkit-appearance: none;
+  }
+  #settingsNameInput::placeholder { color: var(--text-dim); font-weight: 400; }
+  #settingsNameInput:focus { border-color: var(--muted); }
+  #settingsNameSave {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text-mid);
+    font-size: 12px; font-weight: 500; padding: 7px 12px;
+    cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #settingsNameSave:hover { color: var(--text); border-color: var(--muted); }
+  #settingsNameSave:disabled { opacity: 0.35; cursor: default; }
 
   /* Toggle switch */
   .toggle-sw { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
@@ -1115,9 +1224,61 @@
       width: 100%;
     }
   }
+
+  /* ── LANDSCAPE LOCK OVERLAY ── */
+  #landscapeOverlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 99999;
+    background: var(--bg);
+    flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px;
+    pointer-events: all;
+  }
+  @media (orientation: landscape) {
+    #landscapeOverlay { display: flex; }
+  }
+  #landscapeOverlay svg {
+    opacity: 0.45;
+    animation: rotateHint 2.4s cubic-bezier(0.4,0,0.2,1) infinite;
+  }
+  @keyframes rotateHint {
+    0%   { transform: rotate(0deg); }
+    30%  { transform: rotate(-90deg); }
+    70%  { transform: rotate(-90deg); }
+    100% { transform: rotate(0deg); }
+  }
+  #landscapeOverlay p {
+    font-size: 13px; color: var(--text-dim);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin: 0;
+  }
 </style>
 </head>
 <body>
+
+<!-- ── LANDSCAPE LOCK OVERLAY ── -->
+<div id="landscapeOverlay">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="5" y="2" width="14" height="20" rx="2"/>
+    <line x1="12" y1="18" x2="12" y2="18.5" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+  <p>Rotate to portrait</p>
+</div>
+
+<!-- ── WELCOME OVERLAY ── -->
+<div id="welcomeOverlay" hidden>
+  <div id="welcomeInner">
+    <div id="welcomeHeading">
+      <h2>Welcome to STLLS</h2>
+      <p>What's your name?</p>
+    </div>
+    <div id="welcomeForm">
+      <input id="welcomeNameInput" type="text" placeholder="Your name" maxlength="32" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button id="welcomeContinueBtn" disabled>Continue</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── HOME SCREEN ── -->
 <div id="homeScreen">
@@ -1134,9 +1295,15 @@
     </button>
   </div>
 
+  <!-- Time-based greeting -->
+  <div id="homeGreeting"><p id="homeGreetingText"></p></div>
+
   <!-- New board area: + sits toward the bottom -->
   <div id="homeNewArea">
-    <button id="homeNewBtn" aria-label="New board">+</button>
+    <div id="homeNewGroup">
+      <button id="homeNewBtn" aria-label="New board">+</button>
+      <span id="homeNewLabel">Create new board</span>
+    </div>
   </div>
 
   <!-- Separator -->
@@ -1440,6 +1607,16 @@
   </div>
   <div class="sp-body">
     <div class="sp-section">
+      <div class="sp-section-label">Profile</div>
+      <div class="sp-row sp-row--name">
+        <span class="sp-row-label">Your name</span>
+        <div class="sp-name-field">
+          <input type="text" id="settingsNameInput" maxlength="32" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="Enter name">
+          <button id="settingsNameSave">Save</button>
+        </div>
+      </div>
+    </div>
+    <div class="sp-section">
       <div class="sp-section-label">Appearance</div>
       <div class="sp-row">
         <span class="sp-row-label">Light mode</span>
@@ -1579,6 +1756,72 @@ const undoDoBtn      = document.getElementById('undoDoBtn');
 const redoDoBtn      = document.getElementById('redoDoBtn');
 const resetAllBtn    = document.getElementById('resetAllBtn');
 const previewExpandBtn = document.getElementById('previewExpandBtn');
+
+// ── Welcome + Greeting ───────────────────────────────────────────────────────
+const welcomeOverlay     = document.getElementById('welcomeOverlay');
+const welcomeNameInput   = document.getElementById('welcomeNameInput');
+const welcomeContinueBtn = document.getElementById('welcomeContinueBtn');
+const homeGreetingText   = document.getElementById('homeGreetingText');
+
+function getGreeting(name) {
+  const h = new Date().getHours();
+  let period;
+  if (h >= 5 && h < 12)       period = 'Good morning';
+  else if (h >= 12 && h < 18) period = 'Good afternoon';
+  else                         period = 'Good evening';
+  return `${period}, ${name}`;
+}
+
+function updateGreeting() {
+  const name = localStorage.getItem('stlls-user-name');
+  if (name) {
+    const h = new Date().getHours();
+    let period;
+    if (h >= 5 && h < 12)       period = 'Good morning,';
+    else if (h >= 12 && h < 18) period = 'Good afternoon,';
+    else                         period = 'Good evening,';
+    homeGreetingText.innerHTML = `${period} <strong>${name}</strong>`;
+    homeGreetingText.closest('#homeGreeting').hidden = false;
+  } else {
+    homeGreetingText.closest('#homeGreeting').hidden = true;
+  }
+}
+
+// Enable/disable continue button based on input
+welcomeNameInput.addEventListener('input', () => {
+  welcomeContinueBtn.disabled = welcomeNameInput.value.trim().length === 0;
+});
+
+// Submit on Enter
+welcomeNameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && welcomeNameInput.value.trim().length > 0) {
+    welcomeContinueBtn.click();
+  }
+});
+
+welcomeContinueBtn.addEventListener('click', () => {
+  const name = welcomeNameInput.value.trim();
+  if (!name) return;
+  localStorage.setItem('stlls-user-name', name);
+  updateGreeting();
+  // Animate out then hide
+  welcomeOverlay.classList.add('leaving');
+  welcomeOverlay.addEventListener('animationend', () => {
+    welcomeOverlay.hidden = true;
+    welcomeOverlay.classList.remove('leaving');
+  }, { once: true });
+});
+
+function showWelcome() {
+  welcomeOverlay.hidden = false;
+  welcomeOverlay.classList.remove('leaving');
+  welcomeOverlay.classList.add('entering');
+  welcomeOverlay.addEventListener('animationend', () => {
+    welcomeOverlay.classList.remove('entering');
+    // Focus input after animation
+    welcomeNameInput.focus();
+  }, { once: true });
+}
 
 // ── Home screen ────────────────────────────────────────────────────────────
 const homeScreen     = document.getElementById('homeScreen');
@@ -1720,6 +1963,7 @@ function goHome() {
       saveBoards();
     }
   }
+  updateGreeting();
   renderBoardsList();
   homeScreen.hidden = false;
   homeScreen.classList.remove('leaving');
@@ -2799,12 +3043,6 @@ const settingsPanel = document.getElementById('settingsPanel');
 const settingsClose = document.getElementById('settingsClose');
 const themeToggle   = document.getElementById('themeToggle');
 
-function openSettings() {
-  settingsPanel.hidden = false;
-  settingsPanel.classList.remove('leaving');
-  settingsPanel.classList.add('entering');
-  settingsPanel.addEventListener('animationend', () => settingsPanel.classList.remove('entering'), { once: true });
-}
 function closeSettings() {
   settingsPanel.classList.add('leaving');
   settingsPanel.addEventListener('animationend', () => {
@@ -2812,6 +3050,37 @@ function closeSettings() {
     settingsPanel.classList.remove('leaving');
   }, { once: true });
 }
+
+const settingsNameInput = document.getElementById('settingsNameInput');
+const settingsNameSave  = document.getElementById('settingsNameSave');
+
+function openSettings() {
+  // Populate name field with current saved name
+  settingsNameInput.value = localStorage.getItem('stlls-user-name') || '';
+  settingsNameSave.disabled = true;
+  settingsPanel.hidden = false;
+  settingsPanel.classList.remove('leaving');
+  settingsPanel.classList.add('entering');
+  settingsPanel.addEventListener('animationend', () => settingsPanel.classList.remove('entering'), { once: true });
+}
+
+settingsNameInput.addEventListener('input', () => {
+  const trimmed = settingsNameInput.value.trim();
+  const current = localStorage.getItem('stlls-user-name') || '';
+  settingsNameSave.disabled = trimmed.length === 0 || trimmed === current;
+});
+
+settingsNameInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !settingsNameSave.disabled) settingsNameSave.click();
+});
+
+settingsNameSave.addEventListener('click', () => {
+  const name = settingsNameInput.value.trim();
+  if (!name) return;
+  localStorage.setItem('stlls-user-name', name);
+  settingsNameSave.disabled = true;
+  updateGreeting();
+});
 
 settingsBtn.addEventListener('click', openSettings);
 settingsClose.addEventListener('click', closeSettings);
@@ -2853,7 +3122,7 @@ previewExpandBtn.addEventListener('click', () => {
   // Poll every frame for the full transition duration so both width AND height
   // changes are caught (padding transition doesn't always fire ResizeObserver)
   const start = performance.now();
-  const duration = 750;
+  const duration = 980;
   (function poll(now) {
     computePreviewSize();
     buildLayout();
@@ -2967,12 +3236,28 @@ window.exportComplete = function(success) {
 // ── Splash screen ────────────────────────────────────────────────────────────
 (function() {
   const splash = document.getElementById('splashScreen');
-  if (!sessionStorage.getItem('stlls-launched')) {
+  const isFreshLaunch = !sessionStorage.getItem('stlls-launched');
+  const hasName = !!localStorage.getItem('stlls-user-name');
+
+  // Always update greeting in case time-of-day changed
+  updateGreeting();
+
+  function afterSplash() {
+    if (!hasName) {
+      // First ever launch — show welcome screen to collect name
+      showWelcome();
+    }
+  }
+
+  if (isFreshLaunch) {
     sessionStorage.setItem('stlls-launched', '1');
-    // Hide after animation completes (2.4s + small buffer)
-    setTimeout(() => { splash.hidden = true; }, 2500);
+    setTimeout(() => {
+      splash.hidden = true;
+      afterSplash();
+    }, 2500);
   } else {
     splash.hidden = true;
+    afterSplash();
   }
 })();
 </script>

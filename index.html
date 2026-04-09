@@ -1578,7 +1578,6 @@
           <button class="video-sub-btn active" data-vsub="auto">Auto</button>
           <button class="video-sub-btn" data-vsub="manual">Manual</button>
         </div>
-        <button id="videoPickBtn" class="video-pick-btn">+</button>
       </div>
 
       <!-- Stills strip — always below import area -->
@@ -2544,7 +2543,9 @@ videoCancelBtn.addEventListener('click', () => {
   Object.keys(_nativePending).forEach(id => { _nativePending[id](null); delete _nativePending[id]; });
 });
 
-async function processVideo(file) {
+// processVideo accepts a File object (web) or a URL string (H.264/HEVC via
+// stlls-video:// scheme when picked through native bridge).
+async function processVideo(fileOrURL) {
   // ── helpers ──────────────────────────────────────────────────────────────
   function seekTo(vid, t) {
     return new Promise(res => {
@@ -2556,6 +2557,10 @@ async function processVideo(file) {
     exportBarFill.style.width = pct + '%';
     exportBarLabel.textContent = label;
   }
+
+  const isURL  = typeof fileOrURL === 'string';
+  const srcURL = isURL ? fileOrURL : URL.createObjectURL(fileOrURL);
+  const baseName = isURL ? 'still' : (fileOrURL.name.replace(/\.[^.]+$/, ''));
 
   // ── cancellation object ───────────────────────────────────────────────────
   const ctrl = { cancelled: false };
@@ -2573,8 +2578,7 @@ async function processVideo(file) {
 
   // ── load video ────────────────────────────────────────────────────────────
   const video = Object.assign(document.createElement('video'), {
-    muted: true, playsInline: true, preload: 'auto',
-    src: URL.createObjectURL(file),
+    muted: true, playsInline: true, preload: 'auto', src: srcURL,
   });
 
   try {
@@ -2583,16 +2587,19 @@ async function processVideo(file) {
       video.addEventListener('error', rej, { once: true });
     });
   } catch {
+    if (!isURL) URL.revokeObjectURL(srcURL);
     exportBar.hidden = true; videoAnalysisRow.hidden = true; _processVideoCtrl = null; return;
   }
 
   if (ctrl.cancelled) {
     exportBar.hidden = true; videoAnalysisRow.hidden = true;
-    URL.revokeObjectURL(video.src); _processVideoCtrl = null; return;
+    if (!isURL) URL.revokeObjectURL(srcURL);
+    _processVideoCtrl = null; return;
   }
 
   const duration = video.duration;
   if (!duration || !isFinite(duration)) {
+    if (!isURL) URL.revokeObjectURL(srcURL);
     exportBar.hidden = true; videoAnalysisRow.hidden = true; _processVideoCtrl = null; return;
   }
 
@@ -2637,7 +2644,8 @@ async function processVideo(file) {
 
   if (ctrl.cancelled) {
     exportBar.hidden = true; videoAnalysisRow.hidden = true;
-    URL.revokeObjectURL(video.src); _processVideoCtrl = null; return;
+    if (!isURL) URL.revokeObjectURL(srcURL);
+    _processVideoCtrl = null; return;
   }
 
   shotMids.push((shotStart + duration) / 2);
@@ -2646,7 +2654,6 @@ async function processVideo(file) {
   const capCvs = Object.assign(document.createElement('canvas'),
     { width: video.videoWidth, height: video.videoHeight });
   const capCtx = capCvs.getContext('2d');
-  const base   = file.name.replace(/\.[^.]+$/, '');
 
   pushHistory();
   for (let i = 0; i < shotMids.length; i++) {
@@ -2658,14 +2665,17 @@ async function processVideo(file) {
       im.onload = () => res(im);
       im.src = capCvs.toDataURL('image/jpeg', 0.92);
     });
-    state.images.push({ id: Date.now() + Math.random(), name: `${base}_${i+1}.jpg`, img, transforms: {} });
+    state.images.push({ id: Date.now() + Math.random(), name: `${baseName}_${i+1}.jpg`, img, transforms: {} });
     imgStripOuter.classList.remove('collapsed');
     photosToggle.classList.remove('closed');
     videoAnalysisLabel.textContent = `Extracting ${i+1} / ${shotMids.length}`;
     setBar(60 + Math.round(((i + 1) / shotMids.length) * 38), `Extracting ${i+1} / ${shotMids.length}`);
   }
 
-  URL.revokeObjectURL(video.src);
+  if (!isURL) URL.revokeObjectURL(srcURL);
+  // Release native asset if this was a web-URL pick
+  if (isURL && _nativeAssetKey) { nativeRelease(_nativeAssetKey); _nativeAssetKey = null; _nativeWebURL = null; }
+
   _processVideoCtrl = null;
   videoAnalysisRow.hidden = true;
   renderList(); buildLayout();
@@ -2683,7 +2693,16 @@ async function processVideo(file) {
 }
 
 fileInput.addEventListener('change', e => loadFiles(e.target.files));
-mAddBtn.addEventListener('click', () => fileInput.click());
+mAddBtn.addEventListener('click', () => {
+  if (importMode === 'video' && isNativeVideo()) {
+    // Route to native PHPicker for video
+    videoAnalysisLabel.textContent = 'Loading video…';
+    videoAnalysisRow.hidden = false;
+    window.webkit.messageHandlers.requestVideoSelection.postMessage(null);
+  } else {
+    fileInput.click();
+  }
+});
 
 // ── Photos toggle ───────────────────────────────────────────────────────────
 const photosToggle = document.getElementById('photosToggle');
@@ -3006,20 +3025,33 @@ let _nativeMsTime         = 0;
 let _nativeMsSeeking      = false;
 let _nativeMsFrame        = null;   // dataURL of current frame (for Grab)
 let _nativeMsPlayInterval = null;
+let _nativeWebURL         = null;   // stlls-video:// URL for H.264/HEVC
 
 const isNativeVideo = () => !!(window.webkit?.messageHandlers?.requestVideoSelection);
 
-// Called by Swift when the picked video asset is ready
+// Called by Swift when the picked video asset is ready.
+// payload.webURL is set for H.264/HEVC (fast, browser-native).
+// No webURL means ProRes/heavy codec → use AVAssetImageGenerator.
 window.nativeVideoReady = function(payload) {
-  videoAnalysisRow.hidden = true;   // hide "Loading video…" indicator
-  if (!payload) return;             // user cancelled picker
+  videoAnalysisRow.hidden = true;
+  if (!payload) return;
   _nativeAssetKey = payload.assetKey;
   _nativeDuration = payload.duration  || 0;
   _nativeFps      = payload.frameRate || 30;
   _nativeVideoW   = payload.width     || 1920;
   _nativeVideoH   = payload.height    || 1080;
-  if (videoSubMode === 'auto') processVideoNative();
-  else                         openManualScrubberNative();
+
+  if (payload.webURL) {
+    // H.264 / HEVC — let the browser handle seeking via <video> (fast)
+    _nativeWebURL = payload.webURL;
+    if (videoSubMode === 'auto') processVideo(_nativeWebURL);
+    else                         openManualScrubber(_nativeWebURL);
+  } else {
+    // ProRes / other — use AVAssetImageGenerator frame extraction
+    _nativeWebURL = null;
+    if (videoSubMode === 'auto') processVideoNative();
+    else                         openManualScrubberNative();
+  }
 };
 
 // Called by Swift with each extracted frame
@@ -3053,22 +3085,6 @@ function imgFromDataURL(url) {
     im.src = url;
   });
 }
-
-// ── Video pick button ──────────────────────────────────────────────────────
-const videoPickBtn = document.getElementById('videoPickBtn');
-videoPickBtn.addEventListener('click', () => {
-  if (isNativeVideo()) {
-    // Show a brief "Loading…" indicator while the native picker is open
-    videoAnalysisLabel.textContent = 'Loading video…';
-    videoAnalysisRow.hidden = false;
-    window.webkit.messageHandlers.requestVideoSelection.postMessage(null);
-  } else {
-    // Web fallback: use file input
-    fileInput.accept = 'video/*';
-    fileInput.removeAttribute('multiple');
-    fileInput.click();
-  }
-});
 
 // ── Auto processing via native bridge ─────────────────────────────────────
 async function processVideoNative() {
@@ -3255,15 +3271,19 @@ function fmtTime(s) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
-function openManualScrubber(file) {
+// openManualScrubber accepts a File object or a URL string (H.264/HEVC via scheme handler)
+let _msIsURL = false;
+
+function openManualScrubber(fileOrURL) {
   msFrames = [];
   msGrabbed.innerHTML = '';
   msDoneBtn.disabled = true;
   msDoneBtn.textContent = 'Done';
   msPlayBtn.textContent = '▶';
   msSeeking = false;
+  _msIsURL = typeof fileOrURL === 'string';
 
-  msVideo.src = URL.createObjectURL(file);
+  msVideo.src = _msIsURL ? fileOrURL : URL.createObjectURL(fileOrURL);
   msVideo.load();
   msVideo.addEventListener('loadedmetadata', () => {
     msScrubber.max = msVideo.duration;
@@ -3290,8 +3310,12 @@ function closeManualScrubber() {
   } else {
     msVideo.pause();
     cancelAnimationFrame(msRaf); msRaf = null;
-    URL.revokeObjectURL(msVideo.src);
+    if (!_msIsURL) URL.revokeObjectURL(msVideo.src);
     msVideo.removeAttribute('src'); msVideo.load();
+    if (_msIsURL && _nativeAssetKey) {
+      nativeRelease(_nativeAssetKey); _nativeAssetKey = null; _nativeWebURL = null;
+    }
+    _msIsURL = false;
   }
   manualScrubber.hidden = true;
 }

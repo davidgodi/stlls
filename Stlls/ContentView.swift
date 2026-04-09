@@ -224,6 +224,9 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                 await MainActor.run {
                     self.tempFiles[key] = dest
 
+                    let fileName = dest.lastPathComponent
+                    let jsCallback = "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)"
+
                     if useWebPath {
                         self.webKeys.insert(key)
                         self.schemeHandler?.register(key: key, url: dest)
@@ -234,12 +237,11 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                             "width":     finalW,
                             "height":    finalH,
                             "frameRate": finalFps,
+                            "fileName":  fileName,
                         ]
-                        self.webView?.callAsyncJavaScript(
-                            "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)",
+                        self.webView?.callAsyncJavaScript(jsCallback,
                             arguments: ["payload": payload],
-                            in: nil, in: .page, completionHandler: nil
-                        )
+                            in: nil, in: .page, completionHandler: nil)
                     } else {
                         self.assets[key] = asset
                         let payload: [String: Any] = [
@@ -248,12 +250,11 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                             "width":     finalW,
                             "height":    finalH,
                             "frameRate": finalFps,
+                            "fileName":  fileName,
                         ]
-                        self.webView?.callAsyncJavaScript(
-                            "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)",
+                        self.webView?.callAsyncJavaScript(jsCallback,
                             arguments: ["payload": payload],
-                            in: nil, in: .page, completionHandler: nil
-                        )
+                            in: nil, in: .page, completionHandler: nil)
                     }
                 }
             }

@@ -697,10 +697,29 @@
   #msDoneBtn { color: var(--accent); font-weight: 500; }
   #msDoneBtn:disabled { opacity: 0.3; cursor: default; }
   .ms-video-wrap {
-    flex: 1; min-height: 0; background: #000;
+    flex: 1; min-height: 0; background: #000; position: relative;
     display: flex; align-items: center; justify-content: center; overflow: hidden;
   }
   #msVideo { width: 100%; height: 100%; object-fit: contain; display: block; cursor: pointer; }
+  #msFrameImg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; display: block;
+  }
+  #msFrameImg[hidden] { display: none; }
+  #msFrameImgLoading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.45); z-index: 2;
+  }
+  #msFrameImgLoading[hidden] { display: none; }
+  .ms-load-ring {
+    width: 28px; height: 28px;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-top-color: rgba(255,255,255,0.65);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Transport row: prev-frame | play | next-frame */
   .ms-transport-row {
@@ -1559,6 +1578,7 @@
           <button class="video-sub-btn active" data-vsub="auto">Auto</button>
           <button class="video-sub-btn" data-vsub="manual">Manual</button>
         </div>
+        <button id="videoPickBtn" class="video-pick-btn">+</button>
       </div>
 
       <!-- Stills strip — always below import area -->
@@ -1678,6 +1698,8 @@
   </div>
   <div class="ms-video-wrap">
     <video id="msVideo" playsinline muted></video>
+    <img id="msFrameImg" hidden alt="">
+    <div id="msFrameImgLoading" hidden><div class="ms-load-ring"></div></div>
   </div>
   <!-- Transport row: prev-frame | play | next-frame -->
   <div class="ms-transport-row">
@@ -2511,12 +2533,15 @@ function loadFiles(files) {
 
 // ── Video processing with cancellation ────────────────────────────────────
 let _processVideoCtrl = null;
+const _nativePending  = {};   // requestId → resolve callback (native bridge)
 const videoAnalysisRow   = document.getElementById('videoAnalysisRow');
 const videoAnalysisLabel = document.getElementById('videoAnalysisLabel');
 const videoCancelBtn     = document.getElementById('videoCancelBtn');
 
 videoCancelBtn.addEventListener('click', () => {
   if (_processVideoCtrl) _processVideoCtrl.cancelled = true;
+  // Flush any pending native frame requests immediately
+  Object.keys(_nativePending).forEach(id => { _nativePending[id](null); delete _nativePending[id]; });
 });
 
 async function processVideo(file) {
@@ -2958,6 +2983,7 @@ document.querySelectorAll('.video-sub-btn').forEach(btn => {
 function handleVideoFile(file) {
   if (!file || !file.type.startsWith('video/')) return;
   fileInput.value = '';
+  // Native bridge takes over on iOS — this path only runs on web fallback
   if (videoSubMode === 'auto') processVideo(file);
   else openManualScrubber(file);
 }
@@ -2966,6 +2992,243 @@ function onVideoComplete() {
   // Leave the import UI exactly as-is — buttons stay visible for another pick
 }
 
+// ── Native video bridge (iOS WKWebView / AVAssetImageGenerator) ────────────
+let _nativeAssetKey    = null;
+let _nativeDuration    = 0;
+let _nativeFps         = 30;
+let _nativeVideoW      = 1920;
+let _nativeVideoH      = 1080;
+let _nativeReqCounter  = 0;
+
+// true while the manual scrubber is running in native (image) mode
+let _nativeMs             = false;
+let _nativeMsTime         = 0;
+let _nativeMsSeeking      = false;
+let _nativeMsFrame        = null;   // dataURL of current frame (for Grab)
+let _nativeMsPlayInterval = null;
+
+const isNativeVideo = () => !!(window.webkit?.messageHandlers?.requestVideoSelection);
+
+// Called by Swift when the picked video asset is ready
+window.nativeVideoReady = function(payload) {
+  videoAnalysisRow.hidden = true;   // hide "Loading video…" indicator
+  if (!payload) return;             // user cancelled picker
+  _nativeAssetKey = payload.assetKey;
+  _nativeDuration = payload.duration  || 0;
+  _nativeFps      = payload.frameRate || 30;
+  _nativeVideoW   = payload.width     || 1920;
+  _nativeVideoH   = payload.height    || 1080;
+  if (videoSubMode === 'auto') processVideoNative();
+  else                         openManualScrubberNative();
+};
+
+// Called by Swift with each extracted frame
+window.nativeVideoFrame = function(payload) {
+  const cb = _nativePending[payload.requestId];
+  if (cb) { delete _nativePending[payload.requestId]; cb(payload.dataURL || null); }
+};
+
+// Request a single frame; returns a promise resolving to a dataURL or null
+function nativeFrame(assetKey, time, isPreview) {
+  return new Promise(resolve => {
+    const id = 'f' + (++_nativeReqCounter);
+    _nativePending[id] = resolve;
+    window.webkit.messageHandlers.extractVideoFrame.postMessage(
+      { assetKey, time, requestId: id, preview: isPreview }
+    );
+  });
+}
+
+function nativeRelease(key) {
+  if (key && window.webkit?.messageHandlers?.releaseVideoAsset)
+    window.webkit.messageHandlers.releaseVideoAsset.postMessage(key);
+}
+
+function imgFromDataURL(url) {
+  return new Promise((resolve, reject) => {
+    if (!url) return reject(new Error('null'));
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error('load'));
+    im.src = url;
+  });
+}
+
+// ── Video pick button ──────────────────────────────────────────────────────
+const videoPickBtn = document.getElementById('videoPickBtn');
+videoPickBtn.addEventListener('click', () => {
+  if (isNativeVideo()) {
+    // Show a brief "Loading…" indicator while the native picker is open
+    videoAnalysisLabel.textContent = 'Loading video…';
+    videoAnalysisRow.hidden = false;
+    window.webkit.messageHandlers.requestVideoSelection.postMessage(null);
+  } else {
+    // Web fallback: use file input
+    fileInput.accept = 'video/*';
+    fileInput.removeAttribute('multiple');
+    fileInput.click();
+  }
+});
+
+// ── Auto processing via native bridge ─────────────────────────────────────
+async function processVideoNative() {
+  function nSetBar(pct, label) {
+    exportBarFill.style.width = pct + '%';
+    exportBarLabel.textContent = label;
+  }
+
+  const ctrl = { cancelled: false };
+  _processVideoCtrl = ctrl;
+
+  videoAnalysisLabel.textContent = 'Analysing video…';
+  videoAnalysisRow.hidden = false;
+  exportBarFill.style.transition = 'none';
+  exportBarFill.style.width = '0%';
+  exportBarLabel.textContent = 'Loading video…';
+  exportBar.hidden = false;
+
+  const assetKey = _nativeAssetKey;
+  const duration = _nativeDuration;
+
+  if (!duration || !isFinite(duration) || duration <= 0) {
+    exportBar.hidden = true; videoAnalysisRow.hidden = true; _processVideoCtrl = null; return;
+  }
+
+  // ── Scene-detection pass (preview frames) ──────────────────────────────
+  const STEP      = Math.max(0.5, duration / 80);
+  const THRESHOLD = 28;
+  const MIN_SHOT  = Math.max(STEP * 1.5, 1.0);
+  const CW = 128;
+  const CH = Math.max(1, Math.round(128 * _nativeVideoH / _nativeVideoW));
+  const cmpCvs = Object.assign(document.createElement('canvas'), { width: CW, height: CH });
+  const cmpCtx = cmpCvs.getContext('2d', { willReadFrequently: true });
+
+  let prevData  = null;
+  let shotStart = 0;
+  const shotMids  = [];
+  const totalSteps = Math.ceil(duration / STEP);
+
+  for (let s = 0; s <= totalSteps; s++) {
+    if (ctrl.cancelled) break;
+    const t = Math.min(s * STEP, duration);
+    const url = await nativeFrame(assetKey, t, true);
+    if (ctrl.cancelled) break;
+
+    if (url) {
+      try {
+        const im = await imgFromDataURL(url);
+        cmpCtx.drawImage(im, 0, 0, CW, CH);
+        const data = cmpCtx.getImageData(0, 0, CW, CH).data;
+        if (prevData) {
+          let diff = 0;
+          for (let i = 0; i < data.length; i += 4)
+            diff += Math.abs(data[i]-prevData[i]) + Math.abs(data[i+1]-prevData[i+1]) + Math.abs(data[i+2]-prevData[i+2]);
+          diff /= (data.length / 4) * 3;
+          if (diff > THRESHOLD && (t - shotStart) >= MIN_SHOT) {
+            shotMids.push((shotStart + (t - STEP)) / 2);
+            shotStart = t;
+          }
+        }
+        prevData = data;
+      } catch(e) {}
+    }
+
+    const pct = Math.round((s / totalSteps) * 100);
+    videoAnalysisLabel.textContent = `Analysing video… ${pct}%`;
+    nSetBar(Math.round((s / totalSteps) * 60), `Scanning… ${pct}%`);
+  }
+
+  if (ctrl.cancelled) {
+    exportBar.hidden = true; videoAnalysisRow.hidden = true;
+    nativeRelease(assetKey); _nativeAssetKey = null; _processVideoCtrl = null; return;
+  }
+
+  shotMids.push((shotStart + duration) / 2);
+
+  // ── Full-res capture pass ──────────────────────────────────────────────
+  pushHistory();
+  for (let i = 0; i < shotMids.length; i++) {
+    if (ctrl.cancelled) break;
+    const url = await nativeFrame(assetKey, shotMids[i], false);
+    if (ctrl.cancelled) break;
+    if (url) {
+      try {
+        const img = await imgFromDataURL(url);
+        state.images.push({ id: Date.now() + Math.random(), name: `still_${i+1}.jpg`, img, transforms: {} });
+        imgStripOuter.classList.remove('collapsed');
+        photosToggle.classList.remove('closed');
+        videoAnalysisLabel.textContent = `Extracting ${i+1} / ${shotMids.length}`;
+        nSetBar(60 + Math.round(((i+1) / shotMids.length) * 38), `Extracting ${i+1} / ${shotMids.length}`);
+      } catch(e) {}
+    }
+  }
+
+  nativeRelease(assetKey); _nativeAssetKey = null;
+  _processVideoCtrl = null;
+  videoAnalysisRow.hidden = true;
+  renderList(); buildLayout();
+  if (state.images.length) exportBtn.disabled = false;
+
+  if (ctrl.cancelled) { exportBar.hidden = true; return; }
+
+  exportBarFill.style.transition = 'width 0.3s ease';
+  nSetBar(100, `${shotMids.length} still${shotMids.length !== 1 ? 's' : ''} extracted`);
+  setTimeout(() => { exportBar.hidden = true; exportBarFill.style.width = '0%'; }, 2200);
+  onVideoComplete();
+}
+
+// ── Manual scrubber — native image mode ───────────────────────────────────
+const msFrameImg        = document.getElementById('msFrameImg');
+const msFrameImgLoading = document.getElementById('msFrameImgLoading');
+
+async function _nativeMsSeekTo(t) {
+  t = Math.min(Math.max(t, 0), _nativeDuration);
+  _nativeMsTime = t;
+  msScrubber.value = t;
+  msTimeCur.textContent = fmtTime(t);
+  msFrameImgLoading.hidden = false;
+  try {
+    const url = await nativeFrame(_nativeAssetKey, t, true);
+    if (url) { msFrameImg.src = url; _nativeMsFrame = url; }
+  } catch(e) {}
+  msFrameImgLoading.hidden = true;
+}
+
+async function openManualScrubberNative() {
+  _nativeMs     = true;
+  msFrames      = [];
+  _nativeMsFrame = null;
+  msGrabbed.innerHTML = '';
+  msDoneBtn.disabled  = true;
+  msDoneBtn.textContent = 'Done';
+  msPlayBtn.textContent = '▶';
+  msSeeking = false;
+  _nativeMsTime = 0; _nativeMsSeeking = false;
+
+  // Show img, hide video element
+  msVideo.hidden = true;
+  msFrameImg.hidden = false;
+  msFrameImg.src = '';
+  msFrameImgLoading.hidden = false;
+
+  msScrubber.min   = 0;
+  msScrubber.max   = _nativeDuration;
+  msScrubber.step  = (1 / _nativeFps).toFixed(6);
+  msScrubber.value = 0;
+  msTimeCur.textContent = '0:00';
+  msTimeDur.textContent = fmtTime(_nativeDuration);
+
+  manualScrubber.hidden = false;
+  manualScrubber.classList.add('opening');
+  manualScrubber.addEventListener('animationend', () => manualScrubber.classList.remove('opening'), { once: true });
+
+  // Fetch first frame
+  try {
+    const url = await nativeFrame(_nativeAssetKey, 0, true);
+    if (url) { msFrameImg.src = url; _nativeMsFrame = url; }
+  } catch(e) {}
+  msFrameImgLoading.hidden = true;
+}
 
 // ── Manual still picker ──────────────────────────────────────────────────
 const manualScrubber = document.getElementById('manualScrubber');
@@ -3015,10 +3278,21 @@ function openManualScrubber(file) {
 }
 
 function closeManualScrubber() {
-  msVideo.pause();
-  cancelAnimationFrame(msRaf); msRaf = null;
-  URL.revokeObjectURL(msVideo.src);
-  msVideo.removeAttribute('src'); msVideo.load();
+  if (_nativeMs) {
+    if (_nativeMsPlayInterval) { clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null; }
+    nativeRelease(_nativeAssetKey);
+    _nativeAssetKey = null;
+    _nativeMs = false;
+    msVideo.hidden = false;
+    msFrameImg.hidden = true;
+    msFrameImg.src = '';
+    msFrameImgLoading.hidden = true;
+  } else {
+    msVideo.pause();
+    cancelAnimationFrame(msRaf); msRaf = null;
+    URL.revokeObjectURL(msVideo.src);
+    msVideo.removeAttribute('src'); msVideo.load();
+  }
   manualScrubber.hidden = true;
 }
 
@@ -3038,7 +3312,18 @@ msDoneBtn.addEventListener('click', () => {
 });
 
 // Scrubber seek
-msScrubber.addEventListener('input', () => { msVideo.currentTime = +msScrubber.value; });
+let _nativeScrubTimer = null;
+msScrubber.addEventListener('input', () => {
+  if (_nativeMs) {
+    const t = +msScrubber.value;
+    _nativeMsTime = t;
+    msTimeCur.textContent = fmtTime(t);
+    clearTimeout(_nativeScrubTimer);
+    _nativeScrubTimer = setTimeout(() => _nativeMsSeekTo(t), 80);
+    return;
+  }
+  msVideo.currentTime = +msScrubber.value;
+});
 
 // RAF loop for live scrubber update during playback
 function msRafLoop() {
@@ -3049,6 +3334,24 @@ function msRafLoop() {
 }
 
 msPlayBtn.addEventListener('click', () => {
+  if (_nativeMs) {
+    if (_nativeMsPlayInterval) {
+      clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null;
+      msPlayBtn.textContent = '▶';
+    } else {
+      msPlayBtn.textContent = '⏸';
+      const frameInterval = Math.round(1000 / Math.min(6, _nativeFps));
+      _nativeMsPlayInterval = setInterval(async () => {
+        if (_nativeMsTime >= _nativeDuration) {
+          clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null;
+          msPlayBtn.textContent = '▶'; return;
+        }
+        const next = Math.min(_nativeMsTime + 1 / _nativeFps, _nativeDuration);
+        await _nativeMsSeekTo(next);
+      }, frameInterval);
+    }
+    return;
+  }
   if (msVideo.paused) {
     msVideo.play();
     msPlayBtn.textContent = '⏸';
@@ -3064,7 +3367,15 @@ msVideo.addEventListener('click', () => msPlayBtn.click());
 msVideo.addEventListener('ended', () => { msPlayBtn.textContent = '▶'; cancelAnimationFrame(msRaf); msRaf = null; });
 
 // Frame step buttons with debounce — ignore if still seeking
-function stepFrame(delta) {
+async function stepFrame(delta) {
+  if (_nativeMs) {
+    if (_nativeMsSeeking) return;
+    _nativeMsSeeking = true;
+    if (_nativeMsPlayInterval) { clearInterval(_nativeMsPlayInterval); _nativeMsPlayInterval = null; msPlayBtn.textContent = '▶'; }
+    await _nativeMsSeekTo(_nativeMsTime + delta);
+    _nativeMsSeeking = false;
+    return;
+  }
   if (msSeeking) return;
   msSeeking = true;
   msVideo.pause();
@@ -3079,11 +3390,29 @@ function stepFrame(delta) {
   }, { once: true });
 }
 
-msPrevFrameBtn.addEventListener('click', () => stepFrame(-1/30));
-msNextFrameBtn.addEventListener('click', () => stepFrame(1/30));
+msPrevFrameBtn.addEventListener('click', () => stepFrame(_nativeMs ? -1/_nativeFps : -1/30));
+msNextFrameBtn.addEventListener('click', () => stepFrame(_nativeMs ?  1/_nativeFps :  1/30));
 
 // Grab current frame as still
 msGrabBtn.addEventListener('click', () => {
+  if (_nativeMs) {
+    if (!_nativeMsFrame) return;
+    imgFromDataURL(_nativeMsFrame).then(img => {
+      msFrames.push(img);
+      msGrabBtn.style.opacity = '0.3';
+      setTimeout(() => msGrabBtn.style.opacity = '', 120);
+      const item = document.createElement('div');
+      item.className = 'ms-grab-item';
+      const thumb = document.createElement('img'); thumb.src = img.src;
+      const rmBtn = document.createElement('button'); rmBtn.className = 'ms-grab-remove'; rmBtn.textContent = '×';
+      rmBtn.addEventListener('click', () => { msFrames.splice(msFrames.indexOf(img), 1); item.remove(); updateMsDone(); });
+      item.append(thumb, rmBtn);
+      msGrabbed.appendChild(item);
+      msGrabbed.scrollLeft = msGrabbed.scrollWidth;
+      updateMsDone();
+    });
+    return;
+  }
   if (!msVideo.videoWidth) return;
   const cvs = Object.assign(document.createElement('canvas'),
     { width: msVideo.videoWidth, height: msVideo.videoHeight });

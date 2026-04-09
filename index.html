@@ -75,12 +75,9 @@
     position: fixed; inset: 0; z-index: 300;
     background: var(--bg);
     display: flex; flex-direction: column;
-    overflow-y: auto;
-    overflow-x: hidden;
-    scrollbar-width: none;
+    overflow: hidden;
   }
   #homeScreen[hidden] { display: none; }
-  #homeScreen::-webkit-scrollbar { display: none; }
 
   /* Home screen top bar: brand left, settings right */
   #homeTopBar {
@@ -106,12 +103,12 @@
   }
   #homeSettingsBtn:hover { color: var(--text-mid); }
 
-  /* New-board area: fills space, button sits toward the bottom */
+  /* New-board area */
   #homeNewArea {
-    flex: 1;
-    min-height: 200px;
     display: flex; align-items: center; justify-content: center;
     background: var(--bg);
+    padding: 36px 0 0;
+    margin-top: 18px;
     flex-shrink: 0;
   }
 
@@ -200,10 +197,19 @@
   #welcomeContinueBtn:active { opacity: 0.8; }
   #welcomeContinueBtn:disabled { opacity: 0.35; cursor: default; }
 
+  /* Upper area: flex:1 so it fills space above MY BOARDS and centers content */
+  #homeUpperArea {
+    flex: 1;
+    min-height: 52vh;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 0;
+  }
+
   /* ── HOME GREETING ── */
   #homeGreeting {
-    padding: 10px 28px 0;
-    flex-shrink: 0;
+    padding: 0 28px;
+    flex-shrink: 0; width: 100%; box-sizing: border-box;
   }
   #homeGreeting p {
     font-size: 24px; font-weight: 400;
@@ -214,22 +220,31 @@
     font-weight: 700;
   }
 
-  /* Separator between new-board area and boards list */
+  /* Separator — sits above the scrolling boards, acts as a visual mask edge */
   .home-divider {
     border: none;
     border-top: 1px solid var(--border);
     margin: 0 28px;
     flex-shrink: 0;
+    position: relative; z-index: 2;
   }
 
-  /* Boards section */
+  /* Boards section — only scrollable area on home screen */
   #homeBoardsSection {
     flex: 1;
-    padding: 28px 28px 60px;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    padding: 4px 28px 60px;
   }
+  #homeBoardsSection::-webkit-scrollbar { display: none; }
   .home-boards-label {
     font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--text-dim); margin-bottom: 14px;
+    color: var(--text-dim);
+    padding: 14px 28px 10px;
+    flex-shrink: 0;
+    background: var(--bg);
   }
   #boardsGrid {
     display: grid;
@@ -917,6 +932,90 @@
   .sp-close:hover { color: var(--text); }
   .sp-body { flex: 1; overflow-y: auto; padding: 28px 36px; }
   .sp-section { margin-bottom: 32px; }
+  .sp-footer {
+    padding: 16px 36px calc(24px + env(safe-area-inset-bottom));
+    flex-shrink: 0; border-top: 1px solid var(--border);
+  }
+  #feedbackBtn {
+    width: 100%; padding: 12px;
+    background: none; border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text-dim);
+    font-size: 13px; font-weight: 500; letter-spacing: 0.02em;
+    cursor: pointer; font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #feedbackBtn:hover { color: var(--text); border-color: var(--muted); }
+
+  /* ── Feedback overlay ── */
+  #feedbackOverlay {
+    position: fixed; inset: 0; z-index: 600;
+    background: var(--bg);
+    display: flex; flex-direction: column;
+  }
+  #feedbackOverlay[hidden] { display: none !important; }
+  #feedbackOverlay.entering { animation: pageIn 0.32s cubic-bezier(0.4,0,0.2,1) forwards; }
+  #feedbackOverlay.leaving  { animation: pageOutDown 0.28s cubic-bezier(0.4,0,0.2,1) forwards; }
+  .fb-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: max(22px, env(safe-area-inset-top) + 10px) 36px 0;
+    flex-shrink: 0;
+  }
+  .fb-header h2 {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent); margin: 0;
+  }
+  .fb-body {
+    flex: 1; display: flex; flex-direction: column;
+    padding: 24px 36px; gap: 10px; min-height: 0;
+  }
+  .fb-body p {
+    font-size: 12px; color: var(--text-dim); margin: 0; line-height: 1.5;
+  }
+  #feedbackTextarea {
+    flex: 1; min-height: 160px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text);
+    font-size: 14px; line-height: 1.6; padding: 14px;
+    outline: none; resize: none; font-family: inherit;
+    transition: border-color 0.18s; -webkit-appearance: none;
+  }
+  #feedbackTextarea::placeholder { color: var(--text-dim); }
+  #feedbackTextarea:focus { border-color: var(--muted); }
+  .fb-footer {
+    display: flex; gap: 10px;
+    padding: 12px 36px calc(28px + env(safe-area-inset-bottom));
+    flex-shrink: 0;
+  }
+  #feedbackCancel {
+    flex: 1; padding: 12px;
+    background: none; border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text-dim);
+    font-size: 13px; font-weight: 500; cursor: pointer; font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #feedbackCancel:hover { color: var(--text); border-color: var(--muted); }
+  #feedbackSend {
+    flex: 2; padding: 12px;
+    background: var(--accent); color: var(--accent-fg);
+    border: none; border-radius: var(--rsm);
+    font-size: 13px; font-weight: 600; letter-spacing: 0.04em;
+    cursor: pointer; font-family: inherit;
+    transition: opacity 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  #feedbackSend:active { opacity: 0.8; }
+  #feedbackSend:disabled { opacity: 0.35; cursor: default; }
+  #feedbackThanks {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    padding: 24px 36px;
+  }
+  #feedbackThanks .fb-thanks-icon { font-size: 32px; opacity: 0.7; }
+  #feedbackThanks p {
+    font-size: 14px; color: var(--text-dim); margin: 0;
+    text-align: center; line-height: 1.5;
+  }
   .sp-section-label {
     font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
     color: var(--text-dim); margin-bottom: 6px;
@@ -1168,6 +1267,10 @@
 
     .sp-header { padding: max(22px, env(safe-area-inset-top) + 10px) 18px 0; }
     .sp-body { padding: 20px 18px; }
+    .sp-footer { padding: 14px 18px calc(20px + env(safe-area-inset-bottom)); }
+    .fb-header { padding: max(22px, env(safe-area-inset-top) + 10px) 18px 0; }
+    .fb-body { padding: 20px 18px; }
+    .fb-footer { padding: 10px 18px calc(24px + env(safe-area-inset-bottom)); }
 
     /* Manual scrubber safe-area header */
     .ms-header { padding: max(18px, env(safe-area-inset-top) + 8px) 18px 14px; }
@@ -1206,7 +1309,8 @@
     /* Home screen mobile adjustments */
     #homeTopBar { padding: max(20px, env(safe-area-inset-top) + 8px) 18px 0; }
     #homeNewArea { min-height: 160px; }
-    #homeBoardsSection { padding: 22px 16px 60px; }
+    .home-boards-label { padding: 12px 18px 8px; }
+    #homeBoardsSection { padding: 4px 16px 60px; }
     .home-divider { margin: 0 18px; }
     #boardsGrid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
 
@@ -1295,23 +1399,25 @@
     </button>
   </div>
 
-  <!-- Time-based greeting -->
-  <div id="homeGreeting"><p id="homeGreetingText"></p></div>
-
-  <!-- New board area: + sits toward the bottom -->
-  <div id="homeNewArea">
-    <div id="homeNewGroup">
-      <button id="homeNewBtn" aria-label="New board">+</button>
-      <span id="homeNewLabel">Create new board</span>
+  <!-- Greeting + new board button — centered in the upper half -->
+  <div id="homeUpperArea">
+    <div id="homeGreeting"><p id="homeGreetingText"></p></div>
+    <div id="homeNewArea">
+      <div id="homeNewGroup">
+        <button id="homeNewBtn" aria-label="New board">+</button>
+        <span id="homeNewLabel">Create new board</span>
+      </div>
     </div>
   </div>
 
   <!-- Separator -->
   <hr class="home-divider">
 
-  <!-- Boards list -->
+  <!-- MY BOARDS label — always visible, outside the scroll container -->
+  <div class="home-boards-label">My Boards</div>
+
+  <!-- Boards grid — only scrollable area -->
   <div id="homeBoardsSection">
-    <div class="home-boards-label">My Boards</div>
     <div id="boardsGrid"></div>
   </div>
 
@@ -1626,6 +1732,39 @@
         </label>
       </div>
     </div>
+    <div class="sp-section">
+      <div class="sp-section-label">Notifications</div>
+      <div class="sp-row">
+        <span class="sp-row-label">Enable notifications</span>
+        <label class="toggle-sw">
+          <input type="checkbox" id="notificationsToggle">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="sp-footer">
+    <button id="feedbackBtn">Leave feedback for David</button>
+  </div>
+</div>
+
+<!-- Feedback overlay -->
+<div id="feedbackOverlay" hidden>
+  <div class="fb-header">
+    <h2>Feedback</h2>
+    <button class="sp-close" id="feedbackClose">&#x2715;</button>
+  </div>
+  <div class="fb-body" id="feedbackForm">
+    <p>Share a complaint, feature request, or note — your feedback goes directly to David.</p>
+    <textarea id="feedbackTextarea" placeholder="Write your feedback here…" maxlength="2000"></textarea>
+  </div>
+  <div id="feedbackThanks" hidden>
+    <span class="fb-thanks-icon">✦</span>
+    <p>Thank you for your feedback.<br>It means a lot.</p>
+  </div>
+  <div class="fb-footer" id="feedbackActions">
+    <button id="feedbackCancel">Cancel</button>
+    <button id="feedbackSend" disabled>Send</button>
   </div>
 </div>
 
@@ -3098,6 +3237,68 @@ themeToggle.addEventListener('change', () => {
 });
 
 applyTheme(localStorage.getItem('stlls-theme') === 'light');
+
+// ── Feedback overlay ────────────────────────────────────────────────────────
+const feedbackOverlay  = document.getElementById('feedbackOverlay');
+const feedbackTextarea = document.getElementById('feedbackTextarea');
+const feedbackSend     = document.getElementById('feedbackSend');
+const feedbackCancel   = document.getElementById('feedbackCancel');
+const feedbackClose    = document.getElementById('feedbackClose');
+const feedbackForm     = document.getElementById('feedbackForm');
+const feedbackThanks   = document.getElementById('feedbackThanks');
+const feedbackActions  = document.getElementById('feedbackActions');
+
+function openFeedback() {
+  feedbackTextarea.value = '';
+  feedbackSend.disabled = true;
+  feedbackForm.hidden = false;
+  feedbackThanks.hidden = true;
+  feedbackActions.hidden = false;
+  feedbackOverlay.hidden = false;
+  feedbackOverlay.classList.remove('leaving');
+  feedbackOverlay.classList.add('entering');
+  feedbackOverlay.addEventListener('animationend', () => {
+    feedbackOverlay.classList.remove('entering');
+    feedbackTextarea.focus();
+  }, { once: true });
+}
+
+function closeFeedback() {
+  feedbackOverlay.classList.add('leaving');
+  feedbackOverlay.addEventListener('animationend', () => {
+    feedbackOverlay.hidden = true;
+    feedbackOverlay.classList.remove('leaving');
+  }, { once: true });
+}
+
+document.getElementById('feedbackBtn').addEventListener('click', openFeedback);
+feedbackClose.addEventListener('click', closeFeedback);
+feedbackCancel.addEventListener('click', closeFeedback);
+
+feedbackTextarea.addEventListener('input', () => {
+  feedbackSend.disabled = feedbackTextarea.value.trim().length === 0;
+});
+
+feedbackSend.addEventListener('click', () => {
+  const text = feedbackTextarea.value.trim();
+  if (!text) return;
+  // Store locally until a backend is decided
+  const entries = JSON.parse(localStorage.getItem('stlls-feedback') || '[]');
+  entries.push({ text, sentAt: new Date().toISOString() });
+  try { localStorage.setItem('stlls-feedback', JSON.stringify(entries)); } catch(e) {}
+  // Show thank-you state
+  feedbackForm.hidden = true;
+  feedbackActions.hidden = true;
+  feedbackThanks.hidden = false;
+  setTimeout(closeFeedback, 2200);
+});
+
+// ── Notifications toggle ────────────────────────────────────────────────────
+const notificationsToggle = document.getElementById('notificationsToggle');
+notificationsToggle.checked = localStorage.getItem('stlls-notifications') === 'true';
+notificationsToggle.addEventListener('change', () => {
+  localStorage.setItem('stlls-notifications', notificationsToggle.checked ? 'true' : 'false');
+});
 
 // ── Preview expand/collapse ─────────────────────────────────────────────────
 let previewExpanded = false;

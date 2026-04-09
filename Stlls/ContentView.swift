@@ -212,10 +212,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                     }
                 }
 
-                // H.264 / HEVC → browser handles seeking natively (fast)
-                // ProRes / unknown → AVAssetImageGenerator frame extraction
-                let useWebPath = ["avc1", "hvc1", "hev1", "mp4v"].contains(codec)
-                let key = UUID().uuidString
+                // Capture computed values as immutable lets before crossing
+                // the actor boundary — required by Swift 6 strict concurrency.
+                let finalDuration = duration
+                let finalW        = w
+                let finalH        = h
+                let finalFps      = fps
+                let useWebPath    = ["avc1", "hvc1", "hev1", "mp4v"].contains(codec)
+                let key           = UUID().uuidString
 
                 await MainActor.run {
                     self.tempFiles[key] = dest
@@ -226,10 +230,10 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                         let payload: [String: Any] = [
                             "webURL":    "stlls-video://v?k=\(key)",
                             "assetKey":  key,
-                            "duration":  duration,
-                            "width":     w,
-                            "height":    h,
-                            "frameRate": fps,
+                            "duration":  finalDuration,
+                            "width":     finalW,
+                            "height":    finalH,
+                            "frameRate": finalFps,
                         ]
                         self.webView?.callAsyncJavaScript(
                             "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)",
@@ -240,10 +244,10 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                         self.assets[key] = asset
                         let payload: [String: Any] = [
                             "assetKey":  key,
-                            "duration":  duration,
-                            "width":     w,
-                            "height":    h,
-                            "frameRate": fps,
+                            "duration":  finalDuration,
+                            "width":     finalW,
+                            "height":    finalH,
+                            "frameRate": finalFps,
                         ]
                         self.webView?.callAsyncJavaScript(
                             "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)",

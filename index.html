@@ -38,6 +38,7 @@
   }
 
   html, body { height: 100%; overflow: hidden; }
+  * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   body {
     background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
@@ -690,7 +691,7 @@
   .ms-title { font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); }
   #msFileName {
     font-size: 11px; color: var(--text-dim); letter-spacing: 0.01em;
-    text-align: center; padding: 0 18px 10px;
+    text-align: center; padding: 8px 18px 10px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     flex-shrink: 0;
   }
@@ -2566,19 +2567,16 @@ async function processVideo(fileOrURL) {
     exportBarLabel.textContent = label;
   }
 
-  const isURL  = typeof fileOrURL === 'string';
-  const srcURL = isURL ? fileOrURL : URL.createObjectURL(fileOrURL);
-  const baseName = isURL ? 'still' : (fileOrURL.name.replace(/\.[^.]+$/, ''));
+  const isURL       = typeof fileOrURL === 'string';
+  const capturedKey = isURL ? _nativeAssetKey : null;  // snapshot key so async finish can't release a newer pick's asset
+  const srcURL      = isURL ? fileOrURL : URL.createObjectURL(fileOrURL);
+  const baseName    = isURL ? 'still' : (fileOrURL.name.replace(/\.[^.]+$/, ''));
 
   // ── cancellation object ───────────────────────────────────────────────────
   const ctrl = { cancelled: false };
   _processVideoCtrl = ctrl;
 
   // ── show analysis row ─────────────────────────────────────────────────────
-  videoAnalysisLabel.textContent = 'Analysing video…';
-  videoAnalysisRow.hidden = false;
-
-  // ── show progress bar ─────────────────────────────────────────────────────
   exportBarFill.style.transition = 'none';
   exportBarFill.style.width = '0%';
   exportBarLabel.textContent = 'Loading video…';
@@ -2681,8 +2679,12 @@ async function processVideo(fileOrURL) {
   }
 
   if (!isURL) URL.revokeObjectURL(srcURL);
-  // Release native asset if this was a web-URL pick
-  if (isURL && _nativeAssetKey) { nativeRelease(_nativeAssetKey); _nativeAssetKey = null; _nativeWebURL = null; }
+  // Release the asset we started with — but only touch globals if they still hold OUR key
+  // (user may have picked a new video for manual scrubber while this async function was running)
+  if (isURL && capturedKey) {
+    nativeRelease(capturedKey);
+    if (_nativeAssetKey === capturedKey) { _nativeAssetKey = null; _nativeWebURL = null; }
+  }
 
   _processVideoCtrl = null;
   videoAnalysisRow.hidden = true;
@@ -2704,8 +2706,6 @@ fileInput.addEventListener('change', e => loadFiles(e.target.files));
 mAddBtn.addEventListener('click', () => {
   if (importMode === 'video' && isNativeVideo()) {
     // Route to native PHPicker for video
-    videoAnalysisLabel.textContent = 'Loading video…';
-    videoAnalysisRow.hidden = false;
     window.webkit.messageHandlers.requestVideoSelection.postMessage(null);
   } else {
     fileInput.click();
@@ -3106,8 +3106,6 @@ async function processVideoNative() {
   const ctrl = { cancelled: false };
   _processVideoCtrl = ctrl;
 
-  videoAnalysisLabel.textContent = 'Analysing video…';
-  videoAnalysisRow.hidden = false;
   exportBarFill.style.transition = 'none';
   exportBarFill.style.width = '0%';
   exportBarLabel.textContent = 'Loading video…';

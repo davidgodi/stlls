@@ -390,7 +390,7 @@
   /* ── PREVIEW ── */
   #previewOuter {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    min-width: 0; min-height: 0; position: relative;
+    min-width: 0; min-height: 0; position: relative; overflow: hidden;
   }
   #previewWrap {
     position: relative; display: flex; align-items: center; justify-content: center;
@@ -406,6 +406,7 @@
     position: relative; overflow: hidden; border-radius: 5px;
     box-shadow: 0 12px 60px rgba(0,0,0,0.75);
     flex-shrink: 0; display: none; touch-action: none;
+    will-change: transform;
   }
   .slot { position: absolute; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
   .slot.grabbing { cursor: grabbing; }
@@ -438,10 +439,10 @@
     overflow: hidden;
     min-height: 0;
     max-height: 2000px;
-    transition: width 0.88s cubic-bezier(0,0,0.2,1),
-                max-height 0.88s cubic-bezier(0,0,0.2,1),
-                opacity 0.78s cubic-bezier(0,0,0.2,1),
-                transform 0.88s cubic-bezier(0,0,0.2,1);
+    transition: width 1.15s cubic-bezier(0.4,0,0.2,1),
+                max-height 1.15s cubic-bezier(0.4,0,0.2,1),
+                opacity 1.0s cubic-bezier(0.4,0,0.2,1),
+                transform 1.15s cubic-bezier(0.4,0,0.2,1);
   }
 
   /* ── Export bar (desktop) — fixed bottom strip ── */
@@ -734,14 +735,15 @@
     display: flex; align-items: center; justify-content: center; gap: 8px;
     padding: 10px 16px 4px; flex-shrink: 0;
   }
-  #msPrevFrameBtn, #msNextFrameBtn {
+  #msPrevFrameBtn, #msNextFrameBtn, #msPrev10Btn, #msNext10Btn {
     width: 38px; height: 38px; flex-shrink: 0;
     background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
     color: var(--text-mid); font-size: 13px; cursor: pointer; font-family: inherit;
     display: flex; align-items: center; justify-content: center;
     -webkit-tap-highlight-color: transparent; transition: color 0.15s;
   }
-  #msPrevFrameBtn:hover, #msNextFrameBtn:hover { color: var(--text); }
+  #msPrevFrameBtn:hover, #msNextFrameBtn:hover,
+  #msPrev10Btn:hover, #msNext10Btn:hover { color: var(--text); }
   #msPlayBtn {
     width: 48px; height: 48px; flex-shrink: 0;
     background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
@@ -1709,14 +1711,26 @@
     <img id="msFrameImg" hidden alt="">
     <div id="msFrameImgLoading" hidden><div class="ms-load-ring"></div></div>
   </div>
-  <!-- Transport row: prev-frame | play | next-frame -->
+  <!-- Transport row: prev-1 | prev-10 | play | next-10 | next-1 -->
   <div class="ms-transport-row">
     <button id="msPrevFrameBtn" aria-label="Previous frame">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>
       </svg>
     </button>
+    <button id="msPrev10Btn" aria-label="Back 10 frames">
+      <svg width="15" height="13" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="21 20 11 12 21 4 21 20"/><polygon points="10 20 0 12 10 4 10 20"/>
+        <line x1="25" y1="19" x2="25" y2="5"/>
+      </svg>
+    </button>
     <button id="msPlayBtn"><svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg></button>
+    <button id="msNext10Btn" aria-label="Forward 10 frames">
+      <svg width="15" height="13" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 4 15 12 5 20 5 4"/><polygon points="16 4 26 12 16 20 16 4"/>
+        <line x1="1" y1="5" x2="1" y2="19"/>
+      </svg>
+    </button>
     <button id="msNextFrameBtn" aria-label="Next frame">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
@@ -2221,6 +2235,8 @@ renderBoardsList();
 // ── Preview sizing ─────────────────────────────────────────────────────────
 let previewW = 0, previewH = 0;
 
+let _previewAnimating = false;
+
 function computePreviewSize() {
   const [rw, rh] = RATIOS[state.ratio];
   const avW = previewOuter.clientWidth  - 8;
@@ -2230,15 +2246,21 @@ function computePreviewSize() {
   if (h > avH) { h = avH; w = h * rw / rh; }
   previewW = Math.floor(w);
   previewH = Math.floor(h);
-  layoutPreview.style.width  = previewW + 'px';
-  layoutPreview.style.height = previewH + 'px';
+  // Skip DOM writes during expand/collapse animation — poll loop handles visuals via transform
+  if (!_previewAnimating) {
+    layoutPreview.style.width  = previewW + 'px';
+    layoutPreview.style.height = previewH + 'px';
+  }
 }
 
 // Use rAF so the canvas tracks layout changes (e.g. panel expand/collapse) every frame
 let roRaf = null;
 const ro = new ResizeObserver(() => {
   if (roRaf) cancelAnimationFrame(roRaf);
-  roRaf = requestAnimationFrame(() => { computePreviewSize(); buildLayout(); });
+  roRaf = requestAnimationFrame(() => {
+    computePreviewSize();
+    if (!_previewAnimating) buildLayout();
+  });
 });
 ro.observe(previewOuter);
 
@@ -3268,6 +3290,8 @@ const msTimeDur      = document.getElementById('msTimeDur');
 const msPlayBtn      = document.getElementById('msPlayBtn');
 const msPrevFrameBtn = document.getElementById('msPrevFrameBtn');
 const msNextFrameBtn = document.getElementById('msNextFrameBtn');
+const msPrev10Btn    = document.getElementById('msPrev10Btn');
+const msNext10Btn    = document.getElementById('msNext10Btn');
 const msGrabBtn      = document.getElementById('msGrabBtn');
 const msDoneBtn      = document.getElementById('msDoneBtn');
 const msCancelBtn    = document.getElementById('msCancelBtn');
@@ -3398,7 +3422,7 @@ msPlayBtn.addEventListener('click', () => {
   }
   if (msVideo.paused) {
     msVideo.play();
-    msPlayBtn.textContent = '⏸';
+    msPlayBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>';
     if (!msRaf) msRaf = requestAnimationFrame(msRafLoop);
   } else {
     msVideo.pause();
@@ -3436,6 +3460,8 @@ async function stepFrame(delta) {
 
 msPrevFrameBtn.addEventListener('click', () => stepFrame(_nativeMs ? -1/_nativeFps : -1/30));
 msNextFrameBtn.addEventListener('click', () => stepFrame(_nativeMs ?  1/_nativeFps :  1/30));
+msPrev10Btn.addEventListener('click', () => stepFrame(_nativeMs ? -10/_nativeFps : -10/30));
+msNext10Btn.addEventListener('click', () => stepFrame(_nativeMs ?  10/_nativeFps :  10/30));
 
 // Grab current frame as still
 msGrabBtn.addEventListener('click', () => {
@@ -3678,6 +3704,30 @@ let previewExpanded = false;
 
 previewExpandBtn.addEventListener('click', () => {
   previewExpanded = !previewExpanded;
+
+  const panel = document.querySelector('.panel');
+  if (!previewExpanded) {
+    // COLLAPSE: override with slow-start ease-in-out before class toggle
+    panel.style.transition = 'width 1.15s cubic-bezier(0.65,0,0.35,1), max-height 1.15s cubic-bezier(0.65,0,0.35,1), opacity 1.0s cubic-bezier(0.65,0,0.35,1), transform 1.15s cubic-bezier(0.65,0,0.35,1)';
+    // Clear any inline max-height left over from a previous expand animation
+    panel.style.maxHeight = '';
+  } else {
+    // EXPAND: clear any inline transition override
+    panel.style.transition = '';
+    // Mobile: the base CSS has max-height:2000px, but actual panel height is ~400px.
+    // Transitioning 2000→0 means the visual change only happens in the last ~20% of
+    // the duration — creating a "dead zone" at the start that looks like a bump.
+    // Fix: set the real content height as the inline start value, force a reflow so
+    // the browser commits it, then animate to 0.  Full 1.15s maps to visible range.
+    if (window.innerWidth < 640) {
+      panel.style.maxHeight = panel.scrollHeight + 'px';
+      void panel.offsetHeight; // flush — browser records this as the transition origin
+      panel.style.maxHeight = '0px'; // end value; CSS class will also say 0
+      // Clean up inline style after animation so collapse works normally next time
+      setTimeout(() => { if (panel.style.maxHeight === '0px') panel.style.maxHeight = ''; }, 1300);
+    }
+  }
+
   document.body.classList.toggle('preview-expanded', previewExpanded);
 
   // Update icon: expand arrows vs compress arrows
@@ -3693,15 +3743,34 @@ previewExpandBtn.addEventListener('click', () => {
     </svg>`;
   }
 
-  // Poll every frame for the full transition duration so both width AND height
-  // changes are caught (padding transition doesn't always fire ResizeObserver)
-  const start = performance.now();
-  const duration = 980;
-  (function poll(now) {
-    computePreviewSize();
-    buildLayout();
-    if (now - start < duration) requestAnimationFrame(poll);
-  })(performance.now());
+  if (!previewExpanded) {
+    // COLLAPSE (returning to normal): scale trick — cheap transform each frame,
+    // one real rebuild at the end. Avoids 59 full DOM rebuilds while shrinking.
+    const snapW = previewW;
+    const snapH = previewH;
+    _previewAnimating = true;
+    layoutPreview.style.transformOrigin = 'center center';
+
+    const duration = 1200; // slightly past the 1.15s CSS transition
+    const start = performance.now();
+    (function poll(now) {
+      // previewW/H are kept current by ResizeObserver → computePreviewSize()
+      if (snapW > 0 && snapH > 0) {
+        layoutPreview.style.transform = `scale(${previewW / snapW}, ${previewH / snapH})`;
+      }
+      if (now - start < duration) {
+        requestAnimationFrame(poll);
+      } else {
+        // Animation done — one real rebuild at the final size
+        _previewAnimating = false;
+        layoutPreview.style.transform = '';
+        computePreviewSize();
+        buildLayout();
+      }
+    })(start);
+  }
+  // EXPAND (going to full screen): let ResizeObserver → buildLayout() run naturally.
+  // Growing layouts are cheap and the RO timing mismatch would cause a bump with the scale trick.
 });
 
 // ── Export ─────────────────────────────────────────────────────────────────

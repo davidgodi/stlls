@@ -1358,6 +1358,86 @@
     }
   }
 
+  /* ── Board navigation ── */
+  .board-nav-dot {
+    position: absolute;
+    top: 50%;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.6);
+    transform: translateY(-50%);
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 10;
+  }
+  #boardNavLeft  { left: 7px; }
+  #boardNavRight { right: 30px; }  /* leave room for add button */
+
+  #addBoardBtn {
+    position: absolute;
+    right: 7px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(0,0,0,0.45);
+    color: rgba(255,255,255,0.7);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s, color 0.15s;
+  }
+  #addBoardBtn:hover { background: rgba(0,0,0,0.65); color: #fff; }
+
+  #boardCounter {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: rgba(255,255,255,0.5);
+    pointer-events: none;
+    z-index: 10;
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Export choice modal ── */
+  #exportChoiceModal {
+    position: fixed; inset: 0; z-index: 800;
+    background: rgba(0,0,0,0.55);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+  #exportChoiceModal[hidden] { display: none !important; }
+  .export-choice-box {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 16px;
+    width: min(320px, calc(100% - 32px));
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .export-choice-title {
+    font-size: 12px; color: var(--text-dim); text-align: center;
+    text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 2px;
+  }
+  .export-choice-btn {
+    width: 100%; padding: 13px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text);
+    font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+    -webkit-tap-highlight-color: transparent; transition: background 0.15s;
+  }
+  .export-choice-btn:hover { background: var(--border); }
+  .export-choice-cancel {
+    width: 100%; padding: 12px;
+    background: none; border: none;
+    color: var(--text-dim); font-size: 13px; cursor: pointer; font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   /* ── LANDSCAPE LOCK OVERLAY ── */
   #landscapeOverlay {
     display: none;
@@ -1433,8 +1513,8 @@
     <div id="homeGreeting"><p id="homeGreetingText"></p></div>
     <div id="homeNewArea">
       <div id="homeNewGroup">
-        <button id="homeNewBtn" aria-label="New board">+</button>
-        <span id="homeNewLabel">Create new board</span>
+        <button id="homeNewBtn" aria-label="New project">+</button>
+        <span id="homeNewLabel">Create new project</span>
       </div>
     </div>
   </div>
@@ -1442,8 +1522,8 @@
   <!-- Separator -->
   <hr class="home-divider">
 
-  <!-- MY BOARDS label — always visible, outside the scroll container -->
-  <div class="home-boards-label">My Boards</div>
+  <!-- MY PROJECTS label — always visible, outside the scroll container -->
+  <div class="home-boards-label">My Projects</div>
 
   <!-- Boards grid — only scrollable area -->
   <div id="homeBoardsSection">
@@ -1458,11 +1538,11 @@
   <button class="bm-item danger" id="bmDelete">Delete</button>
 </div>
 
-<!-- Rename board modal -->
+<!-- Rename project modal -->
 <div id="renameOverlay" hidden>
   <div class="rename-box">
-    <p>Rename board</p>
-    <input type="text" id="renameInput" placeholder="Board name" autocomplete="off" autocorrect="off">
+    <p>Rename project</p>
+    <input type="text" id="renameInput" placeholder="Project name" autocomplete="off" autocorrect="off">
     <div class="rename-btns">
       <button id="renameCancelBtn">Cancel</button>
       <button id="renameSaveBtn">Save</button>
@@ -1473,7 +1553,7 @@
 <!-- Delete confirm overlay -->
 <div id="deleteConfirm" hidden>
   <div class="dc-box">
-    <p>Delete this board?</p>
+    <p>Delete this project?</p>
     <div class="dc-btns">
       <button id="dcCancel">Cancel</button>
       <button id="dcYes">Delete</button>
@@ -1545,6 +1625,13 @@
           <line x1="3" y1="21" x2="10" y2="14"/>
         </svg>
       </button>
+      <!-- Board nav: left/right dots and add-board button -->
+      <div id="boardNavLeft"  class="board-nav-dot" hidden></div>
+      <div id="boardNavRight" class="board-nav-dot" hidden></div>
+      <button id="addBoardBtn" aria-label="Add board">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+      <span id="boardCounter" hidden></span>
     </div>
   </div>
 
@@ -1833,6 +1920,16 @@
   </div>
 </div>
 
+<!-- Export choice modal (multi-board projects) -->
+<div id="exportChoiceModal" hidden>
+  <div class="export-choice-box">
+    <p class="export-choice-title">Export</p>
+    <button class="export-choice-btn" id="exportChoiceCurrent">Current Board</button>
+    <button class="export-choice-btn" id="exportChoiceAll">All Boards</button>
+    <button class="export-choice-cancel" id="exportChoiceCancel">Cancel</button>
+  </div>
+</div>
+
 <!-- Splash screen — shown only on fresh launch -->
 <div id="splashScreen">
   <div id="splashContent">
@@ -2019,23 +2116,32 @@ const deleteConfirm  = document.getElementById('deleteConfirm');
 const dcCancel       = document.getElementById('dcCancel');
 const dcYes          = document.getElementById('dcYes');
 
-// Simple in-memory boards store (IndexedDB-lite fallback for this version)
-let boards = JSON.parse(localStorage.getItem('stlls-boards') || '[]');
-let _boardMenuId = null;
-let _currentBoardId = null;
-
-function saveBoards() {
-  // Store metadata only (no image src to avoid quota issues in simple version)
-  try { localStorage.setItem('stlls-boards', JSON.stringify(boards)); } catch(e) {}
+// ── ID generator ──────────────────────────────────────────────────────────
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function renderBoardsList() {
+// ── Multi-board state (in-memory only) ────────────────────────────────────
+let _projectBoards = [];
+let _activeBoardIdx = 0;
+
+// Simple in-memory projects store (localStorage-backed metadata)
+let projects = JSON.parse(localStorage.getItem('stlls-boards') || '[]');
+let _projectMenuId = null;
+let _currentProjectId = null;
+
+function saveProjects() {
+  // Store metadata only (no image src to avoid quota issues in simple version)
+  try { localStorage.setItem('stlls-boards', JSON.stringify(projects)); } catch(e) {}
+}
+
+function renderProjectsList() {
   boardsGrid.innerHTML = '';
-  if (boards.length === 0) {
-    boardsGrid.innerHTML = '<div style="color:var(--text-dim);font-size:11px;grid-column:1/-1;padding:8px 0;">No boards yet. Tap + to create one.</div>';
+  if (projects.length === 0) {
+    boardsGrid.innerHTML = '<div style="color:var(--text-dim);font-size:11px;grid-column:1/-1;padding:8px 0;">No projects yet. Tap + to create one.</div>';
     return;
   }
-  const sorted = [...boards].sort((a,b) => b.updatedAt - a.updatedAt);
+  const sorted = [...projects].sort((a,b) => b.updatedAt - a.updatedAt);
   sorted.forEach(board => {
     const card = document.createElement('div');
     card.className = 'board-card';
@@ -2074,7 +2180,7 @@ function renderBoardsList() {
     menuBtn.textContent = '···';
     menuBtn.addEventListener('click', e => {
       e.stopPropagation();
-      _boardMenuId = board.id;
+      _projectMenuId = board.id;
       const r = menuBtn.getBoundingClientRect();
       boardMenu.style.top = (r.bottom + 4) + 'px';
       boardMenu.style.left = Math.min(r.left, window.innerWidth - 150) + 'px';
@@ -2083,7 +2189,7 @@ function renderBoardsList() {
 
     card.appendChild(thumb);
     card.appendChild(menuBtn);
-    card.addEventListener('click', () => openBoard(board.id));
+    card.addEventListener('click', () => openProject(board.id));
     boardsGrid.appendChild(card);
   });
 }
@@ -2097,8 +2203,13 @@ function leaveHome(then) {
   }, { once: true });
 }
 
-function openBoard(id) {
-  _currentBoardId = id;
+function openProject(id) {
+  _currentProjectId = id;
+  // Initialize single empty board (images never persisted)
+  _projectBoards = [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  _activeBoardIdx = 0;
+  loadBoardState(_projectBoards[0]);
+  updateBoardNav();
   leaveHome();
 }
 
@@ -2130,25 +2241,107 @@ function generateThumbnail() {
   return cvs.toDataURL('image/jpeg', 0.82);
 }
 
+// ── Multi-board helpers ───────────────────────────────────────────────────
+
+function saveCurrentBoardSnapshot() {
+  _projectBoards[_activeBoardIdx] = {
+    id: _projectBoards[_activeBoardIdx]?.id || genId(),
+    ratio:    state.ratio,
+    layout:   state.layout,
+    gridCols: state.gridCols,
+    gridRows: state.gridRows,
+    gap:      state.gap,
+    padding:  state.padding,
+    bg:       state.bg,
+    images:   state.images.slice(),
+  };
+}
+
+function loadBoardState(board) {
+  state.ratio    = board.ratio;
+  state.layout   = board.layout;
+  state.gridCols = board.gridCols;
+  state.gridRows = board.gridRows;
+  state.gap      = board.gap;
+  state.padding  = board.padding;
+  state.bg       = board.bg;
+  state.images   = board.images.slice();
+  // Sync all controls to new state
+  document.querySelectorAll('[data-ratio]').forEach(b => b.classList.toggle('active', b.dataset.ratio === state.ratio));
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === state.layout));
+  gridOptsWrap.hidden = state.layout !== 'grid';
+  colsVal.textContent = state.gridCols;
+  rowsVal.textContent = state.gridRows;
+  gapSlider.value = state.gap; gapVal.textContent = state.gap;
+  padSlider.value = state.padding; padVal.textContent = state.padding;
+  bgColor.value   = state.bg;
+  layoutPreview.style.background = state.bg;
+  undoHistory.length = 0; redoHistory.length = 0;
+  updateUndoBtn();
+  renderList();
+  computePreviewSize();
+  buildLayout();
+}
+
+function updateBoardNav() {
+  const total = _projectBoards.length;
+  const idx = _activeBoardIdx;
+  const leftDot  = document.getElementById('boardNavLeft');
+  const rightDot = document.getElementById('boardNavRight');
+  if (leftDot)  leftDot.hidden  = idx <= 0;
+  if (rightDot) rightDot.hidden = idx >= total - 1;
+  const counterEl = document.getElementById('boardCounter');
+  if (counterEl) {
+    counterEl.textContent = total > 1 ? `${idx + 1} / ${total}` : '';
+    counterEl.hidden = total <= 1;
+  }
+}
+
+function switchToBoard(newIdx, direction) {
+  if (newIdx < 0 || newIdx >= _projectBoards.length || newIdx === _activeBoardIdx) return;
+  saveCurrentBoardSnapshot();
+  _activeBoardIdx = newIdx;
+  layoutPreview.style.transition = 'opacity 0.15s ease';
+  layoutPreview.style.opacity = '0';
+  setTimeout(() => {
+    loadBoardState(_projectBoards[_activeBoardIdx]);
+    updateBoardNav();
+    requestAnimationFrame(() => {
+      layoutPreview.style.transition = 'opacity 0.2s ease';
+      layoutPreview.style.opacity = '1';
+      setTimeout(() => { layoutPreview.style.transition = ''; layoutPreview.style.opacity = ''; }, 250);
+    });
+  }, 150);
+}
+
+function addNewBoard() {
+  saveCurrentBoardSnapshot();
+  const newBoard = { id: genId(), ratio: state.ratio, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, images: [] };
+  _projectBoards.push(newBoard);
+  switchToBoard(_projectBoards.length - 1, 'left');
+}
+
 function goHome() {
-  if (_currentBoardId) {
-    if (state.images.length > 0) {
-      // Save thumbnail snapshot
+  if (_currentProjectId) {
+    saveCurrentBoardSnapshot();
+    const hasImages = _projectBoards.some(b => b.images.length > 0);
+    if (hasImages) {
       const thumb = generateThumbnail();
-      const board = boards.find(b => b.id === _currentBoardId);
-      if (board) {
-        if (thumb) board.thumbnail = thumb;
-        board.updatedAt = Date.now();
-        saveBoards();
+      const project = projects.find(p => p.id === _currentProjectId);
+      if (project) {
+        if (thumb) project.thumbnail = thumb;
+        project.updatedAt = Date.now();
+        saveProjects();
       }
     } else {
-      // No images — remove the board entry so empty boards never appear
-      boards = boards.filter(b => b.id !== _currentBoardId);
-      saveBoards();
+      projects = projects.filter(p => p.id !== _currentProjectId);
+      saveProjects();
     }
   }
+  _projectBoards = [];
+  _activeBoardIdx = 0;
   updateGreeting();
-  renderBoardsList();
+  renderProjectsList();
   homeScreen.hidden = false;
   homeScreen.classList.remove('leaving');
   homeScreen.classList.add('entering');
@@ -2159,16 +2352,14 @@ const homeBtn = document.getElementById('homeBtn');
 homeBtn.addEventListener('click', goHome);
 
 homeNewBtn.addEventListener('click', () => {
-  _currentBoardId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-  boards.push({ id: _currentBoardId, updatedAt: Date.now(), thumbnail: null });
-  saveBoards();
-  // Reset editor state (happens during the exit animation, invisible to user)
-  state.images = [];
-  undoHistory.length = 0;
-  redoHistory.length = 0;
-  updateUndoBtn();
-  renderList();
-  buildLayout();
+  _currentProjectId = genId();
+  projects.push({ id: _currentProjectId, updatedAt: Date.now(), thumbnail: null });
+  saveProjects();
+  // Initialize fresh multi-board state
+  _projectBoards = [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  _activeBoardIdx = 0;
+  loadBoardState(_projectBoards[0]);
+  updateBoardNav();
   leaveHome();
 });
 
@@ -2184,26 +2375,26 @@ const renameSaveBtn  = document.getElementById('renameSaveBtn');
 
 bmRename.addEventListener('click', () => {
   boardMenu.hidden = true;
-  const board = boards.find(b => b.id === _boardMenuId);
-  renameInput.value = board?.name || '';
+  const project = projects.find(p => p.id === _projectMenuId);
+  renameInput.value = project?.name || '';
   renameOverlay.hidden = false;
   requestAnimationFrame(() => renameInput.focus());
 });
 
 renameCancelBtn.addEventListener('click', () => {
   renameOverlay.hidden = true;
-  _boardMenuId = null;
+  _projectMenuId = null;
 });
 
 renameSaveBtn.addEventListener('click', () => {
-  const board = boards.find(b => b.id === _boardMenuId);
-  if (board) {
-    board.name = renameInput.value.trim();
-    saveBoards();
-    renderBoardsList();
+  const project = projects.find(p => p.id === _projectMenuId);
+  if (project) {
+    project.name = renameInput.value.trim();
+    saveProjects();
+    renderProjectsList();
   }
   renameOverlay.hidden = true;
-  _boardMenuId = null;
+  _projectMenuId = null;
 });
 
 // Save on Enter key
@@ -2216,22 +2407,22 @@ bmDelete.addEventListener('click', () => {
   boardMenu.hidden = true;
   deleteConfirm.hidden = false;
 });
-dcCancel.addEventListener('click', () => { deleteConfirm.hidden = true; _boardMenuId = null; });
+dcCancel.addEventListener('click', () => { deleteConfirm.hidden = true; _projectMenuId = null; });
 dcYes.addEventListener('click', () => {
-  if (_boardMenuId) {
-    boards = boards.filter(b => b.id !== _boardMenuId);
-    saveBoards();
-    renderBoardsList();
+  if (_projectMenuId) {
+    projects = projects.filter(p => p.id !== _projectMenuId);
+    saveProjects();
+    renderProjectsList();
   }
   deleteConfirm.hidden = true;
-  _boardMenuId = null;
+  _projectMenuId = null;
 });
 
 // Home settings opens the same settings panel
 homeSettingsBtn.addEventListener('click', openSettings);
 
 // Show home screen on load
-renderBoardsList();
+renderProjectsList();
 
 // ── Preview sizing ─────────────────────────────────────────────────────────
 let previewW = 0, previewH = 0;
@@ -3774,6 +3965,37 @@ previewExpandBtn.addEventListener('click', () => {
   // Growing layouts are cheap and the RO timing mismatch would cause a bump with the scale trick.
 });
 
+// ── Board swipe navigation ────────────────────────────────────────────────
+let _swipeStartX = 0, _swipeStartY = 0, _swipeActive = false;
+
+previewOuter.addEventListener('touchstart', e => {
+  _swipeStartX = e.touches[0].clientX;
+  _swipeStartY = e.touches[0].clientY;
+  _swipeActive = false;
+}, { passive: true });
+
+previewOuter.addEventListener('touchmove', e => {
+  const dx = e.touches[0].clientX - _swipeStartX;
+  const dy = e.touches[0].clientY - _swipeStartY;
+  if (!_swipeActive && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
+    _swipeActive = true;
+  }
+}, { passive: true });
+
+previewOuter.addEventListener('touchend', e => {
+  if (!_swipeActive) return;
+  const dx = e.changedTouches[0].clientX - _swipeStartX;
+  const THRESH = 60;
+  if (dx < -THRESH && _activeBoardIdx < _projectBoards.length - 1) {
+    switchToBoard(_activeBoardIdx + 1, 'left');
+  } else if (dx > THRESH && _activeBoardIdx > 0) {
+    switchToBoard(_activeBoardIdx - 1, 'right');
+  }
+  _swipeActive = false;
+});
+
+document.getElementById('addBoardBtn').addEventListener('click', addNewBoard);
+
 // ── Export ─────────────────────────────────────────────────────────────────
 const exportBar      = document.getElementById('exportBar');
 const exportBarFill  = document.getElementById('exportBarFill');
@@ -3820,7 +4042,82 @@ function startExportBar() {
 
 let _exportFmt;
 
-exportBtn.addEventListener('click', doExport);
+exportBtn.addEventListener('click', () => {
+  if (_projectBoards.length > 1) {
+    document.getElementById('exportChoiceModal').hidden = false;
+  } else {
+    doExport();
+  }
+});
+
+document.getElementById('exportChoiceCurrent').addEventListener('click', () => {
+  document.getElementById('exportChoiceModal').hidden = true;
+  doExport();
+});
+
+document.getElementById('exportChoiceCancel').addEventListener('click', () => {
+  document.getElementById('exportChoiceModal').hidden = true;
+});
+
+document.getElementById('exportChoiceAll').addEventListener('click', async () => {
+  document.getElementById('exportChoiceModal').hidden = true;
+  await doExportAll();
+});
+
+async function doExportAll() {
+  saveCurrentBoardSnapshot();
+  const expScale = +exportScaleEl.value;
+  _exportFmt = exportFmt.value;
+  const mime = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
+  const qual = _exportFmt === 'jpg' ? 0.93 : undefined;
+
+  for (let i = 0; i < _projectBoards.length; i++) {
+    loadBoardState(_projectBoards[i]);
+    _activeBoardIdx = i;
+    updateBoardNav();
+
+    const [cW, cH] = canonicalDims();
+    const W = cW * expScale, H = cH * expScale;
+
+    startExportBar();
+    exportBarLabel.textContent = `Board ${i + 1} of ${_projectBoards.length}…`;
+
+    const cvs = document.createElement('canvas');
+    cvs.width = W; cvs.height = H;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = state.bg; ctx.fillRect(0, 0, W, H);
+    getSlots(W, H).forEach(({ item, x, y, w, h }) => {
+      const { img } = item; const t = itemT(item);
+      const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const totalS = coverS * t.scale;
+      const left   = (w - img.naturalWidth  * totalS) / 2 + t.fx * w;
+      const top    = (h - img.naturalHeight * totalS) / 2 + t.fy * h;
+      ctx.drawImage(img, -left / totalS, -top / totalS, w / totalS, h / totalS, x, y, w, h);
+    });
+
+    await new Promise(resolve => {
+      cvs.toBlob(blob => {
+        if (window.webkit?.messageHandlers?.exportImage) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            window.webkit.messageHandlers.exportImage.postMessage(reader.result);
+            resolve();
+          };
+          reader.readAsDataURL(blob);
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `board-${i + 1}.${_exportFmt}`; a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          resolve();
+        }
+      }, mime, qual);
+    });
+
+    if (i < _projectBoards.length - 1) await new Promise(r => setTimeout(r, 300));
+  }
+  window.exportComplete(true);
+}
 
 function doExport() {
   const expScale = +exportScaleEl.value;

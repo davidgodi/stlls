@@ -284,6 +284,15 @@
     letter-spacing: 0.02em;
   }
   .board-date { font-size: 9px; color: rgba(255,255,255,0.55); letter-spacing: 0.03em; }
+  .board-count-badge {
+    position: absolute; top: 7px; left: 7px;
+    background: rgba(0,0,0,0.52);
+    color: rgba(255,255,255,0.9);
+    font-size: 9px; font-weight: 600;
+    padding: 2px 6px; border-radius: 20px;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+  }
 
   /* Rename modal */
   #renameOverlay {
@@ -406,6 +415,15 @@
     position: relative; overflow: hidden; border-radius: 5px;
     box-shadow: 0 12px 60px rgba(0,0,0,0.75);
     flex-shrink: 0; display: none; touch-action: none;
+    will-change: transform;
+  }
+  /* Neighbour-board canvases used during swipe animation */
+  .swipe-board {
+    position: absolute;
+    border-radius: 5px;
+    box-shadow: 0 12px 60px rgba(0,0,0,0.75);
+    pointer-events: none;
+    display: none;
     will-change: transform;
   }
   .slot { position: absolute; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
@@ -1359,51 +1377,99 @@
   }
 
   /* ── Board navigation ── */
-  .board-nav-dot {
+  #boardIndicator {
     position: absolute;
-    top: 12px;
-    width: 5px; height: 5px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.6);
+    top: 7px; left: 7px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+    background: rgba(0,0,0,0.45);
+    padding: 5px 8px 6px;
+    border-radius: 10px;
     pointer-events: none;
-    transition: opacity 0.2s;
     z-index: 10;
   }
-  #boardNavLeft  { left: 10px; }
-  #boardNavRight { right: 10px; }
+  /* Fix: explicit display:flex overrides UA [hidden] — must force with !important */
+  #boardIndicator[hidden] { display: none !important; }
 
-  #addBoardBtn {
+  #boardCounterText {
+    font-size: 10px; font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+  #boardPips {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .board-pip {
+    width: 2px; height: 11px;
+    border-radius: 1px;
+    background: rgba(255,255,255,0.25);
+    transition: background 0.2s, box-shadow 0.2s;
+    flex-shrink: 0;
+  }
+  .board-pip.active {
+    background: #70c8ff;
+    box-shadow: 0 0 5px 1px rgba(112,200,255,0.65);
+  }
+
+  /* 3-dot board actions button — top-right, mirrors indicator position */
+  #boardActionsBtn {
     position: absolute;
-    right: 7px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    border: 1px solid rgba(255,255,255,0.35);
+    top: 7px; right: 7px;
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: none;
     background: rgba(0,0,0,0.45);
-    color: rgba(255,255,255,0.7);
+    color: rgba(255,255,255,0.8);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     z-index: 10;
     -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s, color 0.15s;
+    transition: background 0.15s;
   }
-  #addBoardBtn:hover { background: rgba(0,0,0,0.65); color: #fff; }
+  #boardActionsBtn:hover { background: rgba(0,0,0,0.65); }
 
-  #boardCounter {
+  /* Board actions dropdown */
+  #boardActionsMenu {
     position: absolute;
-    top: 7px;
-    left: 7px;
-    font-size: 10px;
-    font-weight: 500;
-    color: rgba(255,255,255,0.85);
-    background: rgba(0,0,0,0.45);
-    padding: 2px 7px;
-    border-radius: 20px;
-    pointer-events: none;
-    z-index: 10;
-    letter-spacing: 0.05em;
+    top: 42px; right: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    overflow: hidden;
+    z-index: 30;
+    min-width: 148px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.35);
   }
+  #boardActionsMenu[hidden] { display: none !important; }
+  .bam-item {
+    display: block; width: 100%;
+    padding: 11px 14px;
+    background: none; border: none; border-bottom: 1px solid var(--border);
+    color: var(--text); font-size: 13px; font-family: inherit;
+    text-align: left; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s;
+  }
+  .bam-item:last-child { border-bottom: none; }
+  .bam-item:hover { background: var(--surface2); }
+  .bam-item:disabled { color: var(--text-dim); cursor: default; }
+  .bam-item.danger { color: #e04040; }
+
+  #boardCapMsg {
+    position: absolute;
+    bottom: 14px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.65);
+    color: rgba(255,255,255,0.9);
+    font-size: 11px; font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 20px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 20;
+    transition: opacity 0.5s ease;
+  }
+  #boardCapMsg[hidden] { display: none !important; }
 
   /* ── Export choice modal ── */
   #exportChoiceModal {
@@ -1618,6 +1684,9 @@
     <div id="previewWrap">
       <div id="emptyState"><span class="big">◻</span>Add images to begin</div>
       <div id="layoutPreview"></div>
+      <!-- Neighbour-board canvases for smooth swipe animation -->
+      <canvas id="swipePrevBoard" class="swipe-board"></canvas>
+      <canvas id="swipeNextBoard" class="swipe-board"></canvas>
       <!-- Expand button -->
       <button id="previewExpandBtn" aria-label="Expand preview">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -1627,13 +1696,23 @@
           <line x1="3" y1="21" x2="10" y2="14"/>
         </svg>
       </button>
-      <!-- Board nav: left/right dots and add-board button -->
-      <div id="boardNavLeft"  class="board-nav-dot" hidden></div>
-      <div id="boardNavRight" class="board-nav-dot" hidden></div>
-      <button id="addBoardBtn" aria-label="Add board">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <!-- Board nav: indicator (counter + pips, top-left) -->
+      <div id="boardIndicator" hidden>
+        <span id="boardCounterText"></span>
+        <div id="boardPips"></div>
+      </div>
+      <!-- 3-dot board actions button (top-right, mirrors indicator) -->
+      <button id="boardActionsBtn" aria-label="Board options">
+        <svg width="14" height="4" viewBox="0 0 14 4" fill="currentColor">
+          <circle cx="2" cy="2" r="1.5"/><circle cx="7" cy="2" r="1.5"/><circle cx="12" cy="2" r="1.5"/>
+        </svg>
       </button>
-      <span id="boardCounter" hidden></span>
+      <div id="boardActionsMenu" hidden>
+        <button class="bam-item" id="bamAdd">Add Board</button>
+        <button class="bam-item danger" id="bamDelete">Delete Board</button>
+      </div>
+      <!-- Cap toast — shown briefly when 10-board limit is hit -->
+      <div id="boardCapMsg" hidden>Projects are limited to 10 boards</div>
     </div>
   </div>
 
@@ -2133,8 +2212,100 @@ let _projectMenuId = null;
 let _currentProjectId = null;
 
 function saveProjects() {
-  // Store metadata only (no image src to avoid quota issues in simple version)
+  // Store metadata only (thumbnail, name, boardCount, updatedAt) — image blobs go to IDB
   try { localStorage.setItem('stlls-boards', JSON.stringify(projects)); } catch(e) {}
+}
+
+// ── IndexedDB — full board image persistence ──────────────────────────────
+let _idb = null;
+
+function openDB() {
+  if (_idb) return Promise.resolve(_idb);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('stlls-v1', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('projects');
+    req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function dbPut(id, data) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction('projects', 'readwrite');
+    tx.objectStore('projects').put(data, id);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function dbGet(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction('projects', 'readonly');
+    const req = tx.objectStore('projects').get(id);
+    req.onsuccess = e => resolve(e.target.result ?? null);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function dbDelete(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction('projects', 'readwrite');
+    tx.objectStore('projects').delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+// Convert live board objects (with HTMLImageElement) → plain JSON for IDB
+function serializeBoards(boards) {
+  return boards.map(board => ({
+    id:       board.id,
+    ratio:    board.ratio,
+    layout:   board.layout,
+    gridCols: board.gridCols,
+    gridRows: board.gridRows,
+    gap:      board.gap,
+    padding:  board.padding,
+    bg:       board.bg,
+    images:   (board.images || [])
+      .map(item => ({
+        id:         item.id,
+        name:       item.name,
+        src:        item.img?.src || '',
+        transforms: item.transforms || {},
+      }))
+      // Skip blob: URLs — they are non-persistent video object URLs
+      .filter(item => item.src && !item.src.startsWith('blob:')),
+  }));
+}
+
+// Reconstruct live board objects from IDB data (loads all images in parallel)
+async function deserializeBoards(savedBoards) {
+  return Promise.all(savedBoards.map(async board => {
+    const images = (await Promise.all(
+      (board.images || []).map(item => new Promise(resolve => {
+        if (!item.src) { resolve(null); return; }
+        const img = new Image();
+        img.onload  = () => resolve({ id: item.id, name: item.name, img, transforms: item.transforms || {} });
+        img.onerror = () => resolve(null); // skip corrupt entries
+        img.src = item.src;
+      }))
+    )).filter(Boolean);
+    return {
+      id:       board.id       || genId(),
+      ratio:    board.ratio    || '9:16',
+      layout:   board.layout   || 'vertical',
+      gridCols: board.gridCols || 2,
+      gridRows: board.gridRows || 2,
+      gap:      board.gap      ?? 6,
+      padding:  board.padding  ?? 0,
+      bg:       board.bg       || '#000000',
+      images,
+    };
+  }));
 }
 
 function renderProjectsList() {
@@ -2160,6 +2331,14 @@ function renderProjectsList() {
       ph.className = 'board-thumb-empty';
       ph.textContent = '◻';
       thumb.appendChild(ph);
+    }
+
+    // Board count badge (top-left corner, only when project has multiple boards)
+    if (board.boardCount > 1) {
+      const badge = document.createElement('span');
+      badge.className = 'board-count-badge';
+      badge.textContent = board.boardCount;
+      thumb.appendChild(badge);
     }
 
     // Name + date overlay
@@ -2207,12 +2386,23 @@ function leaveHome(then) {
 
 function openProject(id) {
   _currentProjectId = id;
-  // Initialize single empty board (images never persisted)
-  _projectBoards = [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
-  _activeBoardIdx = 0;
-  loadBoardState(_projectBoards[0]);
-  updateBoardNav();
-  leaveHome();
+  _boardSwitching   = false;
+  _activeBoardIdx   = 0;
+
+  // Start IDB fetch immediately — runs in parallel with the leave animation (320 ms)
+  const dataPromise = dbGet(id).then(saved => {
+    if (saved?.boards?.length > 0) return deserializeBoards(saved.boards);
+    return [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  }).catch(() => {
+    return [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  });
+
+  leaveHome(async () => {
+    // By the time animation ends (320 ms) the fetch is usually done; await remainder
+    _projectBoards = await dataPromise;
+    loadBoardState(_projectBoards[0]);
+    updateBoardNav();
+  });
 }
 
 function generateThumbnail() {
@@ -2259,6 +2449,73 @@ function saveCurrentBoardSnapshot() {
   };
 }
 
+// ── Swipe-board snapshot rendering ───────────────────────────────────────
+const swipePrevBoard = document.getElementById('swipePrevBoard');
+const swipeNextBoard = document.getElementById('swipeNextBoard');
+
+// Render a board snapshot onto an OffscreenCanvas.
+// Temporarily swaps global state so getSlots() produces the right layout.
+function renderBoardSnapshot(canvas, boardData) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = Math.round(previewW * dpr);
+  canvas.height = Math.round(previewH * dpr);
+  canvas.style.width  = previewW + 'px';
+  canvas.style.height = previewH + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = boardData.bg || '#000';
+  ctx.fillRect(0, 0, previewW, previewH);
+
+  if (!boardData.images || boardData.images.length === 0) return;
+
+  // Temporarily swap state so getSlots() uses this board's settings
+  const saved = {
+    images: state.images, ratio: state.ratio, layout: state.layout,
+    gridCols: state.gridCols, gridRows: state.gridRows,
+    gap: state.gap, padding: state.padding, bg: state.bg,
+  };
+  state.images  = boardData.images;
+  state.ratio   = boardData.ratio;
+  state.layout  = boardData.layout;
+  state.gridCols = boardData.gridCols;
+  state.gridRows = boardData.gridRows;
+  state.gap     = boardData.gap;
+  state.padding = boardData.padding;
+  state.bg      = boardData.bg;
+
+  getSlots(previewW, previewH).forEach(({ item, x, y, w, h }) => {
+    if (!item?.img) return;
+    const t = (item.transforms && item.transforms[boardData.layout]) || { scale: 1, fx: 0, fy: 0 };
+    const img = item.img;
+    const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight) * t.scale;
+    const iW = img.naturalWidth * coverS, iH = img.naturalHeight * coverS;
+    const sx = (w - iW) / 2 + t.fx * w;
+    const sy = (h - iH) / 2 + t.fy * h;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.drawImage(img, x + sx, y + sy, iW, iH);
+    ctx.restore();
+  });
+
+  // Restore original state — no DOM side-effects from this function
+  state.images  = saved.images;
+  state.ratio   = saved.ratio;
+  state.layout  = saved.layout;
+  state.gridCols = saved.gridCols;
+  state.gridRows = saved.gridRows;
+  state.gap     = saved.gap;
+  state.padding = saved.padding;
+  state.bg      = saved.bg;
+}
+
+// ── Photo-album swipe state ───────────────────────────────────────────────
+let _swipeState   = 'idle'; // 'idle' | 'detecting' | 'swiping'
+let _swipeStartX  = 0, _swipeStartY = 0;
+let _swipeTx      = 0;
+const _swipeGap   = 20; // px gap between board cards during swipe
+let _swipePrevOk  = false, _swipeNextOk = false;
+
 function loadBoardState(board) {
   state.ratio    = board.ratio;
   state.layout   = board.layout;
@@ -2287,36 +2544,117 @@ function loadBoardState(board) {
 
 function updateBoardNav() {
   const total = _projectBoards.length;
-  const idx = _activeBoardIdx;
-  const leftDot  = document.getElementById('boardNavLeft');
-  const rightDot = document.getElementById('boardNavRight');
-  if (leftDot)  leftDot.hidden  = idx <= 0;
-  if (rightDot) rightDot.hidden = idx >= total - 1;
-  const counterEl = document.getElementById('boardCounter');
-  if (counterEl) {
-    counterEl.textContent = total > 1 ? `${idx + 1} / ${total}` : '';
-    counterEl.hidden = total <= 1;
+  const idx   = _activeBoardIdx;
+  const indicator   = document.getElementById('boardIndicator');
+  const counterText = document.getElementById('boardCounterText');
+  const pipsEl      = document.getElementById('boardPips');
+  const bamDelete   = document.getElementById('bamDelete');
+  if (!indicator) return;
+
+  const multi = total > 1;
+  indicator.hidden = !multi;   // works now — [hidden] CSS fix applied above
+
+  if (counterText) counterText.textContent = `${idx + 1} / ${total}`;
+
+  if (pipsEl) {
+    pipsEl.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const pip = document.createElement('div');
+      pip.className = 'board-pip' + (i === idx ? ' active' : '');
+      pipsEl.appendChild(pip);
+    }
   }
+
+  // Disable "Delete Board" when only one board remains
+  if (bamDelete) bamDelete.disabled = total <= 1;
 }
+
+function removeCurrentBoard() {
+  if (_projectBoards.length <= 1) return;
+  _projectBoards.splice(_activeBoardIdx, 1);
+  _activeBoardIdx = Math.min(_activeBoardIdx, _projectBoards.length - 1);
+  loadBoardState(_projectBoards[_activeBoardIdx]);
+  updateBoardNav();
+}
+
+// ── 3-dot board actions menu ─────────────────────────────────────────────────
+const boardActionsBtn  = document.getElementById('boardActionsBtn');
+const boardActionsMenu = document.getElementById('boardActionsMenu');
+
+boardActionsBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  boardActionsMenu.hidden = !boardActionsMenu.hidden;
+});
+
+// Close menu on outside tap
+document.addEventListener('click', e => {
+  if (!boardActionsMenu.hidden && !boardActionsMenu.contains(e.target) && e.target !== boardActionsBtn) {
+    boardActionsMenu.hidden = true;
+  }
+});
+
+document.getElementById('bamAdd').addEventListener('click', () => {
+  boardActionsMenu.hidden = true;
+  addNewBoard();
+});
+
+document.getElementById('bamDelete').addEventListener('click', () => {
+  boardActionsMenu.hidden = true;
+  removeCurrentBoard();
+});
+
+let _boardSwitching = false;
 
 function switchToBoard(newIdx, direction) {
   if (newIdx < 0 || newIdx >= _projectBoards.length || newIdx === _activeBoardIdx) return;
+  if (_boardSwitching) return; // block re-entry during transition
+  _boardSwitching = true;
+
   saveCurrentBoardSnapshot();
   _activeBoardIdx = newIdx;
-  layoutPreview.style.transition = 'opacity 0.15s ease';
-  layoutPreview.style.opacity = '0';
-  setTimeout(() => {
-    loadBoardState(_projectBoards[_activeBoardIdx]);
-    updateBoardNav();
+
+  // Load immediately — no fade-out delay so the canvas never appears blank
+  loadBoardState(_projectBoards[_activeBoardIdx]);
+  updateBoardNav();
+
+  // Brief fade-in only for polish
+  layoutPreview.style.transition = 'none';
+  layoutPreview.style.opacity = '0.2';
+  requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      layoutPreview.style.transition = 'opacity 0.2s ease';
+      layoutPreview.style.transition = 'opacity 0.18s ease';
       layoutPreview.style.opacity = '1';
-      setTimeout(() => { layoutPreview.style.transition = ''; layoutPreview.style.opacity = ''; }, 250);
+      setTimeout(() => {
+        layoutPreview.style.transition = '';
+        layoutPreview.style.opacity = '';
+        _boardSwitching = false;
+      }, 200);
     });
-  }, 150);
+  });
+}
+
+let _capMsgTimer = null;
+
+function showBoardCapMsg() {
+  const msg = document.getElementById('boardCapMsg');
+  if (!msg) return;
+  clearTimeout(_capMsgTimer);
+  msg.style.transition = 'none';
+  msg.style.opacity = '1';
+  msg.hidden = false;
+  // Hold for 1.8s then fade out
+  _capMsgTimer = setTimeout(() => {
+    msg.style.transition = 'opacity 0.55s ease';
+    msg.style.opacity = '0';
+    setTimeout(() => { msg.hidden = true; }, 580);
+  }, 1800);
 }
 
 function addNewBoard() {
+  if (_projectBoards.length >= 10) {
+    showBoardCapMsg();
+    return;
+  }
   saveCurrentBoardSnapshot();
   const newBoard = { id: genId(), ratio: state.ratio, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, images: [] };
   _projectBoards.push(newBoard);
@@ -2332,16 +2670,24 @@ function goHome() {
       const project = projects.find(p => p.id === _currentProjectId);
       if (project) {
         if (thumb) project.thumbnail = thumb;
-        project.updatedAt = Date.now();
+        project.updatedAt  = Date.now();
+        project.boardCount = _projectBoards.length;
         saveProjects();
       }
+      // Persist full board data (images as dataURLs) to IndexedDB
+      const id     = _currentProjectId;
+      const serial = serializeBoards(_projectBoards);
+      dbPut(id, { id, boards: serial }).catch(err => console.warn('IDB save failed', err));
     } else {
       projects = projects.filter(p => p.id !== _currentProjectId);
       saveProjects();
+      dbDelete(_currentProjectId).catch(() => {});
     }
   }
   _projectBoards = [];
   _activeBoardIdx = 0;
+  _boardSwitching = false;  // clear any in-flight animation lock
+  updateBoardNav();          // hide indicator before home screen appears
   updateGreeting();
   renderProjectsList();
   homeScreen.hidden = false;
@@ -2357,7 +2703,7 @@ homeNewBtn.addEventListener('click', () => {
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, updatedAt: Date.now(), thumbnail: null });
   saveProjects();
-  // Initialize fresh multi-board state
+  _boardSwitching = false;
   _projectBoards = [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
   _activeBoardIdx = 0;
   loadBoardState(_projectBoards[0]);
@@ -2412,9 +2758,11 @@ bmDelete.addEventListener('click', () => {
 dcCancel.addEventListener('click', () => { deleteConfirm.hidden = true; _projectMenuId = null; });
 dcYes.addEventListener('click', () => {
   if (_projectMenuId) {
-    projects = projects.filter(p => p.id !== _projectMenuId);
+    const id = _projectMenuId;
+    projects = projects.filter(p => p.id !== id);
     saveProjects();
     renderProjectsList();
+    dbDelete(id).catch(() => {}); // also remove image data from IDB
   }
   deleteConfirm.hidden = true;
   _projectMenuId = null;
@@ -2690,13 +3038,14 @@ function attachSlotEvents(slotDiv, item) {
   slotDiv.addEventListener('touchend', e => {
     if (!ts) return;
     if (e.touches.length === 0) {
-      // snapshot after touch gesture ends
       pushHistory();
       slotDiv._lt = ts.lastTap; ts = null;
     } else if (e.touches.length === 1) {
       ts = { mode: 'pan', lx: e.touches[0].clientX, ly: e.touches[0].clientY, lastTap: 0 };
     }
   }, { passive: false });
+
+  slotDiv.addEventListener('touchcancel', () => { ts = null; });
 }
 
 // ── Build preview ──────────────────────────────────────────────────────────
@@ -3967,36 +4316,163 @@ previewExpandBtn.addEventListener('click', () => {
   // Growing layouts are cheap and the RO timing mismatch would cause a bump with the scale trick.
 });
 
-// ── Board swipe navigation ────────────────────────────────────────────────
-let _swipeStartX = 0, _swipeStartY = 0, _swipeActive = false;
+// ── Board swipe navigation (photo-album style) ───────────────────────────
+//
+// _swipeState:  'idle' | 'detecting' | 'swiping'
+// Swipe only starts when the touch originates OUTSIDE the board canvas.
+
+function _swipeApplyTx(tx) {
+  _swipeTx = tx;
+  // Crossfade: current board fades out, incoming board fades in
+  const ratio  = Math.min(1, Math.abs(tx) / (previewW + _swipeGap));
+  layoutPreview.style.transform = `translateX(${tx}px)`;
+  layoutPreview.style.opacity   = String(1 - ratio);
+  if (_swipePrevOk) {
+    swipePrevBoard.style.transform = `translateX(${tx}px)`;
+    swipePrevBoard.style.opacity   = tx > 0 ? String(ratio) : '0';
+  }
+  if (_swipeNextOk) {
+    swipeNextBoard.style.transform = `translateX(${tx}px)`;
+    swipeNextBoard.style.opacity   = tx < 0 ? String(ratio) : '0';
+  }
+}
+
+function _swipeSetupCanvases() {
+  const lpRect = layoutPreview.getBoundingClientRect();
+  const wpRect = previewWrap.getBoundingClientRect();
+  const lpLeft = lpRect.left - wpRect.left;
+  const lpTop  = lpRect.top  - wpRect.top;
+
+  _swipePrevOk = _activeBoardIdx > 0;
+  _swipeNextOk = _activeBoardIdx < _projectBoards.length - 1;
+
+  saveCurrentBoardSnapshot();
+
+  if (_swipePrevOk) {
+    const c = swipePrevBoard;
+    c.style.top     = lpTop  + 'px';
+    c.style.left    = (lpLeft - previewW - _swipeGap) + 'px';
+    c.style.opacity = '0';
+    renderBoardSnapshot(c, _projectBoards[_activeBoardIdx - 1]);
+    c.style.display   = 'block';
+    c.style.transform = '';
+  }
+  if (_swipeNextOk) {
+    const c = swipeNextBoard;
+    c.style.top     = lpTop  + 'px';
+    c.style.left    = (lpLeft + previewW + _swipeGap) + 'px';
+    c.style.opacity = '0';
+    renderBoardSnapshot(c, _projectBoards[_activeBoardIdx + 1]);
+    c.style.display   = 'block';
+    c.style.transform = '';
+  }
+}
+
+function _swipeCleanup() {
+  layoutPreview.style.transition = 'none';
+  layoutPreview.style.transform  = '';
+  layoutPreview.style.opacity    = '';
+  swipePrevBoard.style.transition = 'none';
+  swipePrevBoard.style.transform  = '';
+  swipePrevBoard.style.opacity    = '0';
+  swipePrevBoard.style.display    = 'none';
+  swipeNextBoard.style.transition = 'none';
+  swipeNextBoard.style.transform  = '';
+  swipeNextBoard.style.opacity    = '0';
+  swipeNextBoard.style.display    = 'none';
+  _swipeState = 'idle';
+}
+
+const _SNAP_EASING = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+const _SNAP_MS     = 300;
+const _SWIPE_TRANSITION = `transform ${_SNAP_MS}ms ${_SNAP_EASING}, opacity ${_SNAP_MS}ms ${_SNAP_EASING}`;
 
 previewOuter.addEventListener('touchstart', e => {
-  _swipeStartX = e.touches[0].clientX;
-  _swipeStartY = e.touches[0].clientY;
-  _swipeActive = false;
+  if (_projectBoards.length <= 1 || e.touches.length !== 1) return;
+  // Only start detecting a swipe if the finger is OUTSIDE the board
+  const lpRect = layoutPreview.getBoundingClientRect();
+  const tx = e.touches[0].clientX, ty = e.touches[0].clientY;
+  if (tx >= lpRect.left && tx <= lpRect.right && ty >= lpRect.top && ty <= lpRect.bottom) return;
+  _swipeStartX = tx;
+  _swipeStartY = ty;
+  _swipeState  = 'detecting';
+  _swipeTx     = 0;
 }, { passive: true });
 
 previewOuter.addEventListener('touchmove', e => {
+  if (_swipeState === 'idle' || e.touches.length !== 1) return;
+
   const dx = e.touches[0].clientX - _swipeStartX;
   const dy = e.touches[0].clientY - _swipeStartY;
-  if (!_swipeActive && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) {
-    _swipeActive = true;
+
+  if (_swipeState === 'detecting') {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      _swipeState = 'swiping';
+      _swipeSetupCanvases();
+    } else {
+      _swipeState = 'idle';
+      return;
+    }
   }
+
+  // Rubber-band at edges
+  let tx = dx;
+  if (dx > 0 && !_swipePrevOk) tx = dx * 0.25;
+  if (dx < 0 && !_swipeNextOk) tx = dx * 0.25;
+  _swipeApplyTx(tx);
 }, { passive: true });
 
 previewOuter.addEventListener('touchend', e => {
-  if (!_swipeActive) return;
-  const dx = e.changedTouches[0].clientX - _swipeStartX;
-  const THRESH = 60;
-  if (dx < -THRESH && _activeBoardIdx < _projectBoards.length - 1) {
-    switchToBoard(_activeBoardIdx + 1, 'left');
-  } else if (dx > THRESH && _activeBoardIdx > 0) {
-    switchToBoard(_activeBoardIdx - 1, 'right');
-  }
-  _swipeActive = false;
-});
+  if (_swipeState !== 'swiping') { _swipeState = 'idle'; return; }
 
-document.getElementById('addBoardBtn').addEventListener('click', addNewBoard);
+  const dx     = e.changedTouches[0].clientX - _swipeStartX;
+  const THRESH = previewW * 0.28;
+
+  let targetIdx = _activeBoardIdx;
+  if (dx < -THRESH && _swipeNextOk) targetIdx = _activeBoardIdx + 1;
+  else if (dx > THRESH && _swipePrevOk) targetIdx = _activeBoardIdx - 1;
+
+  if (targetIdx !== _activeBoardIdx) {
+    const finalTx = targetIdx > _activeBoardIdx ? -(previewW + _swipeGap) : (previewW + _swipeGap);
+    layoutPreview.style.transition = _SWIPE_TRANSITION;
+    if (_swipePrevOk) swipePrevBoard.style.transition = _SWIPE_TRANSITION;
+    if (_swipeNextOk) swipeNextBoard.style.transition = _SWIPE_TRANSITION;
+    _swipeApplyTx(finalTx);
+
+    setTimeout(() => {
+      // Swap board content while current card is offscreen — no visible flash
+      layoutPreview.style.transition = 'none';
+      layoutPreview.style.transform  = '';
+      layoutPreview.style.opacity    = '';
+      swipePrevBoard.style.transition = 'none';
+      swipePrevBoard.style.opacity    = '0';
+      swipePrevBoard.style.display    = 'none';
+      swipePrevBoard.style.transform  = '';
+      swipeNextBoard.style.transition = 'none';
+      swipeNextBoard.style.opacity    = '0';
+      swipeNextBoard.style.display    = 'none';
+      swipeNextBoard.style.transform  = '';
+      _swipeState     = 'idle';
+      _activeBoardIdx = targetIdx;
+      loadBoardState(_projectBoards[_activeBoardIdx]);
+      updateBoardNav();
+    }, _SNAP_MS);
+  } else {
+    // Snap back
+    layoutPreview.style.transition = _SWIPE_TRANSITION;
+    if (_swipePrevOk) swipePrevBoard.style.transition = _SWIPE_TRANSITION;
+    if (_swipeNextOk) swipeNextBoard.style.transition = _SWIPE_TRANSITION;
+    _swipeApplyTx(0);
+    setTimeout(_swipeCleanup, _SNAP_MS);
+  }
+
+  _swipeState = 'idle';
+}, { passive: true });
+
+previewOuter.addEventListener('touchcancel', () => _swipeCleanup());
+
+// (board add/delete now handled by boardActionsMenu — see above)
 
 // ── Export ─────────────────────────────────────────────────────────────────
 const exportBar      = document.getElementById('exportBar');
@@ -4073,16 +4549,20 @@ async function doExportAll() {
   const mime = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
   const qual = _exportFmt === 'jpg' ? 0.93 : undefined;
 
-  for (let i = 0; i < _projectBoards.length; i++) {
-    loadBoardState(_projectBoards[i]);
-    _activeBoardIdx = i;
+  // Only export boards that have images — skip empty ones
+  const boardsToExport = _projectBoards.filter(b => b.images.length > 0);
+  if (boardsToExport.length === 0) { window.exportComplete(false); return; }
+
+  for (let i = 0; i < boardsToExport.length; i++) {
+    loadBoardState(boardsToExport[i]);
+    _activeBoardIdx = _projectBoards.indexOf(boardsToExport[i]);
     updateBoardNav();
 
     const [cW, cH] = canonicalDims();
     const W = cW * expScale, H = cH * expScale;
 
     startExportBar();
-    exportBarLabel.textContent = `Board ${i + 1} of ${_projectBoards.length}…`;
+    exportBarLabel.textContent = `Board ${i + 1} of ${boardsToExport.length}…`;
 
     const cvs = document.createElement('canvas');
     cvs.width = W; cvs.height = H;
@@ -4116,7 +4596,7 @@ async function doExportAll() {
       }, mime, qual);
     });
 
-    if (i < _projectBoards.length - 1) await new Promise(r => setTimeout(r, 300));
+    if (i < boardsToExport.length - 1) await new Promise(r => setTimeout(r, 300));
   }
   window.exportComplete(true);
 }

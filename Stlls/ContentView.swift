@@ -5,6 +5,7 @@ import Photos
 import PhotosUI
 import UniformTypeIdentifiers
 import AVFoundation
+import UserNotifications
 
 // MARK: - JS → Swift bridge for image export
 
@@ -50,26 +51,45 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
 
 class VideoSchemeHandler: NSObject, WKURLSchemeHandler {
     private var files: [String: URL] = [:]
-    private let lock = NSLock()
+    // Accessed only on the main queue — same queue stop() fires on, so no lock needed
+    private var activeTasks = Set<ObjectIdentifier>()
 
-    func register(key: String, url: URL) { lock.lock(); files[key] = url; lock.unlock() }
-    func unregister(key: String)         { lock.lock(); files.removeValue(forKey: key); lock.unlock() }
+    // Must be called on the main queue (matches where start/stop are called)
+    func register(key: String, url: URL)  { files[key] = url }
+    func unregister(key: String)          { files.removeValue(forKey: key) }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        // Called on main queue
+        let taskID = ObjectIdentifier(urlSchemeTask)
+        activeTasks.insert(taskID)
+
         guard
             let reqURL = urlSchemeTask.request.url,
             let comps  = URLComponents(url: reqURL, resolvingAgainstBaseURL: false),
-            let key    = comps.queryItems?.first(where: { $0.name == "k" })?.value
-        else { urlSchemeTask.didFailWithError(URLError(.badURL)); return }
+            let key    = comps.queryItems?.first(where: { $0.name == "k" })?.value,
+            let fileURL = files[key]
+        else {
+            activeTasks.remove(taskID)
+            urlSchemeTask.didFailWithError(URLError(.badURL))
+            return
+        }
 
-        lock.lock(); let fileURL = files[key]; lock.unlock()
-        guard let fileURL else { urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist)); return }
+        // Snapshot the range header now (on main) before going to background
+        let rangeHeader = urlSchemeTask.request.value(forHTTPHeaderField: "Range")
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
             guard
                 let attrs     = try? FileManager.default.attributesOfItem(atPath: fileURL.path),
                 let totalSize = attrs[.size] as? Int
-            else { urlSchemeTask.didFailWithError(URLError(.noPermissionsToReadFile)); return }
+            else {
+                DispatchQueue.main.async {
+                    guard self.activeTasks.remove(taskID) != nil else { return }
+                    urlSchemeTask.didFailWithError(URLError(.noPermissionsToReadFile))
+                }
+                return
+            }
 
             var start = 0, end = totalSize - 1, statusCode = 200
             var headers: [String: String] = [
@@ -78,8 +98,7 @@ class VideoSchemeHandler: NSObject, WKURLSchemeHandler {
                                    ? "video/quicktime" : "video/mp4",
             ]
 
-            if let rangeHdr = urlSchemeTask.request.value(forHTTPHeaderField: "Range"),
-               rangeHdr.hasPrefix("bytes=") {
+            if let rangeHdr = rangeHeader, rangeHdr.hasPrefix("bytes=") {
                 let parts = String(rangeHdr.dropFirst(6)).components(separatedBy: "-")
                 start      = Int(parts[0]) ?? 0
                 end        = (parts.count > 1 && !parts[1].isEmpty) ? (Int(parts[1]) ?? end) : end
@@ -95,17 +114,28 @@ class VideoSchemeHandler: NSObject, WKURLSchemeHandler {
                 httpVersion: "HTTP/1.1", headerFields: headers
             ) else { return }
 
-            urlSchemeTask.didReceive(response)
+            // Read file data on background queue
+            var data = Data()
             if let fh = try? FileHandle(forReadingFrom: fileURL) {
                 try? fh.seek(toOffset: UInt64(start))
-                urlSchemeTask.didReceive(fh.readData(ofLength: length))
+                data = fh.readData(ofLength: length)
                 try? fh.close()
             }
-            urlSchemeTask.didFinish()
+
+            // Deliver response on main queue — same queue as stop(), so no race possible
+            DispatchQueue.main.async {
+                guard self.activeTasks.remove(taskID) != nil else { return }
+                urlSchemeTask.didReceive(response)
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
+            }
         }
     }
 
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        // Called on main queue — simply removing from the set is enough
+        activeTasks.remove(ObjectIdentifier(urlSchemeTask))
+    }
 }
 
 // MARK: - JS → Swift bridge for native video frame extraction
@@ -333,14 +363,140 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     }
 }
 
+// MARK: - JS → Swift bridge for scheduling local notifications
+
+class RemindersMessageHandler: NSObject, WKScriptMessageHandler {
+
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard message.name == "scheduleReminders",
+              let body = message.body as? [String: Any] else { return }
+
+        let frequency  = body["frequency"]  as? String ?? "off"
+        let quietStart = body["quietStart"] as? Int    ?? 22
+        let quietEnd   = body["quietEnd"]   as? Int    ?? 8
+
+        var msgs: [(title: String, body: String)] = []
+        if let rawMsgs = body["messages"] as? [[String: String]] {
+            msgs = rawMsgs.compactMap { dict in
+                guard let t = dict["title"], let b = dict["body"] else { return nil }
+                return (title: t, body: b)
+            }
+        }
+
+        let center = UNUserNotificationCenter.current()
+
+        if frequency == "off" {
+            center.removeAllPendingNotificationRequests()
+            return
+        }
+
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, _ in
+            guard granted, let self else { return }
+            center.removeAllPendingNotificationRequests()
+            self.scheduleNotifications(
+                center:      center,
+                frequency:   frequency,
+                messages:    msgs,
+                quietStart:  quietStart,
+                quietEnd:    quietEnd
+            )
+        }
+    }
+
+    private func scheduleNotifications(
+        center:     UNUserNotificationCenter,
+        frequency:  String,
+        messages:   [(title: String, body: String)],
+        quietStart: Int,
+        quietEnd:   Int
+    ) {
+        guard !messages.isEmpty else { return }
+        let count = messages.count   // 15
+
+        if frequency == "test" {
+            // Fire at 60 s, 120 s, 180 s … for easy testing
+            for i in 0..<count {
+                let trigger = UNTimeIntervalNotificationTrigger(
+                    timeInterval: TimeInterval((i + 1) * 60), repeats: false)
+                let msg = messages[i % count]
+                addRequest(center: center, id: "stlls-remind-\(i)",
+                           title: msg.title, body: msg.body, trigger: trigger)
+            }
+            return
+        }
+
+        // Gap between notifications (seconds)
+        let gapSeconds: Int
+        switch frequency {
+        case "daily":  gapSeconds = 86_400
+        case "twice":  gapSeconds = 86_400 * 7 / 2   // 3.5 days
+        case "weekly": gapSeconds = 86_400 * 7
+        default:       gapSeconds = 86_400
+        }
+
+        // Delivery hour — just outside quiet window
+        let safeHour = clampedHour(quietEnd + 2, quietStart: quietStart, quietEnd: quietEnd)
+
+        let cal = Calendar.current
+        var comps    = cal.dateComponents([.year, .month, .day], from: Date())
+        comps.hour   = safeHour
+        comps.minute = 0
+        comps.second = 0
+        var base = cal.date(from: comps) ?? Date()
+        // Push to tomorrow if today's slot has already passed
+        if base <= Date() {
+            base = cal.date(byAdding: .day, value: 1, to: base) ?? base
+        }
+
+        for i in 0..<count {
+            let fireDate  = base.addingTimeInterval(TimeInterval(i * gapSeconds))
+            var fireComps = cal.dateComponents([.year, .month, .day, .hour, .minute], from: fireDate)
+            fireComps.second = 0
+            let trigger = UNCalendarNotificationTrigger(dateMatching: fireComps, repeats: false)
+            let msg     = messages[i % count]
+            addRequest(center: center, id: "stlls-remind-\(i)",
+                       title: msg.title, body: msg.body, trigger: trigger)
+        }
+    }
+
+    // Clamps `hour` so it never falls inside the quiet window [quietStart, quietEnd)
+    private func clampedHour(_ hour: Int, quietStart: Int, quietEnd: Int) -> Int {
+        let h = ((hour % 24) + 24) % 24
+        // Quiet window wraps midnight, e.g. 22–8: quiet if h >= 22 OR h < 8
+        let inQuiet = quietStart > quietEnd
+            ? (h >= quietStart || h < quietEnd)
+            : (h >= quietStart && h < quietEnd)
+        return inQuiet ? quietEnd + 2 : h
+    }
+
+    private func addRequest(
+        center:  UNUserNotificationCenter,
+        id:      String,
+        title:   String,
+        body:    String,
+        trigger: UNNotificationTrigger
+    ) {
+        let content       = UNMutableNotificationContent()
+        content.title     = title
+        content.body      = body
+        content.sound     = .default
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+        center.add(request, withCompletionHandler: nil)
+    }
+}
+
 // MARK: - UIViewController that hosts WKWebView
 
 class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerDelegate {
 
     private var webView: WKWebView!
-    private let exportHandler = ExportMessageHandler()
-    private let videoHandler  = VideoMessageHandler()
-    private let schemeHandler = VideoSchemeHandler()
+    private let exportHandler    = ExportMessageHandler()
+    private let videoHandler     = VideoMessageHandler()
+    private let schemeHandler    = VideoSchemeHandler()
+    private let remindersHandler = RemindersMessageHandler()
     private var filePickerCompletionHandler: (([URL]?) -> Void)?
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
@@ -354,10 +510,11 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
 
     private func setupWebView() {
         let userContent = WKUserContentController()
-        userContent.add(exportHandler, name: "exportImage")
-        userContent.add(videoHandler,  name: "requestVideoSelection")
-        userContent.add(videoHandler,  name: "extractVideoFrame")
-        userContent.add(videoHandler,  name: "releaseVideoAsset")
+        userContent.add(exportHandler,    name: "exportImage")
+        userContent.add(videoHandler,     name: "requestVideoSelection")
+        userContent.add(videoHandler,     name: "extractVideoFrame")
+        userContent.add(videoHandler,     name: "releaseVideoAsset")
+        userContent.add(remindersHandler, name: "scheduleReminders")
 
         let config = WKWebViewConfiguration()
         config.userContentController = userContent
@@ -445,7 +602,7 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
             self?.filePickerCompletionHandler?(urls.isEmpty ? nil : urls)
             self?.filePickerCompletionHandler = nil
         }
-    }
+    }        
 }
 
 // MARK: - SwiftUI wrapper

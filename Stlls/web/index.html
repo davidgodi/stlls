@@ -37,7 +37,28 @@
     --accent-fg: #ffffff;
   }
 
+  /* ── Accent colour themes (dark base) ── */
+  [data-color="blue"]    { --accent:#4d9fff; --accent-fg:#000; --surface:#0f1218; --surface2:#131720; --border:#192235; --border2:#21304a; --muted:#2c4470; }
+  [data-color="violet"]  { --accent:#a78bfa; --accent-fg:#000; --surface:#100f18; --surface2:#15121e; --border:#1d1730; --border2:#271d42; --muted:#3c2b70; }
+  [data-color="rose"]    { --accent:#fb7185; --accent-fg:#000; --surface:#140e10; --surface2:#1a1215; --border:#281820; --border2:#361f2c; --muted:#6a2638; }
+  [data-color="amber"]   { --accent:#fbbf24; --accent-fg:#000; --surface:#131008; --surface2:#18140a; --border:#281f10; --border2:#362914; --muted:#6a4f10; }
+  [data-color="emerald"] { --accent:#34d399; --accent-fg:#000; --surface:#0a1310; --surface2:#0d1814; --border:#11281e; --border2:#163628; --muted:#185c3a; }
+  [data-color="cyan"]    { --accent:#22d3ee; --accent-fg:#000; --surface:#0a1314; --surface2:#0d181a; --border:#102730; --border2:#153540; --muted:#135c6a; }
+  [data-color="coral"]   { --accent:#ff7c5c; --accent-fg:#000; --surface:#140e0a; --surface2:#1a1210; --border:#281912; --border2:#362118; --muted:#6a2f1e; }
+  [data-color="sand"]    { --accent:#d4b896; --accent-fg:#000; --surface:#141210; --surface2:#1a1714; --border:#282018; --border2:#342a20; --muted:#5a4a36; }
+
+  /* Light-mode overrides for each colour */
+  [data-theme="light"][data-color="blue"]    { --accent:#2563eb; --accent-fg:#fff; --surface:#f7faff; --surface2:#eef4ff; --border:#d8e5fb; --border2:#bfd0f5; --muted:#93b8f0; }
+  [data-theme="light"][data-color="violet"]  { --accent:#7c3aed; --accent-fg:#fff; --surface:#faf8ff; --surface2:#f2efff; --border:#ddd6fb; --border2:#c5baf5; --muted:#a898e8; }
+  [data-theme="light"][data-color="rose"]    { --accent:#e11d48; --accent-fg:#fff; --surface:#fff8f9; --surface2:#ffeef1; --border:#fbd5de; --border2:#f5baca; --muted:#e898aa; }
+  [data-theme="light"][data-color="amber"]   { --accent:#d97706; --accent-fg:#fff; --surface:#fffcf4; --surface2:#fff8e5; --border:#fce5b8; --border2:#f8d088; --muted:#e8b84a; }
+  [data-theme="light"][data-color="emerald"] { --accent:#059669; --accent-fg:#fff; --surface:#f4fff9; --surface2:#e6faf0; --border:#bcf0d5; --border2:#92e4bb; --muted:#60c898; }
+  [data-theme="light"][data-color="cyan"]    { --accent:#0891b2; --accent-fg:#fff; --surface:#f4fbff; --surface2:#e5f6fc; --border:#b8e8f5; --border2:#8cd8ed; --muted:#58c0e0; }
+  [data-theme="light"][data-color="coral"]   { --accent:#e04f2a; --accent-fg:#fff; --surface:#fff8f5; --surface2:#ffeee8; --border:#fbd5c5; --border2:#f5b8a0; --muted:#e8906a; }
+  [data-theme="light"][data-color="sand"]    { --accent:#8c6e48; --accent-fg:#fff; --surface:#fdfaf6; --surface2:#f8f2e8; --border:#ece0cc; --border2:#e0ccb0; --muted:#c8aa80; }
+
   html, body { height: 100%; overflow: hidden; }
+  * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   body {
     background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
@@ -58,7 +79,7 @@
   }
   #splashContent h1 {
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--accent);
+    text-transform: uppercase; color: var(--text);
   }
   #splashContent span {
     font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em;
@@ -87,7 +108,7 @@
   }
   #homeTopBar h1 {
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--accent);
+    text-transform: uppercase; color: var(--text);
   }
   #homeTopBar span {
     font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em;
@@ -117,14 +138,28 @@
     border-radius: 50%;
     background: none;
     border: 1.5px solid var(--border2);
-    color: var(--text-dim);
-    font-size: 32px; font-weight: 300; line-height: 1;
     cursor: pointer;
     display: flex; align-items: center; justify-content: center;
-    transition: border-color 0.2s, color 0.2s, transform 0.2s;
+    overflow: visible;
+    transition: border-color 0.2s, transform 0.2s;
     -webkit-tap-highlight-color: transparent;
+    position: relative;
   }
-  #homeNewBtn:hover { border-color: var(--muted); color: var(--text-mid); transform: scale(1.06); }
+  #homeNewBtn:hover { border-color: var(--accent); transform: scale(1.06); }
+  #homeWaveCanvas {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  #homeWavePlus {
+    position: relative; z-index: 1;
+    font-size: 28px; font-weight: 300; line-height: 1;
+    color: var(--text-dim);
+    pointer-events: none;
+    transition: color 0.2s;
+  }
+  #homeNewBtn:hover #homeWavePlus { color: var(--text-mid); }
 
   #homeNewGroup {
     display: flex; flex-direction: column;
@@ -166,7 +201,7 @@
   }
   #welcomeHeading h2 {
     font-size: 13px; font-weight: 500; letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--accent); margin: 0;
+    text-transform: uppercase; color: var(--text); margin: 0;
   }
   #welcomeHeading p {
     font-size: 13px; color: var(--text-dim); margin: 0; line-height: 1.5;
@@ -196,6 +231,22 @@
   }
   #welcomeContinueBtn:active { opacity: 0.8; }
   #welcomeContinueBtn:disabled { opacity: 0.35; cursor: default; }
+  #welcomeEmailInput {
+    width: 100%; box-sizing: border-box;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text);
+    font-size: 15px; font-weight: 400;
+    padding: 13px 14px; outline: none;
+    transition: border-color 0.18s;
+    -webkit-appearance: none;
+    font-family: inherit;
+  }
+  #welcomeEmailInput::placeholder { color: var(--text-dim); font-weight: 400; }
+  #welcomeEmailInput:focus { border-color: var(--muted); }
+  .welcome-field-hint {
+    font-size: 11px; color: var(--text-dim);
+    margin-top: -8px; padding-left: 2px;
+  }
 
   /* Upper area: flex:1 so it fills space above MY BOARDS and centers content */
   #homeUpperArea {
@@ -283,6 +334,15 @@
     letter-spacing: 0.02em;
   }
   .board-date { font-size: 9px; color: rgba(255,255,255,0.55); letter-spacing: 0.03em; }
+  .board-count-badge {
+    position: absolute; top: 7px; left: 7px;
+    background: rgba(0,0,0,0.52);
+    color: rgba(255,255,255,0.9);
+    font-size: 9px; font-weight: 600;
+    padding: 2px 6px; border-radius: 20px;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+  }
 
   /* Rename modal */
   #renameOverlay {
@@ -374,7 +434,7 @@
   }
   header h1 {
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--accent);
+    text-transform: uppercase; color: var(--text);
   }
   header span { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; }
 
@@ -389,7 +449,7 @@
   /* ── PREVIEW ── */
   #previewOuter {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    min-width: 0; min-height: 0; position: relative;
+    min-width: 0; min-height: 0; position: relative; overflow: hidden;
   }
   #previewWrap {
     position: relative; display: flex; align-items: center; justify-content: center;
@@ -405,6 +465,16 @@
     position: relative; overflow: hidden; border-radius: 5px;
     box-shadow: 0 12px 60px rgba(0,0,0,0.75);
     flex-shrink: 0; display: none; touch-action: none;
+    will-change: transform;
+  }
+  /* Neighbour-board canvases used during swipe animation */
+  .swipe-board {
+    position: absolute;
+    border-radius: 5px;
+    box-shadow: 0 12px 60px rgba(0,0,0,0.75);
+    pointer-events: none;
+    display: none;
+    will-change: transform;
   }
   .slot { position: absolute; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
   .slot.grabbing { cursor: grabbing; }
@@ -437,10 +507,10 @@
     overflow: hidden;
     min-height: 0;
     max-height: 2000px;
-    transition: width 0.88s cubic-bezier(0,0,0.2,1),
-                max-height 0.88s cubic-bezier(0,0,0.2,1),
-                opacity 0.78s cubic-bezier(0,0,0.2,1),
-                transform 0.88s cubic-bezier(0,0,0.2,1);
+    transition: width 1.15s cubic-bezier(0.4,0,0.2,1),
+                max-height 1.15s cubic-bezier(0.4,0,0.2,1),
+                opacity 1.0s cubic-bezier(0.4,0,0.2,1),
+                transform 1.15s cubic-bezier(0.4,0,0.2,1);
   }
 
   /* ── Export bar (desktop) — fixed bottom strip ── */
@@ -690,7 +760,7 @@
   .ms-title { font-size: 12px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text); }
   #msFileName {
     font-size: 11px; color: var(--text-dim); letter-spacing: 0.01em;
-    text-align: center; padding: 0 18px 10px;
+    text-align: center; padding: 8px 18px 10px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     flex-shrink: 0;
   }
@@ -733,14 +803,15 @@
     display: flex; align-items: center; justify-content: center; gap: 8px;
     padding: 10px 16px 4px; flex-shrink: 0;
   }
-  #msPrevFrameBtn, #msNextFrameBtn {
+  #msPrevFrameBtn, #msNextFrameBtn, #msPrev10Btn, #msNext10Btn {
     width: 38px; height: 38px; flex-shrink: 0;
     background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
     color: var(--text-mid); font-size: 13px; cursor: pointer; font-family: inherit;
     display: flex; align-items: center; justify-content: center;
     -webkit-tap-highlight-color: transparent; transition: color 0.15s;
   }
-  #msPrevFrameBtn:hover, #msNextFrameBtn:hover { color: var(--text); }
+  #msPrevFrameBtn:hover, #msNextFrameBtn:hover,
+  #msPrev10Btn:hover, #msNext10Btn:hover { color: var(--text); }
   #msPlayBtn {
     width: 48px; height: 48px; flex-shrink: 0;
     background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
@@ -948,7 +1019,7 @@
   }
   .sp-header h2 {
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--accent);
+    text-transform: uppercase; color: var(--text);
   }
   .sp-close {
     background: none; border: none; cursor: pointer; color: var(--text-dim);
@@ -989,7 +1060,7 @@
   }
   .fb-header h2 {
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--accent); margin: 0;
+    text-transform: uppercase; color: var(--text); margin: 0;
   }
   .fb-body {
     flex: 1; display: flex; flex-direction: column;
@@ -1052,6 +1123,47 @@
   }
   .sp-row-label { font-size: 13px; color: var(--text); }
   .sp-row--name { align-items: center; gap: 12px; }
+  /* Remind row — collapsed trigger */
+  #remindTrigger {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 0; border-bottom: 1px solid var(--border);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  #remindTrigger .sp-row-label { font-size: 13px; color: var(--text); }
+  .remind-trigger-right {
+    display: flex; align-items: center; gap: 6px;
+  }
+  #remindCurLabel {
+    font-size: 12px; color: var(--text-mid);
+  }
+  .remind-chevron {
+    font-size: 11px; color: var(--text-dim);
+    transition: transform 0.2s ease;
+    display: inline-block;
+  }
+  #remindRow.remind-open .remind-chevron { transform: rotate(90deg); }
+  /* Expandable content */
+  .remind-freq-body {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+  #remindRow.remind-open .remind-freq-body { max-height: 120px; }
+  .remind-freq-btns {
+    display: flex; gap: 6px; padding: 12px 0 6px;
+  }
+  .remind-btn {
+    flex: 1; padding: 7px 4px; font-size: 11px; font-family: inherit;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text-mid);
+    cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .remind-btn.active {
+    background: var(--surface); border-color: var(--accent);
+    color: var(--text);
+  }
   .sp-name-field {
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
   }
@@ -1075,6 +1187,72 @@
   }
   #settingsNameSave:hover { color: var(--text); border-color: var(--muted); }
   #settingsNameSave:disabled { opacity: 0.35; cursor: default; }
+  /* Email row — full-width stacked layout */
+  .sp-row--email {
+    flex-direction: column; align-items: stretch;
+    gap: 10px; padding: 13px 0;
+  }
+  .sp-row--email .sp-row-label { color: var(--text); }
+  .sp-email-field {
+    display: flex; gap: 8px; align-items: center;
+  }
+  #settingsEmailInput {
+    flex: 1; min-width: 0;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text);
+    font-size: 13px; font-weight: 400;
+    padding: 9px 11px; outline: none;
+    transition: border-color 0.18s; font-family: inherit;
+    -webkit-appearance: none;
+  }
+  #settingsEmailInput::placeholder { color: var(--text-dim); }
+  #settingsEmailInput:focus { border-color: var(--muted); }
+  #settingsEmailSave {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text-mid);
+    font-size: 12px; font-weight: 500; padding: 9px 14px;
+    cursor: pointer; white-space: nowrap; font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent; flex-shrink: 0;
+  }
+  #settingsEmailSave:hover { color: var(--text); border-color: var(--muted); }
+  #settingsEmailSave:disabled { opacity: 0.35; cursor: default; }
+  /* ── Theme segmented control ── */
+  .sp-row--seg { align-items: center; }
+  .sp-seg {
+    display: flex; border: 1px solid var(--border2);
+    border-radius: var(--rsm); overflow: hidden; flex-shrink: 0;
+  }
+  .sp-seg-btn {
+    flex: 1; padding: 6px 18px;
+    background: transparent; border: none;
+    color: var(--text-mid); font-size: 12px; font-weight: 500;
+    font-family: inherit; cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sp-seg-btn + .sp-seg-btn { border-left: 1px solid var(--border2); }
+  .sp-seg-btn.active { background: var(--accent); color: var(--accent-fg); }
+  /* ── Colour swatches ── */
+  .sp-row--color { flex-direction: column; align-items: stretch; gap: 10px; }
+  .sp-row--color .sp-row-label { color: var(--text-mid); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .color-swatches {
+    display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px;
+  }
+  .swatch {
+    aspect-ratio: 1; border-radius: 50%;
+    border: 2px solid transparent; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+    position: relative;
+  }
+  .swatch:active { transform: scale(0.9); }
+  .swatch.active {
+    box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  }
+  .swatch--default {
+    background: conic-gradient(#1c1c1c 0deg 180deg, #e8e8e8 180deg 360deg);
+  }
 
   /* Toggle switch */
   .toggle-sw { position: relative; width: 44px; height: 26px; flex-shrink: 0; }
@@ -1355,6 +1533,136 @@
     }
   }
 
+  /* ── Board navigation ── */
+  #boardIndicator {
+    position: absolute;
+    top: 7px; left: 7px;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+    background: rgba(0,0,0,0.45);
+    padding: 5px 8px 6px;
+    border-radius: 10px;
+    pointer-events: none;
+    z-index: 10;
+  }
+  /* Fix: explicit display:flex overrides UA [hidden] — must force with !important */
+  #boardIndicator[hidden] { display: none !important; }
+
+  #boardCounterText {
+    font-size: 10px; font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: 0.05em;
+    line-height: 1;
+  }
+  #boardPips {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .board-pip {
+    width: 2px; height: 11px;
+    border-radius: 1px;
+    background: rgba(255,255,255,0.25);
+    transition: background 0.2s, box-shadow 0.2s;
+    flex-shrink: 0;
+  }
+  .board-pip.active {
+    background: #70c8ff;
+    box-shadow: 0 0 5px 1px rgba(112,200,255,0.65);
+  }
+
+  /* 3-dot board actions button — top-right, mirrors indicator position */
+  #boardActionsBtn {
+    position: absolute;
+    top: 7px; right: 7px;
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(0,0,0,0.45);
+    color: rgba(255,255,255,0.8);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+  }
+  #boardActionsBtn:hover { background: rgba(0,0,0,0.65); }
+
+  /* Board actions dropdown */
+  #boardActionsMenu {
+    position: absolute;
+    top: 42px; right: 7px;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    overflow: hidden;
+    z-index: 30;
+    min-width: 148px;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.35);
+  }
+  #boardActionsMenu[hidden] { display: none !important; }
+  .bam-item {
+    display: block; width: 100%;
+    padding: 11px 14px;
+    background: none; border: none; border-bottom: 1px solid var(--border);
+    color: var(--text); font-size: 13px; font-family: inherit;
+    text-align: left; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.12s;
+  }
+  .bam-item:last-child { border-bottom: none; }
+  .bam-item:hover { background: var(--surface2); }
+  .bam-item:disabled { color: var(--text-dim); cursor: default; }
+  .bam-item.danger { color: #e04040; }
+
+  #boardCapMsg {
+    position: absolute;
+    bottom: 14px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.65);
+    color: rgba(255,255,255,0.9);
+    font-size: 11px; font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 20px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 20;
+    transition: opacity 0.5s ease;
+  }
+  #boardCapMsg[hidden] { display: none !important; }
+
+  /* ── Export choice modal ── */
+  #exportChoiceModal {
+    position: fixed; inset: 0; z-index: 800;
+    background: rgba(0,0,0,0.55);
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+  #exportChoiceModal[hidden] { display: none !important; }
+  .export-choice-box {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    padding: 16px;
+    width: min(320px, calc(100% - 32px));
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .export-choice-title {
+    font-size: 12px; color: var(--text-dim); text-align: center;
+    text-transform: uppercase; letter-spacing: 0.1em; margin: 0 0 2px;
+  }
+  .export-choice-btn {
+    width: 100%; padding: 13px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: var(--rsm); color: var(--text);
+    font-size: 14px; font-weight: 500; cursor: pointer; font-family: inherit;
+    -webkit-tap-highlight-color: transparent; transition: background 0.15s;
+  }
+  .export-choice-btn:hover { background: var(--border); }
+  .export-choice-cancel {
+    width: 100%; padding: 12px;
+    background: none; border: none;
+    color: var(--text-dim); font-size: 13px; cursor: pointer; font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   /* ── LANDSCAPE LOCK OVERLAY ── */
   #landscapeOverlay {
     display: none;
@@ -1405,6 +1713,11 @@
     </div>
     <div id="welcomeForm">
       <input id="welcomeNameInput" type="text" placeholder="Your name" maxlength="32" autocomplete="off" autocorrect="off" spellcheck="false">
+      <input id="welcomeEmailInput" type="email" placeholder="Email (optional)" maxlength="254" autocomplete="email" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <label id="welcomeGdprLabel" style="display:flex; align-items:flex-start; gap:10px; font-size:11px; color:var(--text-dim); line-height:1.5; cursor:pointer;">
+        <input type="checkbox" id="welcomeGdprCheck" style="margin-top:2px; flex-shrink:0; accent-color:var(--accent);">
+        I agree to receive occasional updates about STLLS. You can unsubscribe at any time.
+      </label>
       <button id="welcomeContinueBtn" disabled>Continue</button>
     </div>
   </div>
@@ -1430,8 +1743,11 @@
     <div id="homeGreeting"><p id="homeGreetingText"></p></div>
     <div id="homeNewArea">
       <div id="homeNewGroup">
-        <button id="homeNewBtn" aria-label="New board">+</button>
-        <span id="homeNewLabel">Create new board</span>
+        <button id="homeNewBtn" aria-label="New project">
+          <canvas id="homeWaveCanvas" aria-hidden="true"></canvas>
+          <span id="homeWavePlus">+</span>
+        </button>
+        <span id="homeNewLabel">Create new project</span>
       </div>
     </div>
   </div>
@@ -1439,8 +1755,8 @@
   <!-- Separator -->
   <hr class="home-divider">
 
-  <!-- MY BOARDS label — always visible, outside the scroll container -->
-  <div class="home-boards-label">My Boards</div>
+  <!-- MY PROJECTS label — always visible, outside the scroll container -->
+  <div class="home-boards-label">My Projects</div>
 
   <!-- Boards grid — only scrollable area -->
   <div id="homeBoardsSection">
@@ -1455,11 +1771,11 @@
   <button class="bm-item danger" id="bmDelete">Delete</button>
 </div>
 
-<!-- Rename board modal -->
+<!-- Rename project modal -->
 <div id="renameOverlay" hidden>
   <div class="rename-box">
-    <p>Rename board</p>
-    <input type="text" id="renameInput" placeholder="Board name" autocomplete="off" autocorrect="off">
+    <p>Rename project</p>
+    <input type="text" id="renameInput" placeholder="Project name" autocomplete="off" autocorrect="off">
     <div class="rename-btns">
       <button id="renameCancelBtn">Cancel</button>
       <button id="renameSaveBtn">Save</button>
@@ -1470,7 +1786,7 @@
 <!-- Delete confirm overlay -->
 <div id="deleteConfirm" hidden>
   <div class="dc-box">
-    <p>Delete this board?</p>
+    <p>Delete this project?</p>
     <div class="dc-btns">
       <button id="dcCancel">Cancel</button>
       <button id="dcYes">Delete</button>
@@ -1533,6 +1849,9 @@
     <div id="previewWrap">
       <div id="emptyState"><span class="big">◻</span>Add images to begin</div>
       <div id="layoutPreview"></div>
+      <!-- Neighbour-board canvases for smooth swipe animation -->
+      <canvas id="swipePrevBoard" class="swipe-board"></canvas>
+      <canvas id="swipeNextBoard" class="swipe-board"></canvas>
       <!-- Expand button -->
       <button id="previewExpandBtn" aria-label="Expand preview">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -1542,6 +1861,23 @@
           <line x1="3" y1="21" x2="10" y2="14"/>
         </svg>
       </button>
+      <!-- Board nav: indicator (counter + pips, top-left) -->
+      <div id="boardIndicator" hidden>
+        <span id="boardCounterText"></span>
+        <div id="boardPips"></div>
+      </div>
+      <!-- 3-dot board actions button (top-right, mirrors indicator) -->
+      <button id="boardActionsBtn" aria-label="Board options">
+        <svg width="14" height="4" viewBox="0 0 14 4" fill="currentColor">
+          <circle cx="2" cy="2" r="1.5"/><circle cx="7" cy="2" r="1.5"/><circle cx="12" cy="2" r="1.5"/>
+        </svg>
+      </button>
+      <div id="boardActionsMenu" hidden>
+        <button class="bam-item" id="bamAdd">Add Board</button>
+        <button class="bam-item danger" id="bamDelete">Delete Board</button>
+      </div>
+      <!-- Cap toast — shown briefly when 10-board limit is hit -->
+      <div id="boardCapMsg" hidden>Projects are limited to 10 boards</div>
     </div>
   </div>
 
@@ -1562,7 +1898,7 @@
       <div class="import-mode-row" id="importModeRow">
         <button class="import-mode-btn active" data-imode="stills">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-          <span>Add Stills</span>
+          <span>From Photos</span>
         </button>
         <button class="import-mode-btn" data-imode="video">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
@@ -1584,6 +1920,15 @@
         <div class="video-sub-row">
           <button class="video-sub-btn active" data-vsub="auto">Auto</button>
           <button class="video-sub-btn" data-vsub="manual">Manual</button>
+        </div>
+        <!-- Amount stepper — Auto mode only; value shows "All" or a count -->
+        <div id="autoCountRow" class="stepper-group" style="margin-bottom:8px;">
+          <span class="step-label">Amount</span>
+          <div class="stepper">
+            <button class="step-btn" id="autoCountMinus">−</button>
+            <div class="step-val" id="autoCountVal">All</div>
+            <button class="step-btn" id="autoCountPlus">+</button>
+          </div>
         </div>
       </div>
 
@@ -1607,6 +1952,7 @@
           <button class="btn active" data-ratio="9:16">9:16</button>
           <button class="btn" data-ratio="1:1">1:1</button>
           <button class="btn" data-ratio="4:5">4:5</button>
+          <button class="btn" data-ratio="16:9">16:9</button>
         </div>
       </div>
 
@@ -1708,14 +2054,26 @@
     <img id="msFrameImg" hidden alt="">
     <div id="msFrameImgLoading" hidden><div class="ms-load-ring"></div></div>
   </div>
-  <!-- Transport row: prev-frame | play | next-frame -->
+  <!-- Transport row: prev-1 | prev-10 | play | next-10 | next-1 -->
   <div class="ms-transport-row">
     <button id="msPrevFrameBtn" aria-label="Previous frame">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>
       </svg>
     </button>
+    <button id="msPrev10Btn" aria-label="Back 10 frames">
+      <svg width="15" height="13" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="21 20 11 12 21 4 21 20"/><polygon points="10 20 0 12 10 4 10 20"/>
+        <line x1="25" y1="19" x2="25" y2="5"/>
+      </svg>
+    </button>
     <button id="msPlayBtn"><svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg></button>
+    <button id="msNext10Btn" aria-label="Forward 10 frames">
+      <svg width="15" height="13" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 4 15 12 5 20 5 4"/><polygon points="16 4 26 12 16 20 16 4"/>
+        <line x1="1" y1="5" x2="1" y2="19"/>
+      </svg>
+    </button>
     <button id="msNextFrameBtn" aria-label="Next frame">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
@@ -1750,15 +2108,36 @@
           <button id="settingsNameSave">Save</button>
         </div>
       </div>
+      <div class="sp-row sp-row--email">
+        <span class="sp-row-label">Email</span>
+        <div class="sp-email-field">
+          <input type="email" id="settingsEmailInput" maxlength="254" autocomplete="email" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Your email address">
+          <button id="settingsEmailSave">Save</button>
+        </div>
+      </div>
     </div>
     <div class="sp-section">
       <div class="sp-section-label">Appearance</div>
-      <div class="sp-row">
-        <span class="sp-row-label">Light mode</span>
-        <label class="toggle-sw">
-          <input type="checkbox" id="themeToggle">
-          <span class="toggle-track"></span>
-        </label>
+      <div class="sp-row sp-row--seg">
+        <span class="sp-row-label">Theme</span>
+        <div class="sp-seg">
+          <button class="sp-seg-btn active" id="themeDarkBtn">Dark</button>
+          <button class="sp-seg-btn" id="themeLightBtn">Light</button>
+        </div>
+      </div>
+      <div class="sp-row sp-row--color">
+        <span class="sp-row-label">Accent</span>
+        <div id="colorSwatches" class="color-swatches">
+          <button class="swatch swatch--default active" data-color="default" title="Default"></button>
+          <button class="swatch" data-color="blue"    style="background:#4d9fff" title="Blue"></button>
+          <button class="swatch" data-color="violet"  style="background:#a78bfa" title="Violet"></button>
+          <button class="swatch" data-color="rose"    style="background:#fb7185" title="Rose"></button>
+          <button class="swatch" data-color="amber"   style="background:#fbbf24" title="Amber"></button>
+          <button class="swatch" data-color="emerald" style="background:#34d399" title="Emerald"></button>
+          <button class="swatch" data-color="cyan"    style="background:#22d3ee" title="Cyan"></button>
+          <button class="swatch" data-color="coral"   style="background:#ff7c5c" title="Coral"></button>
+          <button class="swatch" data-color="sand"    style="background:#d4b896" title="Sand"></button>
+        </div>
       </div>
     </div>
     <div class="sp-section">
@@ -1769,6 +2148,26 @@
           <input type="checkbox" id="notificationsToggle">
           <span class="toggle-track"></span>
         </label>
+      </div>
+      <!-- Remind me to create — shown only when notifications are on -->
+      <div id="remindRow" hidden>
+        <!-- Collapsed trigger row -->
+        <div id="remindTrigger">
+          <span class="sp-row-label">Remind me to create</span>
+          <div class="remind-trigger-right">
+            <span id="remindCurLabel">Daily</span>
+            <span class="remind-chevron">›</span>
+          </div>
+        </div>
+        <!-- Expandable frequency picker -->
+        <div class="remind-freq-body">
+          <div class="remind-freq-btns">
+            <button class="remind-btn" data-freq="off">Off</button>
+            <button class="remind-btn active" data-freq="daily">Daily</button>
+            <button class="remind-btn" data-freq="twice">2× week</button>
+            <button class="remind-btn" data-freq="weekly">Weekly</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1817,6 +2216,16 @@
   </div>
 </div>
 
+<!-- Export choice modal (multi-board projects) -->
+<div id="exportChoiceModal" hidden>
+  <div class="export-choice-box">
+    <p class="export-choice-title">Export</p>
+    <button class="export-choice-btn" id="exportChoiceCurrent">Current Board</button>
+    <button class="export-choice-btn" id="exportChoiceAll">All Boards</button>
+    <button class="export-choice-cancel" id="exportChoiceCancel">Cancel</button>
+  </div>
+</div>
+
 <!-- Splash screen — shown only on fresh launch -->
 <div id="splashScreen">
   <div id="splashContent">
@@ -1826,9 +2235,20 @@
 </div>
 
 <script>
+// ── Rate limiting ──────────────────────────────────────────────────────────
+// In-memory throttle — resets on page reload, no persistence needed.
+// Returns true if the action is allowed, false if it fired too recently.
+const _rl = new Map();
+function throttle(key, ms) {
+  const now = Date.now(), last = _rl.get(key) || 0;
+  if (now - last < ms) return false;
+  _rl.set(key, now);
+  return true;
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────
 const CANONICAL_W = 1080;
-const RATIOS = { '9:16': [9,16], '1:1': [1,1], '4:5': [4,5] };
+const RATIOS = { '9:16': [9,16], '1:1': [1,1], '4:5': [4,5], '16:9': [16,9] };
 
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
@@ -1928,6 +2348,7 @@ const previewExpandBtn = document.getElementById('previewExpandBtn');
 // ── Welcome + Greeting ───────────────────────────────────────────────────────
 const welcomeOverlay     = document.getElementById('welcomeOverlay');
 const welcomeNameInput   = document.getElementById('welcomeNameInput');
+const welcomeEmailInput  = document.getElementById('welcomeEmailInput');
 const welcomeContinueBtn = document.getElementById('welcomeContinueBtn');
 const homeGreetingText   = document.getElementById('homeGreetingText');
 
@@ -1968,9 +2389,18 @@ welcomeNameInput.addEventListener('keydown', e => {
 });
 
 welcomeContinueBtn.addEventListener('click', () => {
-  const name = welcomeNameInput.value.trim();
+  const name  = welcomeNameInput.value.trim();
   if (!name) return;
   localStorage.setItem('stlls-user-name', name);
+  const email       = welcomeEmailInput.value.trim();
+  const gdprChecked = document.getElementById('welcomeGdprCheck').checked;
+  if (email) {
+    localStorage.setItem('stlls-user-email', email);
+    localStorage.setItem('stlls-email-consent', gdprChecked ? 'true' : 'false');
+  }
+  if (email && gdprChecked) {
+    submitToMailingList(name, email); // fire-and-forget — no-op until service is configured
+  }
   updateGreeting();
   // Animate out then hide
   welcomeOverlay.classList.add('leaving');
@@ -2003,23 +2433,126 @@ const deleteConfirm  = document.getElementById('deleteConfirm');
 const dcCancel       = document.getElementById('dcCancel');
 const dcYes          = document.getElementById('dcYes');
 
-// Simple in-memory boards store (IndexedDB-lite fallback for this version)
-let boards = JSON.parse(localStorage.getItem('stlls-boards') || '[]');
-let _boardMenuId = null;
-let _currentBoardId = null;
-
-function saveBoards() {
-  // Store metadata only (no image src to avoid quota issues in simple version)
-  try { localStorage.setItem('stlls-boards', JSON.stringify(boards)); } catch(e) {}
+// ── ID generator ──────────────────────────────────────────────────────────
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function renderBoardsList() {
+// ── Multi-board state (in-memory only) ────────────────────────────────────
+let _projectBoards = [];
+let _activeBoardIdx = 0;
+
+// Simple in-memory projects store (localStorage-backed metadata)
+let projects = JSON.parse(localStorage.getItem('stlls-boards') || '[]');
+let _projectMenuId = null;
+let _currentProjectId = null;
+
+function saveProjects() {
+  // Store metadata only (thumbnail, name, boardCount, updatedAt) — image blobs go to IDB
+  try { localStorage.setItem('stlls-boards', JSON.stringify(projects)); } catch(e) {}
+}
+
+// ── IndexedDB — full board image persistence ──────────────────────────────
+let _idb = null;
+
+function openDB() {
+  if (_idb) return Promise.resolve(_idb);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('stlls-v1', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('projects');
+    req.onsuccess = e => { _idb = e.target.result; resolve(_idb); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function dbPut(id, data) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction('projects', 'readwrite');
+    tx.objectStore('projects').put(data, id);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+async function dbGet(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction('projects', 'readonly');
+    const req = tx.objectStore('projects').get(id);
+    req.onsuccess = e => resolve(e.target.result ?? null);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function dbDelete(id) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx  = db.transaction('projects', 'readwrite');
+    tx.objectStore('projects').delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror    = e => reject(e.target.error);
+  });
+}
+
+// Convert live board objects (with HTMLImageElement) → plain JSON for IDB
+function serializeBoards(boards) {
+  return boards.map(board => ({
+    id:             board.id,
+    ratio:          board.ratio,
+    layout:         board.layout,
+    gridCols:       board.gridCols,
+    gridRows:       board.gridRows,
+    gap:            board.gap,
+    padding:        board.padding,
+    bg:             board.bg,
+    usedShotRanges: board.usedShotRanges || [],
+    images:         (board.images || [])
+      .map(item => ({
+        id:         item.id,
+        name:       item.name,
+        src:        item.img?.src || '',
+        transforms: item.transforms || {},
+      }))
+      // Skip blob: URLs — they are non-persistent video object URLs
+      .filter(item => item.src && !item.src.startsWith('blob:')),
+  }));
+}
+
+// Reconstruct live board objects from IDB data (loads all images in parallel)
+async function deserializeBoards(savedBoards) {
+  return Promise.all(savedBoards.map(async board => {
+    const images = (await Promise.all(
+      (board.images || []).map(item => new Promise(resolve => {
+        if (!item.src) { resolve(null); return; }
+        const img = new Image();
+        img.onload  = () => resolve({ id: item.id, name: item.name, img, transforms: item.transforms || {} });
+        img.onerror = () => resolve(null); // skip corrupt entries
+        img.src = item.src;
+      }))
+    )).filter(Boolean);
+    return {
+      id:             board.id             || genId(),
+      ratio:          board.ratio          || '9:16',
+      layout:         board.layout         || 'vertical',
+      gridCols:       board.gridCols       || 2,
+      gridRows:       board.gridRows       || 2,
+      gap:            board.gap            ?? 6,
+      padding:        board.padding        ?? 0,
+      bg:             board.bg             || '#000000',
+      usedShotRanges: board.usedShotRanges || [],
+      images,
+    };
+  }));
+}
+
+function renderProjectsList() {
   boardsGrid.innerHTML = '';
-  if (boards.length === 0) {
-    boardsGrid.innerHTML = '<div style="color:var(--text-dim);font-size:11px;grid-column:1/-1;padding:8px 0;">No boards yet. Tap + to create one.</div>';
+  if (projects.length === 0) {
+    boardsGrid.innerHTML = '<div style="color:var(--text-dim);font-size:11px;grid-column:1/-1;padding:8px 0;">No projects yet. Tap + to create one.</div>';
     return;
   }
-  const sorted = [...boards].sort((a,b) => b.updatedAt - a.updatedAt);
+  const sorted = [...projects].sort((a,b) => b.updatedAt - a.updatedAt);
   sorted.forEach(board => {
     const card = document.createElement('div');
     card.className = 'board-card';
@@ -2036,6 +2569,14 @@ function renderBoardsList() {
       ph.className = 'board-thumb-empty';
       ph.textContent = '◻';
       thumb.appendChild(ph);
+    }
+
+    // Board count badge (top-left corner, only when project has multiple boards)
+    if (board.boardCount > 1) {
+      const badge = document.createElement('span');
+      badge.className = 'board-count-badge';
+      badge.textContent = board.boardCount;
+      thumb.appendChild(badge);
     }
 
     // Name + date overlay
@@ -2058,7 +2599,7 @@ function renderBoardsList() {
     menuBtn.textContent = '···';
     menuBtn.addEventListener('click', e => {
       e.stopPropagation();
-      _boardMenuId = board.id;
+      _projectMenuId = board.id;
       const r = menuBtn.getBoundingClientRect();
       boardMenu.style.top = (r.bottom + 4) + 'px';
       boardMenu.style.left = Math.min(r.left, window.innerWidth - 150) + 'px';
@@ -2067,7 +2608,7 @@ function renderBoardsList() {
 
     card.appendChild(thumb);
     card.appendChild(menuBtn);
-    card.addEventListener('click', () => openBoard(board.id));
+    card.addEventListener('click', () => openProject(board.id));
     boardsGrid.appendChild(card);
   });
 }
@@ -2081,9 +2622,25 @@ function leaveHome(then) {
   }, { once: true });
 }
 
-function openBoard(id) {
-  _currentBoardId = id;
-  leaveHome();
+function openProject(id) {
+  _currentProjectId = id;
+  _boardSwitching   = false;
+  _activeBoardIdx   = 0;
+
+  // Start IDB fetch immediately — runs in parallel with the leave animation (320 ms)
+  const dataPromise = dbGet(id).then(saved => {
+    if (saved?.boards?.length > 0) return deserializeBoards(saved.boards);
+    return [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  }).catch(() => {
+    return [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  });
+
+  leaveHome(async () => {
+    // By the time animation ends (320 ms) the fetch is usually done; await remainder
+    _projectBoards = await dataPromise;
+    loadBoardState(_projectBoards[0]);
+    updateBoardNav();
+  });
 }
 
 function generateThumbnail() {
@@ -2114,25 +2671,265 @@ function generateThumbnail() {
   return cvs.toDataURL('image/jpeg', 0.82);
 }
 
-function goHome() {
-  if (_currentBoardId) {
-    if (state.images.length > 0) {
-      // Save thumbnail snapshot
-      const thumb = generateThumbnail();
-      const board = boards.find(b => b.id === _currentBoardId);
-      if (board) {
-        if (thumb) board.thumbnail = thumb;
-        board.updatedAt = Date.now();
-        saveBoards();
-      }
-    } else {
-      // No images — remove the board entry so empty boards never appear
-      boards = boards.filter(b => b.id !== _currentBoardId);
-      saveBoards();
+// ── Multi-board helpers ───────────────────────────────────────────────────
+
+function saveCurrentBoardSnapshot() {
+  _projectBoards[_activeBoardIdx] = {
+    id:             _projectBoards[_activeBoardIdx]?.id || genId(),
+    ratio:          state.ratio,
+    layout:         state.layout,
+    gridCols:       state.gridCols,
+    gridRows:       state.gridRows,
+    gap:            state.gap,
+    padding:        state.padding,
+    bg:             state.bg,
+    images:         state.images.slice(),
+    usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
+  };
+}
+
+// ── Swipe-board snapshot rendering ───────────────────────────────────────
+const swipePrevBoard = document.getElementById('swipePrevBoard');
+const swipeNextBoard = document.getElementById('swipeNextBoard');
+
+// Render a board snapshot onto an OffscreenCanvas.
+// Temporarily swaps global state so getSlots() produces the right layout.
+function renderBoardSnapshot(canvas, boardData) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = Math.round(previewW * dpr);
+  canvas.height = Math.round(previewH * dpr);
+  canvas.style.width  = previewW + 'px';
+  canvas.style.height = previewH + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = boardData.bg || '#000';
+  ctx.fillRect(0, 0, previewW, previewH);
+
+  if (!boardData.images || boardData.images.length === 0) return;
+
+  // Temporarily swap state so getSlots() uses this board's settings
+  const saved = {
+    images: state.images, ratio: state.ratio, layout: state.layout,
+    gridCols: state.gridCols, gridRows: state.gridRows,
+    gap: state.gap, padding: state.padding, bg: state.bg,
+  };
+  state.images  = boardData.images;
+  state.ratio   = boardData.ratio;
+  state.layout  = boardData.layout;
+  state.gridCols = boardData.gridCols;
+  state.gridRows = boardData.gridRows;
+  state.gap     = boardData.gap;
+  state.padding = boardData.padding;
+  state.bg      = boardData.bg;
+
+  getSlots(previewW, previewH).forEach(({ item, x, y, w, h }) => {
+    if (!item?.img) return;
+    const t = (item.transforms && item.transforms[boardData.layout]) || { scale: 1, fx: 0, fy: 0 };
+    const img = item.img;
+    const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight) * t.scale;
+    const iW = img.naturalWidth * coverS, iH = img.naturalHeight * coverS;
+    const sx = (w - iW) / 2 + t.fx * w;
+    const sy = (h - iH) / 2 + t.fy * h;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.drawImage(img, x + sx, y + sy, iW, iH);
+    ctx.restore();
+  });
+
+  // Restore original state — no DOM side-effects from this function
+  state.images  = saved.images;
+  state.ratio   = saved.ratio;
+  state.layout  = saved.layout;
+  state.gridCols = saved.gridCols;
+  state.gridRows = saved.gridRows;
+  state.gap     = saved.gap;
+  state.padding = saved.padding;
+  state.bg      = saved.bg;
+}
+
+// ── Photo-album swipe state ───────────────────────────────────────────────
+let _swipeState   = 'idle'; // 'idle' | 'detecting' | 'swiping'
+let _swipeStartX  = 0, _swipeStartY = 0;
+let _swipeTx      = 0;
+const _swipeGap   = 20; // px gap between board cards during swipe
+let _swipePrevOk  = false, _swipeNextOk = false;
+
+function loadBoardState(board) {
+  state.ratio    = board.ratio;
+  state.layout   = board.layout;
+  state.gridCols = board.gridCols;
+  state.gridRows = board.gridRows;
+  state.gap      = board.gap;
+  state.padding  = board.padding;
+  state.bg       = board.bg;
+  state.images         = board.images.slice();
+  state.usedShotRanges = board.usedShotRanges ? [...board.usedShotRanges] : [];
+  // Sync all controls to new state
+  document.querySelectorAll('[data-ratio]').forEach(b => b.classList.toggle('active', b.dataset.ratio === state.ratio));
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === state.layout));
+  gridOptsWrap.hidden = state.layout !== 'grid';
+  colsVal.textContent = state.gridCols;
+  rowsVal.textContent = state.gridRows;
+  gapSlider.value = state.gap; gapVal.textContent = state.gap;
+  padSlider.value = state.padding; padVal.textContent = state.padding;
+  bgColor.value   = state.bg;
+  layoutPreview.style.background = state.bg;
+  undoHistory.length = 0; redoHistory.length = 0;
+  updateUndoBtn();
+  renderList();
+  computePreviewSize();
+  buildLayout();
+}
+
+function updateBoardNav() {
+  const total = _projectBoards.length;
+  const idx   = _activeBoardIdx;
+  const indicator   = document.getElementById('boardIndicator');
+  const counterText = document.getElementById('boardCounterText');
+  const pipsEl      = document.getElementById('boardPips');
+  const bamDelete   = document.getElementById('bamDelete');
+  if (!indicator) return;
+
+  const multi = total > 1;
+  indicator.hidden = !multi;   // works now — [hidden] CSS fix applied above
+
+  if (counterText) counterText.textContent = `${idx + 1} / ${total}`;
+
+  if (pipsEl) {
+    pipsEl.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const pip = document.createElement('div');
+      pip.className = 'board-pip' + (i === idx ? ' active' : '');
+      pipsEl.appendChild(pip);
     }
   }
+
+  // Disable "Delete Board" when only one board remains
+  if (bamDelete) bamDelete.disabled = total <= 1;
+}
+
+function removeCurrentBoard() {
+  if (_projectBoards.length <= 1) return;
+  _projectBoards.splice(_activeBoardIdx, 1);
+  _activeBoardIdx = Math.min(_activeBoardIdx, _projectBoards.length - 1);
+  loadBoardState(_projectBoards[_activeBoardIdx]);
+  updateBoardNav();
+}
+
+// ── 3-dot board actions menu ─────────────────────────────────────────────────
+const boardActionsBtn  = document.getElementById('boardActionsBtn');
+const boardActionsMenu = document.getElementById('boardActionsMenu');
+
+boardActionsBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  boardActionsMenu.hidden = !boardActionsMenu.hidden;
+});
+
+// Close menu on outside tap
+document.addEventListener('click', e => {
+  if (!boardActionsMenu.hidden && !boardActionsMenu.contains(e.target) && e.target !== boardActionsBtn) {
+    boardActionsMenu.hidden = true;
+  }
+});
+
+document.getElementById('bamAdd').addEventListener('click', () => {
+  boardActionsMenu.hidden = true;
+  addNewBoard();
+});
+
+document.getElementById('bamDelete').addEventListener('click', () => {
+  boardActionsMenu.hidden = true;
+  removeCurrentBoard();
+});
+
+let _boardSwitching = false;
+
+function switchToBoard(newIdx, direction) {
+  if (newIdx < 0 || newIdx >= _projectBoards.length || newIdx === _activeBoardIdx) return;
+  if (_boardSwitching) return; // block re-entry during transition
+  _boardSwitching = true;
+
+  saveCurrentBoardSnapshot();
+  _activeBoardIdx = newIdx;
+
+  // Load immediately — no fade-out delay so the canvas never appears blank
+  loadBoardState(_projectBoards[_activeBoardIdx]);
+  updateBoardNav();
+
+  // Brief fade-in only for polish
+  layoutPreview.style.transition = 'none';
+  layoutPreview.style.opacity = '0.2';
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      layoutPreview.style.transition = 'opacity 0.18s ease';
+      layoutPreview.style.opacity = '1';
+      setTimeout(() => {
+        layoutPreview.style.transition = '';
+        layoutPreview.style.opacity = '';
+        _boardSwitching = false;
+      }, 200);
+    });
+  });
+}
+
+let _capMsgTimer = null;
+
+function showBoardCapMsg() {
+  const msg = document.getElementById('boardCapMsg');
+  if (!msg) return;
+  clearTimeout(_capMsgTimer);
+  msg.style.transition = 'none';
+  msg.style.opacity = '1';
+  msg.hidden = false;
+  // Hold for 1.8s then fade out
+  _capMsgTimer = setTimeout(() => {
+    msg.style.transition = 'opacity 0.55s ease';
+    msg.style.opacity = '0';
+    setTimeout(() => { msg.hidden = true; }, 580);
+  }, 1800);
+}
+
+function addNewBoard() {
+  if (_projectBoards.length >= 10) {
+    showBoardCapMsg();
+    return;
+  }
+  saveCurrentBoardSnapshot();
+  const newBoard = { id: genId(), ratio: state.ratio, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, images: [] };
+  _projectBoards.push(newBoard);
+  switchToBoard(_projectBoards.length - 1, 'left');
+}
+
+function goHome() {
+  if (_currentProjectId) {
+    saveCurrentBoardSnapshot();
+    const hasImages = _projectBoards.some(b => b.images.length > 0);
+    if (hasImages) {
+      const thumb = generateThumbnail();
+      const project = projects.find(p => p.id === _currentProjectId);
+      if (project) {
+        if (thumb) project.thumbnail = thumb;
+        project.updatedAt  = Date.now();
+        project.boardCount = _projectBoards.length;
+        saveProjects();
+      }
+      // Persist full board data (images as dataURLs) to IndexedDB
+      const id     = _currentProjectId;
+      const serial = serializeBoards(_projectBoards);
+      dbPut(id, { id, boards: serial }).catch(err => console.warn('IDB save failed', err));
+    } else {
+      projects = projects.filter(p => p.id !== _currentProjectId);
+      saveProjects();
+      dbDelete(_currentProjectId).catch(() => {});
+    }
+  }
+  _projectBoards = [];
+  _activeBoardIdx = 0;
+  _boardSwitching = false;  // clear any in-flight animation lock
+  updateBoardNav();          // hide indicator before home screen appears
   updateGreeting();
-  renderBoardsList();
+  renderProjectsList();
   homeScreen.hidden = false;
   homeScreen.classList.remove('leaving');
   homeScreen.classList.add('entering');
@@ -2143,16 +2940,14 @@ const homeBtn = document.getElementById('homeBtn');
 homeBtn.addEventListener('click', goHome);
 
 homeNewBtn.addEventListener('click', () => {
-  _currentBoardId = Date.now().toString(36) + Math.random().toString(36).slice(2);
-  boards.push({ id: _currentBoardId, updatedAt: Date.now(), thumbnail: null });
-  saveBoards();
-  // Reset editor state (happens during the exit animation, invisible to user)
-  state.images = [];
-  undoHistory.length = 0;
-  redoHistory.length = 0;
-  updateUndoBtn();
-  renderList();
-  buildLayout();
+  _currentProjectId = genId();
+  projects.push({ id: _currentProjectId, updatedAt: Date.now(), thumbnail: null });
+  saveProjects();
+  _boardSwitching = false;
+  _projectBoards = [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  _activeBoardIdx = 0;
+  loadBoardState(_projectBoards[0]);
+  updateBoardNav();
   leaveHome();
 });
 
@@ -2168,26 +2963,26 @@ const renameSaveBtn  = document.getElementById('renameSaveBtn');
 
 bmRename.addEventListener('click', () => {
   boardMenu.hidden = true;
-  const board = boards.find(b => b.id === _boardMenuId);
-  renameInput.value = board?.name || '';
+  const project = projects.find(p => p.id === _projectMenuId);
+  renameInput.value = project?.name || '';
   renameOverlay.hidden = false;
   requestAnimationFrame(() => renameInput.focus());
 });
 
 renameCancelBtn.addEventListener('click', () => {
   renameOverlay.hidden = true;
-  _boardMenuId = null;
+  _projectMenuId = null;
 });
 
 renameSaveBtn.addEventListener('click', () => {
-  const board = boards.find(b => b.id === _boardMenuId);
-  if (board) {
-    board.name = renameInput.value.trim();
-    saveBoards();
-    renderBoardsList();
+  const project = projects.find(p => p.id === _projectMenuId);
+  if (project) {
+    project.name = renameInput.value.trim();
+    saveProjects();
+    renderProjectsList();
   }
   renameOverlay.hidden = true;
-  _boardMenuId = null;
+  _projectMenuId = null;
 });
 
 // Save on Enter key
@@ -2200,25 +2995,29 @@ bmDelete.addEventListener('click', () => {
   boardMenu.hidden = true;
   deleteConfirm.hidden = false;
 });
-dcCancel.addEventListener('click', () => { deleteConfirm.hidden = true; _boardMenuId = null; });
+dcCancel.addEventListener('click', () => { deleteConfirm.hidden = true; _projectMenuId = null; });
 dcYes.addEventListener('click', () => {
-  if (_boardMenuId) {
-    boards = boards.filter(b => b.id !== _boardMenuId);
-    saveBoards();
-    renderBoardsList();
+  if (_projectMenuId) {
+    const id = _projectMenuId;
+    projects = projects.filter(p => p.id !== id);
+    saveProjects();
+    renderProjectsList();
+    dbDelete(id).catch(() => {}); // also remove image data from IDB
   }
   deleteConfirm.hidden = true;
-  _boardMenuId = null;
+  _projectMenuId = null;
 });
 
 // Home settings opens the same settings panel
 homeSettingsBtn.addEventListener('click', openSettings);
 
 // Show home screen on load
-renderBoardsList();
+renderProjectsList();
 
 // ── Preview sizing ─────────────────────────────────────────────────────────
 let previewW = 0, previewH = 0;
+
+let _previewAnimating = false;
 
 function computePreviewSize() {
   const [rw, rh] = RATIOS[state.ratio];
@@ -2229,15 +3028,21 @@ function computePreviewSize() {
   if (h > avH) { h = avH; w = h * rw / rh; }
   previewW = Math.floor(w);
   previewH = Math.floor(h);
-  layoutPreview.style.width  = previewW + 'px';
-  layoutPreview.style.height = previewH + 'px';
+  // Skip DOM writes during expand/collapse animation — poll loop handles visuals via transform
+  if (!_previewAnimating) {
+    layoutPreview.style.width  = previewW + 'px';
+    layoutPreview.style.height = previewH + 'px';
+  }
 }
 
 // Use rAF so the canvas tracks layout changes (e.g. panel expand/collapse) every frame
 let roRaf = null;
 const ro = new ResizeObserver(() => {
   if (roRaf) cancelAnimationFrame(roRaf);
-  roRaf = requestAnimationFrame(() => { computePreviewSize(); buildLayout(); });
+  roRaf = requestAnimationFrame(() => {
+    computePreviewSize();
+    if (!_previewAnimating) buildLayout();
+  });
 });
 ro.observe(previewOuter);
 
@@ -2473,13 +3278,14 @@ function attachSlotEvents(slotDiv, item) {
   slotDiv.addEventListener('touchend', e => {
     if (!ts) return;
     if (e.touches.length === 0) {
-      // snapshot after touch gesture ends
       pushHistory();
       slotDiv._lt = ts.lastTap; ts = null;
     } else if (e.touches.length === 1) {
       ts = { mode: 'pan', lx: e.touches[0].clientX, ly: e.touches[0].clientY, lastTap: 0 };
     }
   }, { passive: false });
+
+  slotDiv.addEventListener('touchcancel', () => { ts = null; });
 }
 
 // ── Build preview ──────────────────────────────────────────────────────────
@@ -2566,19 +3372,16 @@ async function processVideo(fileOrURL) {
     exportBarLabel.textContent = label;
   }
 
-  const isURL  = typeof fileOrURL === 'string';
-  const srcURL = isURL ? fileOrURL : URL.createObjectURL(fileOrURL);
-  const baseName = isURL ? 'still' : (fileOrURL.name.replace(/\.[^.]+$/, ''));
+  const isURL       = typeof fileOrURL === 'string';
+  const capturedKey = isURL ? _nativeAssetKey : null;  // snapshot key so async finish can't release a newer pick's asset
+  const srcURL      = isURL ? fileOrURL : URL.createObjectURL(fileOrURL);
+  const baseName    = isURL ? 'still' : (fileOrURL.name.replace(/\.[^.]+$/, ''));
 
   // ── cancellation object ───────────────────────────────────────────────────
   const ctrl = { cancelled: false };
   _processVideoCtrl = ctrl;
 
   // ── show analysis row ─────────────────────────────────────────────────────
-  videoAnalysisLabel.textContent = 'Analysing video…';
-  videoAnalysisRow.hidden = false;
-
-  // ── show progress bar ─────────────────────────────────────────────────────
   exportBarFill.style.transition = 'none';
   exportBarFill.style.width = '0%';
   exportBarLabel.textContent = 'Loading video…';
@@ -2622,7 +3425,8 @@ async function processVideo(fileOrURL) {
 
   let prevData  = null;
   let shotStart = 0;
-  const shotMids = [];
+  const shotMids   = [];
+  const shotRanges = [];
   const totalSteps = Math.ceil(duration / STEP);
 
   // ── scan pass ─────────────────────────────────────────────────────────────
@@ -2640,7 +3444,9 @@ async function processVideo(fileOrURL) {
       diff /= (data.length / 4) * 3;
 
       if (diff > THRESHOLD && (t - shotStart) >= MIN_SHOT) {
-        shotMids.push((shotStart + (t - STEP)) / 2);
+        const shotEnd = t - STEP;
+        shotMids.push((shotStart + shotEnd) / 2);
+        shotRanges.push([shotStart, shotEnd]);
         shotStart = t;
       }
     }
@@ -2657,6 +3463,37 @@ async function processVideo(fileOrURL) {
   }
 
   shotMids.push((shotStart + duration) / 2);
+  shotRanges.push([shotStart, duration]);
+
+  // ── smart selection: filter used shots, pick N evenly ────────────────────
+  const usedRanges = state.usedShotRanges || [];
+  const availableMids = shotMids.filter((_, i) => {
+    const [s, e] = shotRanges[i];
+    return !usedRanges.some(([us, ue]) => s < ue && e > us);
+  });
+  const availableRanges = shotRanges.filter((_, i) => {
+    const [s, e] = shotRanges[i];
+    return !usedRanges.some(([us, ue]) => s < ue && e > us);
+  });
+
+  if (availableMids.length === 0) {
+    setBar(100, 'All shots already used — add a new board to continue');
+    exportBar.hidden = false;
+    setTimeout(() => { exportBar.hidden = true; exportBarFill.style.width = '0%'; }, 2800);
+    if (!isURL) URL.revokeObjectURL(srcURL);
+    _processVideoCtrl = null; return;
+  }
+
+  function pickEvenly(arr, n) {
+    if (arr.length <= n) return [...arr];
+    if (n === 1) return [arr[Math.floor(arr.length / 2)]];
+    return Array.from({ length: n }, (_, i) =>
+      arr[Math.floor(i * (arr.length - 1) / (n - 1))]
+    );
+  }
+
+  const selectedMids   = pickEvenly(availableMids, autoSelectAll ? availableMids.length : autoFrameCount);
+  const selectedRanges = selectedMids.map(mid => availableRanges[availableMids.indexOf(mid)]);
 
   // ── capture pass ──────────────────────────────────────────────────────────
   const capCvs = Object.assign(document.createElement('canvas'),
@@ -2664,9 +3501,9 @@ async function processVideo(fileOrURL) {
   const capCtx = capCvs.getContext('2d');
 
   pushHistory();
-  for (let i = 0; i < shotMids.length; i++) {
+  for (let i = 0; i < selectedMids.length; i++) {
     if (ctrl.cancelled) break;
-    await seekTo(video, shotMids[i]);
+    await seekTo(video, selectedMids[i]);
     capCtx.drawImage(video, 0, 0);
     const img = await new Promise(res => {
       const im = new Image();
@@ -2676,13 +3513,22 @@ async function processVideo(fileOrURL) {
     state.images.push({ id: Date.now() + Math.random(), name: `${baseName}_${i+1}.jpg`, img, transforms: {} });
     imgStripOuter.classList.remove('collapsed');
     photosToggle.classList.remove('closed');
-    videoAnalysisLabel.textContent = `Extracting ${i+1} / ${shotMids.length}`;
-    setBar(60 + Math.round(((i + 1) / shotMids.length) * 38), `Extracting ${i+1} / ${shotMids.length}`);
+    videoAnalysisLabel.textContent = `Extracting ${i+1} / ${selectedMids.length}`;
+    setBar(60 + Math.round(((i + 1) / selectedMids.length) * 38), `Extracting ${i+1} / ${selectedMids.length}`);
+  }
+
+  // Record used shot ranges so future boards avoid the same shots
+  if (!ctrl.cancelled) {
+    state.usedShotRanges = [...usedRanges, ...selectedRanges];
   }
 
   if (!isURL) URL.revokeObjectURL(srcURL);
-  // Release native asset if this was a web-URL pick
-  if (isURL && _nativeAssetKey) { nativeRelease(_nativeAssetKey); _nativeAssetKey = null; _nativeWebURL = null; }
+  // Release the asset we started with — but only touch globals if they still hold OUR key
+  // (user may have picked a new video for manual scrubber while this async function was running)
+  if (isURL && capturedKey) {
+    nativeRelease(capturedKey);
+    if (_nativeAssetKey === capturedKey) { _nativeAssetKey = null; _nativeWebURL = null; }
+  }
 
   _processVideoCtrl = null;
   videoAnalysisRow.hidden = true;
@@ -2695,7 +3541,7 @@ async function processVideo(fileOrURL) {
 
   // ── finish ────────────────────────────────────────────────────────────────
   exportBarFill.style.transition = 'width 0.3s ease';
-  setBar(100, `${shotMids.length} still${shotMids.length !== 1 ? 's' : ''} extracted`);
+  setBar(100, `${selectedMids.length} still${selectedMids.length !== 1 ? 's' : ''} extracted`);
   setTimeout(() => { exportBar.hidden = true; exportBarFill.style.width = '0%'; }, 2200);
   onVideoComplete();
 }
@@ -2704,8 +3550,6 @@ fileInput.addEventListener('change', e => loadFiles(e.target.files));
 mAddBtn.addEventListener('click', () => {
   if (importMode === 'video' && isNativeVideo()) {
     // Route to native PHPicker for video
-    videoAnalysisLabel.textContent = 'Loading video…';
-    videoAnalysisRow.hidden = false;
     window.webkit.messageHandlers.requestVideoSelection.postMessage(null);
   } else {
     fileInput.click();
@@ -2999,16 +3843,53 @@ document.querySelectorAll('.import-mode-btn').forEach(btn => {
   });
 });
 
+let autoFrameCount = 5;
+let autoSelectAll  = true; // default: grab every detected shot
+const autoCountRow = document.getElementById('autoCountRow');
+const autoCountVal = document.getElementById('autoCountVal');
+const autoCountMinus = document.getElementById('autoCountMinus');
+
+function updateAutoCountUI() {
+  autoCountVal.textContent = autoSelectAll ? 'All' : autoFrameCount;
+  // Dim minus when already at All so the user knows there's nothing lower
+  autoCountMinus.style.opacity      = autoSelectAll ? '0.3' : '';
+  autoCountMinus.style.pointerEvents = autoSelectAll ? 'none' : '';
+}
+updateAutoCountUI();
+
+autoCountMinus.addEventListener('click', () => {
+  if (autoSelectAll) return;
+  if (autoFrameCount <= 1) {
+    autoSelectAll = true; // step below 1 → back to All
+  } else {
+    autoFrameCount--;
+  }
+  updateAutoCountUI();
+});
+document.getElementById('autoCountPlus').addEventListener('click', () => {
+  if (autoSelectAll) {
+    autoSelectAll = false; // first + from All → enter count mode
+  } else {
+    autoFrameCount = Math.min(20, autoFrameCount + 1);
+  }
+  updateAutoCountUI();
+});
+
 document.querySelectorAll('.video-sub-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.video-sub-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     videoSubMode = btn.dataset.vsub;
+    const isAuto = videoSubMode === 'auto';
+    autoCountRow.style.opacity       = isAuto ? '' : '0.3';
+    autoCountRow.style.pointerEvents = isAuto ? '' : 'none';
+    autoCountRow.style.transition    = 'opacity 0.2s';
   });
 });
 
 function handleVideoFile(file) {
   if (!file || !file.type.startsWith('video/')) return;
+  if (!throttle('video', 2000)) return;  // prevent rapid re-triggers
   fileInput.value = '';
   // Native bridge takes over on iOS — this path only runs on web fallback
   if (videoSubMode === 'auto') processVideo(file);
@@ -3044,6 +3925,7 @@ const isNativeVideo = () => !!(window.webkit?.messageHandlers?.requestVideoSelec
 window.nativeVideoReady = function(payload) {
   videoAnalysisRow.hidden = true;
   if (!payload) return;
+  if (!throttle('video', 2000)) return;  // shared gate with handleVideoFile
   _nativeAssetKey  = payload.assetKey;
   _nativeDuration  = payload.duration  || 0;
   _nativeFps       = payload.frameRate || 30;
@@ -3106,8 +3988,6 @@ async function processVideoNative() {
   const ctrl = { cancelled: false };
   _processVideoCtrl = ctrl;
 
-  videoAnalysisLabel.textContent = 'Analysing video…';
-  videoAnalysisRow.hidden = false;
   exportBarFill.style.transition = 'none';
   exportBarFill.style.width = '0%';
   exportBarLabel.textContent = 'Loading video…';
@@ -3131,7 +4011,8 @@ async function processVideoNative() {
 
   let prevData  = null;
   let shotStart = 0;
-  const shotMids  = [];
+  const shotMids   = [];
+  const shotRanges = [];
   const totalSteps = Math.ceil(duration / STEP);
 
   for (let s = 0; s <= totalSteps; s++) {
@@ -3151,7 +4032,9 @@ async function processVideoNative() {
             diff += Math.abs(data[i]-prevData[i]) + Math.abs(data[i+1]-prevData[i+1]) + Math.abs(data[i+2]-prevData[i+2]);
           diff /= (data.length / 4) * 3;
           if (diff > THRESHOLD && (t - shotStart) >= MIN_SHOT) {
-            shotMids.push((shotStart + (t - STEP)) / 2);
+            const shotEnd = t - STEP;
+            shotMids.push((shotStart + shotEnd) / 2);
+            shotRanges.push([shotStart, shotEnd]);
             shotStart = t;
           }
         }
@@ -3170,12 +4053,42 @@ async function processVideoNative() {
   }
 
   shotMids.push((shotStart + duration) / 2);
+  shotRanges.push([shotStart, duration]);
+
+  // ── smart selection: filter used shots, pick N evenly ────────────────────
+  const usedRanges = state.usedShotRanges || [];
+  const availableMids = shotMids.filter((_, i) => {
+    const [s, e] = shotRanges[i];
+    return !usedRanges.some(([us, ue]) => s < ue && e > us);
+  });
+  const availableRanges = shotRanges.filter((_, i) => {
+    const [s, e] = shotRanges[i];
+    return !usedRanges.some(([us, ue]) => s < ue && e > us);
+  });
+
+  if (availableMids.length === 0) {
+    nSetBar(100, 'All shots already used — add a new board to continue');
+    exportBar.hidden = false;
+    setTimeout(() => { exportBar.hidden = true; exportBarFill.style.width = '0%'; }, 2800);
+    nativeRelease(assetKey); _nativeAssetKey = null; _processVideoCtrl = null; return;
+  }
+
+  function pickEvenlyN(arr, n) {
+    if (arr.length <= n) return [...arr];
+    if (n === 1) return [arr[Math.floor(arr.length / 2)]];
+    return Array.from({ length: n }, (_, i) =>
+      arr[Math.floor(i * (arr.length - 1) / (n - 1))]
+    );
+  }
+
+  const selectedMids   = pickEvenlyN(availableMids, autoSelectAll ? availableMids.length : autoFrameCount);
+  const selectedRanges = selectedMids.map(mid => availableRanges[availableMids.indexOf(mid)]);
 
   // ── Full-res capture pass ──────────────────────────────────────────────
   pushHistory();
-  for (let i = 0; i < shotMids.length; i++) {
+  for (let i = 0; i < selectedMids.length; i++) {
     if (ctrl.cancelled) break;
-    const url = await nativeFrame(assetKey, shotMids[i], false);
+    const url = await nativeFrame(assetKey, selectedMids[i], false);
     if (ctrl.cancelled) break;
     if (url) {
       try {
@@ -3183,10 +4096,15 @@ async function processVideoNative() {
         state.images.push({ id: Date.now() + Math.random(), name: `still_${i+1}.jpg`, img, transforms: {} });
         imgStripOuter.classList.remove('collapsed');
         photosToggle.classList.remove('closed');
-        videoAnalysisLabel.textContent = `Extracting ${i+1} / ${shotMids.length}`;
-        nSetBar(60 + Math.round(((i+1) / shotMids.length) * 38), `Extracting ${i+1} / ${shotMids.length}`);
+        videoAnalysisLabel.textContent = `Extracting ${i+1} / ${selectedMids.length}`;
+        nSetBar(60 + Math.round(((i+1) / selectedMids.length) * 38), `Extracting ${i+1} / ${selectedMids.length}`);
       } catch(e) {}
     }
+  }
+
+  // Record used shot ranges so future boards avoid the same shots
+  if (!ctrl.cancelled) {
+    state.usedShotRanges = [...usedRanges, ...selectedRanges];
   }
 
   nativeRelease(assetKey); _nativeAssetKey = null;
@@ -3198,7 +4116,7 @@ async function processVideoNative() {
   if (ctrl.cancelled) { exportBar.hidden = true; return; }
 
   exportBarFill.style.transition = 'width 0.3s ease';
-  nSetBar(100, `${shotMids.length} still${shotMids.length !== 1 ? 's' : ''} extracted`);
+  nSetBar(100, `${selectedMids.length} still${selectedMids.length !== 1 ? 's' : ''} extracted`);
   setTimeout(() => { exportBar.hidden = true; exportBarFill.style.width = '0%'; }, 2200);
   onVideoComplete();
 }
@@ -3270,6 +4188,8 @@ const msTimeDur      = document.getElementById('msTimeDur');
 const msPlayBtn      = document.getElementById('msPlayBtn');
 const msPrevFrameBtn = document.getElementById('msPrevFrameBtn');
 const msNextFrameBtn = document.getElementById('msNextFrameBtn');
+const msPrev10Btn    = document.getElementById('msPrev10Btn');
+const msNext10Btn    = document.getElementById('msNext10Btn');
 const msGrabBtn      = document.getElementById('msGrabBtn');
 const msDoneBtn      = document.getElementById('msDoneBtn');
 const msCancelBtn    = document.getElementById('msCancelBtn');
@@ -3400,7 +4320,7 @@ msPlayBtn.addEventListener('click', () => {
   }
   if (msVideo.paused) {
     msVideo.play();
-    msPlayBtn.textContent = '⏸';
+    msPlayBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>';
     if (!msRaf) msRaf = requestAnimationFrame(msRafLoop);
   } else {
     msVideo.pause();
@@ -3438,6 +4358,8 @@ async function stepFrame(delta) {
 
 msPrevFrameBtn.addEventListener('click', () => stepFrame(_nativeMs ? -1/_nativeFps : -1/30));
 msNextFrameBtn.addEventListener('click', () => stepFrame(_nativeMs ?  1/_nativeFps :  1/30));
+msPrev10Btn.addEventListener('click', () => stepFrame(_nativeMs ? -10/_nativeFps : -10/30));
+msNext10Btn.addEventListener('click', () => stepFrame(_nativeMs ?  10/_nativeFps :  10/30));
 
 // Grab current frame as still
 msGrabBtn.addEventListener('click', () => {
@@ -3555,7 +4477,8 @@ updateUndoBtn();
 const settingsBtn   = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const settingsClose = document.getElementById('settingsClose');
-const themeToggle   = document.getElementById('themeToggle');
+const themeDarkBtn  = document.getElementById('themeDarkBtn');
+const themeLightBtn = document.getElementById('themeLightBtn');
 
 function closeSettings() {
   settingsPanel.classList.add('leaving');
@@ -3565,13 +4488,16 @@ function closeSettings() {
   }, { once: true });
 }
 
-const settingsNameInput = document.getElementById('settingsNameInput');
-const settingsNameSave  = document.getElementById('settingsNameSave');
+const settingsNameInput  = document.getElementById('settingsNameInput');
+const settingsNameSave   = document.getElementById('settingsNameSave');
+const settingsEmailInput = document.getElementById('settingsEmailInput');
+const settingsEmailSave  = document.getElementById('settingsEmailSave');
 
 function openSettings() {
-  // Populate name field with current saved name
-  settingsNameInput.value = localStorage.getItem('stlls-user-name') || '';
-  settingsNameSave.disabled = true;
+  settingsNameInput.value  = localStorage.getItem('stlls-user-name')  || '';
+  settingsEmailInput.value = localStorage.getItem('stlls-user-email') || '';
+  settingsNameSave.disabled  = true;
+  settingsEmailSave.disabled = true;
   settingsPanel.hidden = false;
   settingsPanel.classList.remove('leaving');
   settingsPanel.classList.add('entering');
@@ -3596,22 +4522,66 @@ settingsNameSave.addEventListener('click', () => {
   updateGreeting();
 });
 
+settingsEmailInput.addEventListener('input', () => {
+  const trimmed = settingsEmailInput.value.trim();
+  const current = localStorage.getItem('stlls-user-email') || '';
+  settingsEmailSave.disabled = trimmed === current;
+});
+
+settingsEmailInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !settingsEmailSave.disabled) settingsEmailSave.click();
+});
+
+settingsEmailSave.addEventListener('click', () => {
+  const email = settingsEmailInput.value.trim();
+  localStorage.setItem('stlls-user-email', email);
+  settingsEmailSave.disabled = true;
+});
+
 settingsBtn.addEventListener('click', openSettings);
 settingsClose.addEventListener('click', closeSettings);
 
+// ── Theme (dark / light) ─────────────────────────────────────────────────────
 function applyTheme(light) {
   if (light) document.documentElement.setAttribute('data-theme', 'light');
   else        document.documentElement.removeAttribute('data-theme');
-  themeToggle.checked = light;
+  themeDarkBtn.classList.toggle('active',  !light);
+  themeLightBtn.classList.toggle('active',  light);
 }
 
-themeToggle.addEventListener('change', () => {
-  const light = themeToggle.checked;
-  localStorage.setItem('stlls-theme', light ? 'light' : 'dark');
-  applyTheme(light);
+themeDarkBtn.addEventListener('click', () => {
+  localStorage.setItem('stlls-theme', 'dark');
+  applyTheme(false);
+});
+themeLightBtn.addEventListener('click', () => {
+  localStorage.setItem('stlls-theme', 'light');
+  applyTheme(true);
 });
 
 applyTheme(localStorage.getItem('stlls-theme') === 'light');
+
+// ── Accent colour ─────────────────────────────────────────────────────────────
+function applyColor(color) {
+  const root = document.documentElement;
+  if (!color || color === 'default') {
+    root.removeAttribute('data-color');
+  } else {
+    root.setAttribute('data-color', color);
+  }
+  document.querySelectorAll('#colorSwatches .swatch').forEach(s => {
+    s.classList.toggle('active', s.dataset.color === (color || 'default'));
+  });
+}
+
+document.querySelectorAll('#colorSwatches .swatch').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const color = btn.dataset.color;
+    localStorage.setItem('stlls-accent', color);
+    applyColor(color);
+  });
+});
+
+applyColor(localStorage.getItem('stlls-accent') || 'default');
 
 // ── Feedback overlay ────────────────────────────────────────────────────────
 const feedbackOverlay  = document.getElementById('feedbackOverlay');
@@ -3669,17 +4639,167 @@ feedbackSend.addEventListener('click', () => {
 });
 
 // ── Notifications toggle ────────────────────────────────────────────────────
+// ── Reminder notification messages (rotated randomly each delivery) ──────────
+const REMINDER_MESSAGES = [
+  { title: 'STLLS', body: 'Done some new work recently? Create some stills.' },
+  { title: 'STLLS', body: 'Got footage sitting around? Turn it into something.' },
+  { title: 'STLLS', body: 'Old work worth sharing? Give it a board.' },
+  { title: 'STLLS', body: 'A new project deserves a new board.' },
+  { title: 'STLLS', body: 'Still haven\'t shared that last shoot? Now\'s the time.' },
+  { title: 'STLLS', body: 'Something from this week worth capturing?' },
+  { title: 'STLLS', body: 'Your next board could be your best one yet.' },
+  { title: 'STLLS', body: 'Fresh work recently? Give it a proper layout.' },
+  { title: 'STLLS', body: 'Don\'t let good work go unseen.' },
+  { title: 'STLLS', body: 'What have you been working on lately?' },
+  { title: 'STLLS', body: 'Time to turn your latest shoot into stills.' },
+  { title: 'STLLS', body: 'New week, new board?' },
+  { title: 'STLLS', body: 'Great work is meant to be shared.' },
+  { title: 'STLLS', body: 'Your camera roll has stories to tell.' },
+  { title: 'STLLS', body: 'Pick a moment. Make it a still.' },
+];
+
+// ── Notifications settings ────────────────────────────────────────────────
 const notificationsToggle = document.getElementById('notificationsToggle');
-notificationsToggle.checked = localStorage.getItem('stlls-notifications') === 'true';
-notificationsToggle.addEventListener('change', () => {
-  localStorage.setItem('stlls-notifications', notificationsToggle.checked ? 'true' : 'false');
+const remindRow      = document.getElementById('remindRow');
+const remindCurLabel = document.getElementById('remindCurLabel');
+const remindTrigger  = document.getElementById('remindTrigger');
+let remindFreq = localStorage.getItem('stlls-remind-freq') || 'daily';
+// Migrate away from removed test frequency
+if (remindFreq === 'test') { remindFreq = 'daily'; localStorage.setItem('stlls-remind-freq', 'daily'); }
+
+// Friendly label map
+const FREQ_LABELS = { off: 'Off', daily: 'Daily', twice: '2× week', weekly: 'Weekly' };
+
+function applyRemindFreq(freq) {
+  remindFreq = freq;
+  localStorage.setItem('stlls-remind-freq', freq);
+  document.querySelectorAll('.remind-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.freq === freq)
+  );
+  remindCurLabel.textContent = FREQ_LABELS[freq] || freq;
+  // Close the accordion after picking
+  remindRow.classList.remove('remind-open');
+  scheduleReminders();
+}
+
+// Accordion toggle
+remindTrigger.addEventListener('click', () => {
+  remindRow.classList.toggle('remind-open');
 });
+
+// ── Mailing list integration ────────────────────────────────────────────────
+// Name and email are always saved to localStorage regardless of this function.
+// To activate: replace the placeholder block with your chosen service call.
+//
+// Example (Buttondown):
+//   await fetch('https://api.buttondown.email/v1/subscribers', {
+//     method: 'POST',
+//     headers: { Authorization: 'Token YOUR_API_KEY', 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ email, tags: ['stlls-app'], metadata: { name } }),
+//   });
+//
+// Example (ConvertKit):
+//   await fetch('https://api.convertkit.com/v3/forms/FORM_ID/subscribe', {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ api_key: 'YOUR_API_KEY', first_name: name, email }),
+//   });
+// ─────────────────────────────────────────────────────────────────────────────
+async function submitToMailingList(name, email) {
+  // ── Rate limiting ──────────────────────────────────────────────────────────
+  // Three guards: per-call cooldown, daily cap, same-email dedup.
+  // All state lives in localStorage so limits survive page reloads.
+  const now          = Date.now();
+  const COOLDOWN_MS  = 30_000;      // minimum 30s between any two calls
+  const MAX_PER_DAY  = 5;           // max attempts in a 24h rolling window
+  const DAY_MS       = 86_400_000;
+
+  const last        = parseInt(localStorage.getItem('stlls-ml-last')   || '0', 10);
+  const count       = parseInt(localStorage.getItem('stlls-ml-count')  || '0', 10);
+  const winStart    = parseInt(localStorage.getItem('stlls-ml-window') || '0', 10);
+  const prevEmail   =          localStorage.getItem('stlls-ml-email')  || '';
+
+  if (now - last < COOLDOWN_MS)               return; // called too recently
+  if (email === prevEmail)                    return; // same email already submitted
+  const inWindow = (now - winStart) < DAY_MS;
+  if (inWindow && count >= MAX_PER_DAY)       return; // daily cap reached
+
+  // Commit counters before the request so parallel calls are also blocked
+  localStorage.setItem('stlls-ml-last',   now);
+  localStorage.setItem('stlls-ml-email',  email);
+  localStorage.setItem('stlls-ml-window', inWindow ? winStart : now);
+  localStorage.setItem('stlls-ml-count',  inWindow ? count + 1 : 1);
+  // ── End rate limiting ─────────────────────────────────────────────────────
+
+  try {
+
+    // PLACEHOLDER — add your newsletter service API call here
+
+  } catch (err) {
+    // Fail silently — never block the user experience for this
+    console.warn('Mailing list signup failed:', err);
+  }
+}
+
+function scheduleReminders() {
+  if (!throttle('reminders', 1000)) return;  // debounce rapid toggles
+  const enabled = notificationsToggle.checked;
+  const freq    = enabled ? remindFreq : 'off';
+  try {
+    window.webkit?.messageHandlers?.scheduleReminders?.postMessage({
+      frequency:  freq,           // 'off' | 'daily' | 'twice' | 'weekly'
+      messages:   REMINDER_MESSAGES,
+      quietStart: 22,             // no notifications from 10 PM …
+      quietEnd:   8,              // … to 8 AM
+    });
+  } catch(e) {}
+}
+
+notificationsToggle.checked = localStorage.getItem('stlls-notifications') === 'true';
+remindRow.hidden = !notificationsToggle.checked;
+
+notificationsToggle.addEventListener('change', () => {
+  const on = notificationsToggle.checked;
+  localStorage.setItem('stlls-notifications', on ? 'true' : 'false');
+  remindRow.hidden = !on;
+  scheduleReminders();
+});
+
+// Wire frequency buttons
+document.querySelectorAll('.remind-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyRemindFreq(btn.dataset.freq));
+});
+applyRemindFreq(remindFreq); // restore persisted state on load
 
 // ── Preview expand/collapse ─────────────────────────────────────────────────
 let previewExpanded = false;
 
 previewExpandBtn.addEventListener('click', () => {
   previewExpanded = !previewExpanded;
+
+  const panel = document.querySelector('.panel');
+  if (!previewExpanded) {
+    // COLLAPSE: override with slow-start ease-in-out before class toggle
+    panel.style.transition = 'width 1.15s cubic-bezier(0.65,0,0.35,1), max-height 1.15s cubic-bezier(0.65,0,0.35,1), opacity 1.0s cubic-bezier(0.65,0,0.35,1), transform 1.15s cubic-bezier(0.65,0,0.35,1)';
+    // Clear any inline max-height left over from a previous expand animation
+    panel.style.maxHeight = '';
+  } else {
+    // EXPAND: clear any inline transition override
+    panel.style.transition = '';
+    // Mobile: the base CSS has max-height:2000px, but actual panel height is ~400px.
+    // Transitioning 2000→0 means the visual change only happens in the last ~20% of
+    // the duration — creating a "dead zone" at the start that looks like a bump.
+    // Fix: set the real content height as the inline start value, force a reflow so
+    // the browser commits it, then animate to 0.  Full 1.15s maps to visible range.
+    if (window.innerWidth < 640) {
+      panel.style.maxHeight = panel.scrollHeight + 'px';
+      void panel.offsetHeight; // flush — browser records this as the transition origin
+      panel.style.maxHeight = '0px'; // end value; CSS class will also say 0
+      // Clean up inline style after animation so collapse works normally next time
+      setTimeout(() => { if (panel.style.maxHeight === '0px') panel.style.maxHeight = ''; }, 1300);
+    }
+  }
+
   document.body.classList.toggle('preview-expanded', previewExpanded);
 
   // Update icon: expand arrows vs compress arrows
@@ -3695,16 +4815,193 @@ previewExpandBtn.addEventListener('click', () => {
     </svg>`;
   }
 
-  // Poll every frame for the full transition duration so both width AND height
-  // changes are caught (padding transition doesn't always fire ResizeObserver)
-  const start = performance.now();
-  const duration = 980;
-  (function poll(now) {
-    computePreviewSize();
-    buildLayout();
-    if (now - start < duration) requestAnimationFrame(poll);
-  })(performance.now());
+  if (!previewExpanded) {
+    // COLLAPSE (returning to normal): scale trick — cheap transform each frame,
+    // one real rebuild at the end. Avoids 59 full DOM rebuilds while shrinking.
+    const snapW = previewW;
+    const snapH = previewH;
+    _previewAnimating = true;
+    layoutPreview.style.transformOrigin = 'center center';
+
+    const duration = 1200; // slightly past the 1.15s CSS transition
+    const start = performance.now();
+    (function poll(now) {
+      // previewW/H are kept current by ResizeObserver → computePreviewSize()
+      if (snapW > 0 && snapH > 0) {
+        layoutPreview.style.transform = `scale(${previewW / snapW}, ${previewH / snapH})`;
+      }
+      if (now - start < duration) {
+        requestAnimationFrame(poll);
+      } else {
+        // Animation done — one real rebuild at the final size
+        _previewAnimating = false;
+        layoutPreview.style.transform = '';
+        computePreviewSize();
+        buildLayout();
+      }
+    })(start);
+  }
+  // EXPAND (going to full screen): let ResizeObserver → buildLayout() run naturally.
+  // Growing layouts are cheap and the RO timing mismatch would cause a bump with the scale trick.
 });
+
+// ── Board swipe navigation (photo-album style) ───────────────────────────
+//
+// _swipeState:  'idle' | 'detecting' | 'swiping'
+// Swipe only starts when the touch originates OUTSIDE the board canvas.
+
+function _swipeApplyTx(tx) {
+  _swipeTx = tx;
+  // Crossfade: current board fades out, incoming board fades in
+  const ratio  = Math.min(1, Math.abs(tx) / (previewW + _swipeGap));
+  layoutPreview.style.transform = `translateX(${tx}px)`;
+  layoutPreview.style.opacity   = String(1 - ratio);
+  if (_swipePrevOk) {
+    swipePrevBoard.style.transform = `translateX(${tx}px)`;
+    swipePrevBoard.style.opacity   = tx > 0 ? String(ratio) : '0';
+  }
+  if (_swipeNextOk) {
+    swipeNextBoard.style.transform = `translateX(${tx}px)`;
+    swipeNextBoard.style.opacity   = tx < 0 ? String(ratio) : '0';
+  }
+}
+
+function _swipeSetupCanvases() {
+  const lpRect = layoutPreview.getBoundingClientRect();
+  const wpRect = previewWrap.getBoundingClientRect();
+  const lpLeft = lpRect.left - wpRect.left;
+  const lpTop  = lpRect.top  - wpRect.top;
+
+  _swipePrevOk = _activeBoardIdx > 0;
+  _swipeNextOk = _activeBoardIdx < _projectBoards.length - 1;
+
+  saveCurrentBoardSnapshot();
+
+  if (_swipePrevOk) {
+    const c = swipePrevBoard;
+    c.style.top     = lpTop  + 'px';
+    c.style.left    = (lpLeft - previewW - _swipeGap) + 'px';
+    c.style.opacity = '0';
+    renderBoardSnapshot(c, _projectBoards[_activeBoardIdx - 1]);
+    c.style.display   = 'block';
+    c.style.transform = '';
+  }
+  if (_swipeNextOk) {
+    const c = swipeNextBoard;
+    c.style.top     = lpTop  + 'px';
+    c.style.left    = (lpLeft + previewW + _swipeGap) + 'px';
+    c.style.opacity = '0';
+    renderBoardSnapshot(c, _projectBoards[_activeBoardIdx + 1]);
+    c.style.display   = 'block';
+    c.style.transform = '';
+  }
+}
+
+function _swipeCleanup() {
+  layoutPreview.style.transition = 'none';
+  layoutPreview.style.transform  = '';
+  layoutPreview.style.opacity    = '';
+  swipePrevBoard.style.transition = 'none';
+  swipePrevBoard.style.transform  = '';
+  swipePrevBoard.style.opacity    = '0';
+  swipePrevBoard.style.display    = 'none';
+  swipeNextBoard.style.transition = 'none';
+  swipeNextBoard.style.transform  = '';
+  swipeNextBoard.style.opacity    = '0';
+  swipeNextBoard.style.display    = 'none';
+  _swipeState = 'idle';
+}
+
+const _SNAP_EASING = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+const _SNAP_MS     = 300;
+const _SWIPE_TRANSITION = `transform ${_SNAP_MS}ms ${_SNAP_EASING}, opacity ${_SNAP_MS}ms ${_SNAP_EASING}`;
+
+previewOuter.addEventListener('touchstart', e => {
+  if (_projectBoards.length <= 1 || e.touches.length !== 1) return;
+  // Only start detecting a swipe if the finger is OUTSIDE the board
+  const lpRect = layoutPreview.getBoundingClientRect();
+  const tx = e.touches[0].clientX, ty = e.touches[0].clientY;
+  if (tx >= lpRect.left && tx <= lpRect.right && ty >= lpRect.top && ty <= lpRect.bottom) return;
+  _swipeStartX = tx;
+  _swipeStartY = ty;
+  _swipeState  = 'detecting';
+  _swipeTx     = 0;
+}, { passive: true });
+
+previewOuter.addEventListener('touchmove', e => {
+  if (_swipeState === 'idle' || e.touches.length !== 1) return;
+
+  const dx = e.touches[0].clientX - _swipeStartX;
+  const dy = e.touches[0].clientY - _swipeStartY;
+
+  if (_swipeState === 'detecting') {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      _swipeState = 'swiping';
+      _swipeSetupCanvases();
+    } else {
+      _swipeState = 'idle';
+      return;
+    }
+  }
+
+  // Rubber-band at edges
+  let tx = dx;
+  if (dx > 0 && !_swipePrevOk) tx = dx * 0.25;
+  if (dx < 0 && !_swipeNextOk) tx = dx * 0.25;
+  _swipeApplyTx(tx);
+}, { passive: true });
+
+previewOuter.addEventListener('touchend', e => {
+  if (_swipeState !== 'swiping') { _swipeState = 'idle'; return; }
+
+  const dx     = e.changedTouches[0].clientX - _swipeStartX;
+  const THRESH = previewW * 0.28;
+
+  let targetIdx = _activeBoardIdx;
+  if (dx < -THRESH && _swipeNextOk) targetIdx = _activeBoardIdx + 1;
+  else if (dx > THRESH && _swipePrevOk) targetIdx = _activeBoardIdx - 1;
+
+  if (targetIdx !== _activeBoardIdx) {
+    const finalTx = targetIdx > _activeBoardIdx ? -(previewW + _swipeGap) : (previewW + _swipeGap);
+    layoutPreview.style.transition = _SWIPE_TRANSITION;
+    if (_swipePrevOk) swipePrevBoard.style.transition = _SWIPE_TRANSITION;
+    if (_swipeNextOk) swipeNextBoard.style.transition = _SWIPE_TRANSITION;
+    _swipeApplyTx(finalTx);
+
+    setTimeout(() => {
+      // Swap board content while current card is offscreen — no visible flash
+      layoutPreview.style.transition = 'none';
+      layoutPreview.style.transform  = '';
+      layoutPreview.style.opacity    = '';
+      swipePrevBoard.style.transition = 'none';
+      swipePrevBoard.style.opacity    = '0';
+      swipePrevBoard.style.display    = 'none';
+      swipePrevBoard.style.transform  = '';
+      swipeNextBoard.style.transition = 'none';
+      swipeNextBoard.style.opacity    = '0';
+      swipeNextBoard.style.display    = 'none';
+      swipeNextBoard.style.transform  = '';
+      _swipeState     = 'idle';
+      _activeBoardIdx = targetIdx;
+      loadBoardState(_projectBoards[_activeBoardIdx]);
+      updateBoardNav();
+    }, _SNAP_MS);
+  } else {
+    // Snap back
+    layoutPreview.style.transition = _SWIPE_TRANSITION;
+    if (_swipePrevOk) swipePrevBoard.style.transition = _SWIPE_TRANSITION;
+    if (_swipeNextOk) swipeNextBoard.style.transition = _SWIPE_TRANSITION;
+    _swipeApplyTx(0);
+    setTimeout(_swipeCleanup, _SNAP_MS);
+  }
+
+  _swipeState = 'idle';
+}, { passive: true });
+
+previewOuter.addEventListener('touchcancel', () => _swipeCleanup());
+
+// (board add/delete now handled by boardActionsMenu — see above)
 
 // ── Export ─────────────────────────────────────────────────────────────────
 const exportBar      = document.getElementById('exportBar');
@@ -3752,9 +5049,89 @@ function startExportBar() {
 
 let _exportFmt;
 
-exportBtn.addEventListener('click', doExport);
+exportBtn.addEventListener('click', () => {
+  if (_projectBoards.length > 1) {
+    document.getElementById('exportChoiceModal').hidden = false;
+  } else {
+    doExport();
+  }
+});
+
+document.getElementById('exportChoiceCurrent').addEventListener('click', () => {
+  document.getElementById('exportChoiceModal').hidden = true;
+  doExport();
+});
+
+document.getElementById('exportChoiceCancel').addEventListener('click', () => {
+  document.getElementById('exportChoiceModal').hidden = true;
+});
+
+document.getElementById('exportChoiceAll').addEventListener('click', async () => {
+  document.getElementById('exportChoiceModal').hidden = true;
+  await doExportAll();
+});
+
+async function doExportAll() {
+  saveCurrentBoardSnapshot();
+  const expScale = +exportScaleEl.value;
+  _exportFmt = exportFmt.value;
+  const mime = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
+  const qual = _exportFmt === 'jpg' ? 0.93 : undefined;
+
+  // Only export boards that have images — skip empty ones
+  const boardsToExport = _projectBoards.filter(b => b.images.length > 0);
+  if (boardsToExport.length === 0) { window.exportComplete(false); return; }
+
+  for (let i = 0; i < boardsToExport.length; i++) {
+    loadBoardState(boardsToExport[i]);
+    _activeBoardIdx = _projectBoards.indexOf(boardsToExport[i]);
+    updateBoardNav();
+
+    const [cW, cH] = canonicalDims();
+    const W = cW * expScale, H = cH * expScale;
+
+    startExportBar();
+    exportBarLabel.textContent = `Board ${i + 1} of ${boardsToExport.length}…`;
+
+    const cvs = document.createElement('canvas');
+    cvs.width = W; cvs.height = H;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = state.bg; ctx.fillRect(0, 0, W, H);
+    getSlots(W, H).forEach(({ item, x, y, w, h }) => {
+      const { img } = item; const t = itemT(item);
+      const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+      const totalS = coverS * t.scale;
+      const left   = (w - img.naturalWidth  * totalS) / 2 + t.fx * w;
+      const top    = (h - img.naturalHeight * totalS) / 2 + t.fy * h;
+      ctx.drawImage(img, -left / totalS, -top / totalS, w / totalS, h / totalS, x, y, w, h);
+    });
+
+    await new Promise(resolve => {
+      cvs.toBlob(blob => {
+        if (window.webkit?.messageHandlers?.exportImage) {
+          const reader = new FileReader();
+          reader.onload = () => {
+            window.webkit.messageHandlers.exportImage.postMessage(reader.result);
+            resolve();
+          };
+          reader.readAsDataURL(blob);
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `board-${i + 1}.${_exportFmt}`; a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          resolve();
+        }
+      }, mime, qual);
+    });
+
+    if (i < boardsToExport.length - 1) await new Promise(r => setTimeout(r, 300));
+  }
+  window.exportComplete(true);
+}
 
 function doExport() {
+  if (!throttle('export', 3000)) return;  // max one export every 3s
   const expScale = +exportScaleEl.value;
   _exportFmt     = exportFmt.value;
   const mime     = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
@@ -3808,6 +5185,59 @@ window.exportComplete = function(success) {
     exportBarLabel.textContent = '0%';
   }, 1300);
 };
+
+// ── Home button breathing glow ────────────────────────────────────────────────
+(function initHomeGlow() {
+  const canvas = document.getElementById('homeWaveCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  const CSS = 72;
+  const DPR = Math.min(window.devicePixelRatio || 1, 3);
+  canvas.width  = CSS * DPR;
+  canvas.height = CSS * DPR;
+  canvas.style.width  = CSS + 'px';
+  canvas.style.height = CSS + 'px';
+  ctx.scale(DPR, DPR);
+
+  const cx = CSS / 2;
+  const cy = CSS / 2;
+  const R  = 34.5;   // just inside the 1.5px button border
+  let t = 0;
+
+  function parseHex(prop, fallback) {
+    let raw = getComputedStyle(document.documentElement)
+                .getPropertyValue(prop).trim().replace('#', '');
+    if (raw.length === 3) raw = raw[0]+raw[0]+raw[1]+raw[1]+raw[2]+raw[2];
+    if (raw.length !== 6) return fallback;
+    const n = parseInt(raw, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  const acc = () => parseHex('--accent', [255, 255, 255]);
+
+  function frame() {
+    ctx.clearRect(0, 0, CSS, CSS);
+
+    // Simple smooth pulse — one sine, ~4s cycle
+    const pulse = 0.5 + 0.5 * Math.sin(t);
+    const [ar, ag, ab] = acc();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.clip();
+
+    ctx.fillStyle = `rgba(${ar},${ag},${ab},${(pulse * 0.12).toFixed(3)})`;
+    ctx.fillRect(0, 0, CSS, CSS);
+
+    ctx.restore();
+
+    t += 0.016;   // ~4s loop at 60fps
+    requestAnimationFrame(frame);
+  }
+
+  frame();
+})();
 
 // ── Splash screen ────────────────────────────────────────────────────────────
 (function() {

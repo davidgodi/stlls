@@ -1,0 +1,14 @@
+# Claude session files
+.claude/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Environment / secrets — never commit these
+.env
+.env.*
+secrets.*
+*.pem
+*.key

@@ -176,6 +176,11 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         var cfg = PHPickerConfiguration(photoLibrary: .shared())
         cfg.selectionLimit = 1
         cfg.filter = .videos
+        // Deliver the original file as-is. The default (.automatic) transcodes
+        // HEVC iPhone videos to H.264 for "compatibility", which adds ~3s before
+        // the asset is handed over. WKWebView plays HEVC natively, so we don't
+        // need that — .current skips the transcode and loads near-instantly.
+        cfg.preferredAssetRepresentationMode = .current
         let picker = PHPickerViewController(configuration: cfg)
         picker.delegate = self
         viewController?.present(picker, animated: true)
@@ -567,6 +572,21 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
         present(picker, animated: true)
+    }
+
+    // target="_blank" links (e.g. the Privacy Policy) open in the system
+    // browser instead of navigating the app's web view away from its UI.
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        if let url = navigationAction.request.url,
+           url.scheme == "http" || url.scheme == "https" {
+            UIApplication.shared.open(url)
+        }
+        return nil
     }
 
     // MARK: PHPickerViewControllerDelegate (images)

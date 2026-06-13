@@ -81,9 +81,6 @@
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--text);
   }
-  #splashContent span {
-    font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em;
-  }
   @keyframes splashAnim {
     0%   { opacity: 0; transform: translateY(6px); }
     22%  { opacity: 1; transform: translateY(0); }
@@ -109,10 +106,6 @@
   #homeTopBar h1 {
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--text);
-  }
-  #homeTopBar span {
-    font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em;
-    margin-left: 8px;
   }
   /* Settings gear — pushed to far right */
   #homeSettingsBtn {
@@ -436,7 +429,6 @@
     font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--text);
   }
-  header span { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; }
 
   /* ── WORKSPACE ── */
   .workspace {
@@ -461,6 +453,30 @@
     pointer-events: none; user-select: none;
   }
   #emptyState .big { font-size: 32px; display: block; margin-bottom: 12px; opacity: 0.1; }
+  /* First-visit variant — richer empty state */
+  #emptyState .fv-msg   { display: none; }
+  #emptyState .def-msg  { display: block; }
+  body.first-visit #emptyState .fv-msg  { display: block; }
+  body.first-visit #emptyState .def-msg { display: none; }
+  #emptyState .fv-msg {
+    font-size: 12px; line-height: 1.9; color: var(--text-dim);
+    letter-spacing: 0.03em;
+  }
+  #emptyState .fv-sub {
+    display: block; font-size: 10.5px; color: var(--text-dim);
+    opacity: 0.55; margin-top: 4px; line-height: 1.6; letter-spacing: 0.02em;
+  }
+
+  /* ── Onboarding hints inside import buttons ─────────────────────────── */
+  .onboard-hint {
+    display: block; font-size: 9px; letter-spacing: 0.02em;
+    text-transform: none; font-weight: 400; line-height: 1.4;
+    overflow: hidden; max-height: 0; opacity: 0; margin-top: 0;
+    transition: max-height 0.45s ease, opacity 0.45s ease, margin-top 0.45s ease;
+  }
+  body.first-visit .onboard-hint {
+    max-height: 20px; opacity: 0.55; margin-top: 3px;
+  }
   #layoutPreview {
     position: relative; overflow: hidden; border-radius: 5px;
     box-shadow: 0 12px 60px rgba(0,0,0,0.75);
@@ -493,6 +509,16 @@
   }
   #previewExpandBtn:hover { background: rgba(0,0,0,0.7); color: var(--text); opacity: 1; }
   body.preview-expanded #previewExpandBtn { opacity: 1; }
+
+  /* On desktop/iPad, lift the button above the fixed export bar when expanded */
+  @media (min-width: 640px) {
+    body.preview-expanded #previewExpandBtn {
+      position: fixed;
+      bottom: 72px;   /* clears the ~62px export bar */
+      right: 20px;
+      z-index: 201;   /* above export bar (z-index: 200) */
+    }
+  }
 
   /* Preview expanded state — shared across all screen sizes */
   body.preview-expanded .panel {
@@ -543,6 +569,20 @@
       padding: 0 0 50px;
       gap: 0;
     }
+  }
+
+  /* ── iPad (768px+) — wider panel, more generous spacing ── */
+  @media (min-width: 768px) {
+    .panel { width: 300px; overflow-y: auto; }
+    .workspace { padding: 28px 52px 72px; gap: 36px; }
+    header { padding: max(18px, env(safe-area-inset-top) + 8px) 52px 0; }
+    #psExport { padding: 12px 52px calc(12px + env(safe-area-inset-bottom)); }
+
+    /* Loading/progress bar — sit above the fixed export section, aligned with panel */
+    #exportBar { bottom: 76px; left: 52px; width: 300px; }
+
+    /* Stills list — uncap height, let panel scroll show everything */
+    .image-list { max-height: none; overflow-y: visible; }
   }
 
   /* Panel section */
@@ -1080,10 +1120,17 @@
   #feedbackTextarea::placeholder { color: var(--text-dim); }
   #feedbackTextarea:focus { border-color: var(--muted); }
   .fb-footer {
-    display: flex; gap: 10px;
+    display: flex; gap: 10px; flex-wrap: wrap;
     padding: 12px 36px calc(28px + env(safe-area-inset-bottom));
     flex-shrink: 0;
   }
+  .fb-anon-note {
+    flex-basis: 100%;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    margin: 0 0 4px; font-size: 11px; color: var(--text-dim);
+    letter-spacing: 0.02em; user-select: none;
+  }
+  .fb-anon-note svg { opacity: 0.6; flex-shrink: 0; }
   #feedbackCancel {
     flex: 1; padding: 12px;
     background: none; border: 1px solid var(--border2);
@@ -1673,7 +1720,8 @@
     gap: 18px;
     pointer-events: all;
   }
-  @media (orientation: landscape) {
+  /* Landscape lock only on phone — iPads use the full-screen layout in both orientations */
+  @media (max-width: 639px) and (orientation: landscape) {
     #landscapeOverlay { display: flex; }
   }
   #landscapeOverlay svg {
@@ -1729,7 +1777,6 @@
   <!-- Top bar: brand left, settings right -->
   <div id="homeTopBar">
     <h1>STLLS</h1>
-    <span>by David Godi</span>
     <button id="homeSettingsBtn" aria-label="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/>
@@ -1796,7 +1843,6 @@
 
 <header>
   <h1>STLLS</h1>
-  <span>by David Godi</span>
 
   <!-- Home button — centered absolutely in header -->
   <button id="homeBtn" aria-label="Go home">
@@ -1847,7 +1893,14 @@
   <!-- ── PREVIEW ── -->
   <div id="previewOuter">
     <div id="previewWrap">
-      <div id="emptyState"><span class="big">◻</span>Add images to begin</div>
+      <div id="emptyState">
+        <span class="big">◻</span>
+        <span class="def-msg">Add images to begin</span>
+        <span class="fv-msg">
+          Import photos or grab frames from a video
+          <span class="fv-sub">Use the panel on the left to get started</span>
+        </span>
+      </div>
       <div id="layoutPreview"></div>
       <!-- Neighbour-board canvases for smooth swipe animation -->
       <canvas id="swipePrevBoard" class="swipe-board"></canvas>
@@ -1899,10 +1952,12 @@
         <button class="import-mode-btn active" data-imode="stills">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
           <span>From Photos</span>
+          <span class="onboard-hint">Add images from your library</span>
         </button>
         <button class="import-mode-btn" data-imode="video">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
           <span>From Video</span>
+          <span class="onboard-hint">Auto-extract or pick frames</span>
         </button>
       </div>
 
@@ -1930,6 +1985,8 @@
             <button class="step-btn" id="autoCountPlus">+</button>
           </div>
         </div>
+        <!-- Select Video button — shown on iPad/desktop native only (hidden on web + mobile) -->
+        <button id="videoPickBtn" class="video-pick-btn" hidden>Select Video</button>
       </div>
 
       <!-- Stills strip — always below import area -->
@@ -2172,7 +2229,7 @@
     </div>
   </div>
   <div class="sp-footer">
-    <button id="feedbackBtn">Leave feedback for David</button>
+    <button id="feedbackBtn">Send feedback</button>
   </div>
 </div>
 
@@ -2183,7 +2240,7 @@
     <button class="sp-close" id="feedbackClose">&#x2715;</button>
   </div>
   <div class="fb-body" id="feedbackForm">
-    <p>Share a complaint, feature request, or note — your feedback goes directly to David.</p>
+    <p>Share a complaint, feature request, or note — every message gets read.</p>
     <textarea id="feedbackTextarea" placeholder="Write your feedback here…" maxlength="2000"></textarea>
   </div>
   <div id="feedbackThanks" hidden>
@@ -2191,6 +2248,10 @@
     <p>Thank you for your feedback.<br>It means a lot.</p>
   </div>
   <div class="fb-footer" id="feedbackActions">
+    <p class="fb-anon-note">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      All feedback is completely anonymous
+    </p>
     <button id="feedbackCancel">Cancel</button>
     <button id="feedbackSend" disabled>Send</button>
   </div>
@@ -2230,11 +2291,22 @@
 <div id="splashScreen">
   <div id="splashContent">
     <h1>STLLS</h1>
-    <span>by David Godi</span>
   </div>
 </div>
 
 <script>
+// ── First-visit onboarding ────────────────────────────────────────────────
+// No overlays — just a body class that CSS uses to reveal quiet inline hints.
+// Cleared permanently the moment the user adds their first image.
+if (localStorage.getItem('stlls-onboarded') !== '1') {
+  document.body.classList.add('first-visit');
+}
+function markOnboarded() {
+  if (!document.body.classList.contains('first-visit')) return;
+  document.body.classList.remove('first-visit');
+  localStorage.setItem('stlls-onboarded', '1');
+}
+
 // ── Rate limiting ──────────────────────────────────────────────────────────
 // In-memory throttle — resets on page reload, no persistence needed.
 // Returns true if the action is allowed, false if it fired too recently.
@@ -3556,6 +3628,19 @@ mAddBtn.addEventListener('click', () => {
   }
 });
 
+// Video pick button — shown on iPad/desktop native (where mAddBtn is hidden)
+const videoPickBtn = document.getElementById('videoPickBtn');
+videoPickBtn.addEventListener('click', () => {
+  // No throttle here — the native PHPicker UI is the rate limit
+  window.webkit.messageHandlers.requestVideoSelection.postMessage(null);
+});
+
+// Show it on non-mobile native only (iPad & larger where mAddBtn is CSS-hidden)
+// isNativeVideo() isn't defined yet here — inline the check
+if (!!(window.webkit?.messageHandlers?.requestVideoSelection) && window.innerWidth >= 640) {
+  videoPickBtn.hidden = false;
+}
+
 // ── Photos toggle ───────────────────────────────────────────────────────────
 const photosToggle = document.getElementById('photosToggle');
 const imgStripOuter = document.querySelector('.img-strip-outer');
@@ -3604,6 +3689,7 @@ dropzone.addEventListener('drop', e => {
 let listDragSrc = null;
 
 function renderList() {
+  if (state.images.length > 0) markOnboarded();
   imageList.innerHTML = '';
   state.images.forEach((item, i) => {
     const div = document.createElement('div');
@@ -4624,13 +4710,36 @@ feedbackTextarea.addEventListener('input', () => {
   feedbackSend.disabled = feedbackTextarea.value.trim().length === 0;
 });
 
+// ── Feedback backend — hidden Google Form submission ────────────────────────
+// Responses land in the Form's response sheet (Google account of the form owner).
+// No API key involved — form endpoints are public by design, nothing to steal.
+// Setup: create a Google Form with one paragraph question, get a prefilled
+// link, and copy the form ID + entry ID below.
+const FEEDBACK_FORM_ID  = '1FAIpQLSeppSBKBBGWe05o6wG52qILE0nymfQxLHj8j0W5FjdvUhsKuA';
+const FEEDBACK_ENTRY_ID = 'entry.791158720'; // "What's your feedback?" paragraph field
+
+function submitFeedback(text) {
+  if (FEEDBACK_FORM_ID === 'YOUR_FORM_ID') return; // not configured yet
+  const body = new URLSearchParams();
+  body.append(FEEDBACK_ENTRY_ID, text);
+  // no-cors: Google doesn't send CORS headers; fire-and-forget works fine
+  fetch(`https://docs.google.com/forms/d/e/${FEEDBACK_FORM_ID}/formResponse`, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  }).catch(() => {}); // never block the UX on this
+}
+
 feedbackSend.addEventListener('click', () => {
   const text = feedbackTextarea.value.trim();
   if (!text) return;
-  // Store locally until a backend is decided
+  if (!throttle('feedback', 30_000)) { closeFeedback(); return; } // 1 per 30s
+  // Keep a local copy as backup
   const entries = JSON.parse(localStorage.getItem('stlls-feedback') || '[]');
   entries.push({ text, sentAt: new Date().toISOString() });
   try { localStorage.setItem('stlls-feedback', JSON.stringify(entries)); } catch(e) {}
+  submitFeedback(text);
   // Show thank-you state
   feedbackForm.hidden = true;
   feedbackActions.hidden = true;

@@ -78,11 +78,17 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         let bitrate = (body["bitrate"] as? NSNumber)?.intValue ?? 12_000_000
         let renderSize = CGSize(width: width, height: height)
         let totalDur   = CMTime(seconds: duration, preferredTimescale: 600)
+        // Corner rounding: gap 0 → round the whole board; gap > 0 → round each frame.
+        let radius  = CGFloat((body["radius"] as? NSNumber)?.doubleValue ?? 0)
+        let gap     = (body["gap"] as? NSNumber)?.doubleValue ?? 0
+        let bgColor = UIColor(hexString: (body["bg"] as? String) ?? "#000000")
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
             let comp = AVMutableComposition()
             var layerInstructions: [AVMutableVideoCompositionLayerInstruction] = []
+            var destRects: [CGRect] = []
+            var stills: [(image: UIImage, dest: CGRect, crop: [Double])] = []
             var temps: [URL] = []
 
             for clip in clips {
@@ -90,6 +96,16 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                       let data = Data(base64Encoded: b64) else { continue }
                 let dest = self.nums(clip["dest"]), crop = self.nums(clip["crop"])
                 guard dest.count == 4, crop.count == 4 else { continue }
+                let destRect = CGRect(x: CGFloat(dest[0]), y: CGFloat(dest[1]),
+                                      width: CGFloat(dest[2]), height: CGFloat(dest[3]))
+
+                // Still → stamped as a static frame after compositing (not a video track).
+                if (clip["still"] as? Bool) == true {
+                    if let img = UIImage(data: data) {
+                        stills.append((img, destRect, crop)); destRects.append(destRect)
+                    }
+                    continue
+                }
 
                 let tmp = FileManager.default.temporaryDirectory
                     .appendingPathComponent(UUID().uuidString + ".mp4")
@@ -121,8 +137,6 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 let natH = srcTrack.naturalSize.height
                 let cropRect = CGRect(x: CGFloat(crop[0]) * natW, y: CGFloat(crop[1]) * natH,
                                       width: CGFloat(crop[2]) * natW, height: CGFloat(crop[3]) * natH)
-                let destRect = CGRect(x: CGFloat(dest[0]), y: CGFloat(dest[1]),
-                                      width: CGFloat(dest[2]), height: CGFloat(dest[3]))
                 let sx = destRect.width  / max(1, cropRect.width)
                 let sy = destRect.height / max(1, cropRect.height)
                 // Map cropped region → slot: translate(-crop) · scale · translate(dest)
@@ -134,6 +148,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 li.setCropRectangle(cropRect, at: .zero)
                 li.setTransform(tf, at: .zero)
                 layerInstructions.append(li)
+                destRects.append(destRect)
             }
 
             guard !layerInstructions.isEmpty else {
@@ -150,11 +165,89 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
             videoComp.frameDuration = CMTime(value: 1, timescale: 30)
             videoComp.instructions  = [instruction]
 
+            // Stills are static, so they're stamped once into a layer that's drawn onto every
+            // frame (they occupy their own slots, never overlapping the clip video tracks).
+            let stillsLayer = self.makeStillsLayer(size: renderSize, stills: stills)
+            // Rounded-corner overlay: bg colour with rounded holes punched for the content
+            // (clips AND stills), composited last. Whole board when gap==0, each frame otherwise.
+            let overlay = self.makeCornerOverlay(size: renderSize, radius: radius, gap: gap,
+                                                 bg: bgColor, destRects: destRects)
+
             let outURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString + ".mp4")
             self.renderComposition(comp, videoComp: videoComp, size: CGSize(width: width, height: height),
-                                   duration: duration, bitrate: bitrate, outURL: outURL, temps: temps)
+                                   duration: duration, bitrate: bitrate,
+                                   stillsLayer: stillsLayer, overlay: overlay,
+                                   outURL: outURL, temps: temps)
         }
+    }
+
+    // Build the rounded-corner overlay (top-left coords, matching the JS dest rects):
+    // background colour everywhere except inside the rounded content rectangles, which are
+    // left transparent so the composed video shows through.
+    private func makeCornerOverlay(size: CGSize, radius: CGFloat, gap: Double,
+                                   bg: UIColor, destRects: [CGRect]) -> CGImage? {
+        guard radius > 0, size.width > 0, size.height > 0 else { return nil }
+        let contentRects = gap > 0 ? destRects : [CGRect(origin: .zero, size: size)]
+        guard !contentRects.isEmpty else { return nil }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1; format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let image = renderer.image { c in
+            let cg = c.cgContext
+            cg.setFillColor(bg.cgColor)
+            cg.fill(CGRect(origin: .zero, size: size))
+            cg.setBlendMode(.clear)
+            for r in contentRects {
+                let rr = min(radius, r.width / 2, r.height / 2)
+                cg.addPath(UIBezierPath(roundedRect: r, cornerRadius: rr).cgPath)
+                cg.fillPath()
+            }
+        }
+        return image.cgImage
+    }
+
+    // A transparent layer with each still cover-cropped into its slot (top-left coords),
+    // stamped onto every frame so stills appear as static frames in a mixed clip+still video.
+    private func makeStillsLayer(size: CGSize,
+                                 stills: [(image: UIImage, dest: CGRect, crop: [Double])]) -> CGImage? {
+        guard !stills.isEmpty, size.width > 0, size.height > 0 else { return nil }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1; format.opaque = false
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let image = renderer.image { c in
+            let cg = c.cgContext
+            for s in stills where s.crop.count == 4 {
+                let iw = s.image.size.width, ih = s.image.size.height
+                guard iw > 0, ih > 0 else { continue }
+                let sx = s.dest.width  / max(1, CGFloat(s.crop[2]) * iw)
+                let sy = s.dest.height / max(1, CGFloat(s.crop[3]) * ih)
+                let drawRect = CGRect(x: s.dest.minX - CGFloat(s.crop[0]) * iw * sx,
+                                      y: s.dest.minY - CGFloat(s.crop[1]) * ih * sy,
+                                      width: iw * sx, height: ih * sy)
+                cg.saveGState()
+                cg.clip(to: s.dest)
+                s.image.draw(in: drawRect)
+                cg.restoreGState()
+            }
+        }
+        return image.cgImage
+    }
+
+    // Composite the overlay onto a (BGRA, top-down) frame buffer in place.
+    private func drawOverlay(_ overlay: CGImage, into pixelBuffer: CVPixelBuffer, size: CGSize) {
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
+        let bpr = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let ctx = CGContext(data: base, width: Int(size.width), height: Int(size.height),
+                                  bitsPerComponent: 8, bytesPerRow: bpr,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return }
+        // CG y=0 is the buffer's first (top) row; flip so the top-down overlay lands upright.
+        ctx.translateBy(x: 0, y: size.height)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(overlay, in: CGRect(origin: .zero, size: size))
     }
 
     // Reader/writer transcode so we can honour an explicit average bitrate (presets
@@ -163,6 +256,8 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     private func renderComposition(_ comp: AVMutableComposition,
                                    videoComp: AVMutableVideoComposition,
                                    size: CGSize, duration: Double, bitrate: Int,
+                                   stillsLayer: CGImage? = nil,
+                                   overlay: CGImage? = nil,
                                    outURL: URL, temps: [URL]) {
         let cleanup = { temps.forEach { try? FileManager.default.removeItem(at: $0) } }
         do {
@@ -171,7 +266,8 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 videoTracks: comp.tracks(withMediaType: .video),
                 videoSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
             readerOutput.videoComposition = videoComp
-            readerOutput.alwaysCopiesSampleData = false
+            // Need writable frame buffers to stamp the stills layer / rounded-corner overlay.
+            readerOutput.alwaysCopiesSampleData = (overlay != nil || stillsLayer != nil)
             guard reader.canAdd(readerOutput) else { throw NSError(domain: "stlls", code: 1) }
             reader.add(readerOutput)
 
@@ -204,6 +300,10 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 while writerInput.isReadyForMoreMediaData {
                     if reader.status == .reading, let sample = readerOutput.copyNextSampleBuffer() {
                         let pt = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                        if let imgBuf = CMSampleBufferGetImageBuffer(sample) {
+                            if let stillsLayer { self.drawOverlay(stillsLayer, into: imgBuf, size: size) }
+                            if let overlay     { self.drawOverlay(overlay,     into: imgBuf, size: size) }
+                        }
                         writerInput.append(sample)
                         let p = duration > 0 ? min(1.0, pt / duration) : 0
                         DispatchQueue.main.async {
@@ -409,7 +509,57 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         case "releaseVideoAsset":
             guard let key = message.body as? String else { return }
             releaseAsset(key)
+        case "clearCache":
+            let body = (message.body as? [String: Any]) ?? [:]
+            DispatchQueue.main.async { [weak self] in self?.clearCache(body) }
         default: break
+        }
+    }
+
+    // Free cached/intermediate video files (trimmed clips, proxies, exports) from the
+    // app's temp directory. Saved projects keep their footage as blobs in IndexedDB and
+    // never read these files back, so this only reclaims space from inactive / deleted
+    // projects. `keepKeys` protects the source of any video the user has open right now
+    // (e.g. for "Add more from video"), so an in-progress session isn't disrupted.
+    private func clearCache(_ body: [String: Any]) {
+        let keepKeys = Set((body["keepKeys"] as? [String]) ?? [])
+        let fm = FileManager.default
+        var freed: Int64 = 0
+
+        func sizeOf(_ url: URL) -> Int64 {
+            Int64((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+        }
+
+        // 1. Tracked temp files this session that aren't protected — their footage already
+        //    lives as blobs on the web side, so they're safe to drop.
+        for (key, url) in tempFiles where !keepKeys.contains(key) {
+            freed += sizeOf(url)
+            try? fm.removeItem(at: url)
+            schemeHandler?.unregister(key: key)
+            tempFiles.removeValue(forKey: key)
+            webKeys.remove(key)
+            assets.removeValue(forKey: key)
+            activeGenerators[key]?.cancelAllCGImageGeneration()
+            activeGenerators.removeValue(forKey: key)
+        }
+
+        // 2. Orphaned media left in the temp dir by previous sessions.
+        let keptPaths = Set(keepKeys.compactMap { tempFiles[$0]?.path })
+        if let items = try? fm.contentsOfDirectory(at: fm.temporaryDirectory,
+                                                   includingPropertiesForKeys: [.fileSizeKey]) {
+            for url in items where !keptPaths.contains(url.path) {
+                let ext = url.pathExtension.lowercased()
+                guard ext == "mp4" || ext == "mov" || ext == "m4v" else { continue }
+                freed += sizeOf(url)
+                try? fm.removeItem(at: url)
+            }
+        }
+
+        let payload: [String: Any] = ["freedBytes": freed]
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.callAsyncJavaScript(
+                "if (typeof window.cacheCleared === 'function') window.cacheCleared(payload)",
+                arguments: ["payload": payload], in: nil, in: .page, completionHandler: nil)
         }
     }
 
@@ -793,13 +943,50 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     }
 
     private func trimOne(asset: AVAsset, start: Double, end: Double) async -> [String: Any]? {
-        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset960x540) else { return nil }
+        guard let srcTrack = asset.tracks(withMediaType: .video).first else { return nil }
+        let dur = max(0.1, end - start)
+
+        // Bake the source's orientation into the pixels so the trimmed clip is genuinely
+        // upright with an identity transform. iPhone video stores portrait frames as
+        // landscape pixels + a 90° preferredTransform; a plain preset export keeps that
+        // transform as metadata. The composition exporter reads naturalSize and assumes
+        // natural == display, so without baking, portrait clips export rotated + squeezed.
+        let natSize  = srcTrack.naturalSize
+        let prefT    = srcTrack.preferredTransform
+        let oriented = CGRect(origin: .zero, size: natSize).applying(prefT)
+        let dispW = abs(oriented.width), dispH = abs(oriented.height)
+        guard dispW > 0, dispH > 0 else { return nil }
+
+        // Keep clips at full-HD (long edge ~1920) so portrait clips fill a 9:16 export
+        // canvas without upscaling. Never enlarge beyond the source; cap 4K down to 1920.
+        // Rounded to even dimensions (H.264-friendly).
+        let scale = min(1, 1920 / max(dispW, dispH))
+        func even(_ v: CGFloat) -> CGFloat { let n = max(2, (v * scale).rounded()); return n.truncatingRemainder(dividingBy: 2) == 0 ? n : n + 1 }
+        let outW = even(dispW), outH = even(dispH)
+
+        // natural → upright (correct negative origin from rotation) → fill the output size.
+        let fix = CGAffineTransform(translationX: -oriented.minX, y: -oriented.minY)
+        var tf = prefT.concatenating(fix)
+        tf = tf.concatenating(CGAffineTransform(scaleX: outW / dispW, y: outH / dispH))
+
+        let li = AVMutableVideoCompositionLayerInstruction(assetTrack: srcTrack)
+        li.setTransform(tf, at: .zero)
+        let inst = AVMutableVideoCompositionInstruction()
+        inst.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+        inst.layerInstructions = [li]
+
+        let videoComp = AVMutableVideoComposition()
+        videoComp.renderSize    = CGSize(width: outW, height: outH)
+        videoComp.frameDuration = CMTime(value: 1, timescale: 30)
+        videoComp.instructions  = [inst]
+
+        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
         let outURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".mp4")
-        let dur = max(0.1, end - start)
         export.outputURL = outURL
         export.outputFileType = .mp4
         export.shouldOptimizeForNetworkUse = true
+        export.videoComposition = videoComp
         export.timeRange = CMTimeRange(
             start:    CMTime(seconds: max(0, start), preferredTimescale: 600),
             duration: CMTime(seconds: dur,           preferredTimescale: 600))
@@ -1045,6 +1232,7 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         userContent.add(videoHandler,     name: "requestVideoClips")
         userContent.add(videoHandler,     name: "extractVideoFrame")
         userContent.add(videoHandler,     name: "releaseVideoAsset")
+        userContent.add(videoHandler,     name: "clearCache")
         userContent.add(remindersHandler, name: "scheduleReminders")
 
         let config = WKWebViewConfiguration()
@@ -1160,4 +1348,24 @@ struct WebView: UIViewControllerRepresentable {
 
 struct ContentView: View {
     var body: some View { WebView().ignoresSafeArea() }
+}
+
+// MARK: - Hex colour helper (for the export background / corner fill)
+
+extension UIColor {
+    convenience init(hexString: String) {
+        var s = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if s.hasPrefix("#") { s.removeFirst() }
+        var v: UInt64 = 0
+        Scanner(string: s).scanHexInt64(&v)
+        let r, g, b, a: CGFloat
+        if s.count == 8 {
+            r = CGFloat((v >> 24) & 0xFF) / 255; g = CGFloat((v >> 16) & 0xFF) / 255
+            b = CGFloat((v >> 8)  & 0xFF) / 255; a = CGFloat(v & 0xFF) / 255
+        } else {
+            r = CGFloat((v >> 16) & 0xFF) / 255; g = CGFloat((v >> 8) & 0xFF) / 255
+            b = CGFloat(v & 0xFF) / 255;         a = 1
+        }
+        self.init(red: r, green: g, blue: b, alpha: a)
+    }
 }

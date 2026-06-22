@@ -726,6 +726,30 @@
   .slot { position: absolute; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
   .slot.grabbing { cursor: grabbing; }
   .slot-img { position: absolute; pointer-events: none; -webkit-user-drag: none; display: block; }
+  /* Double-buffered clip: two stacked videos ping-pong for a seamless loop */
+  .clip-loop { overflow: hidden; }
+  .clip-loop-vid {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover; opacity: 0; pointer-events: none; -webkit-user-drag: none;
+  }
+  .clip-loop-vid.active { opacity: 1; }
+  /* Loading placeholder shown in a slot while its clip is being prepared */
+  .slot-loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #141414;
+  }
+  .slot-loading::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.05) 50%, transparent 70%);
+    background-size: 200% 100%; animation: slotShimmer 1.2s linear infinite;
+  }
+  @keyframes slotShimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .image-item-loading {
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface2); border: 1px solid var(--border);
+  }
+  .image-item-loading .ms-load-ring { width: 18px; height: 18px; }
 
   /* ── Preview expand button ── */
   #previewExpandBtn {
@@ -993,7 +1017,17 @@
 
   /* Export */
   .export-selects { display: flex; align-items: center; gap: 6px; }
+  .export-selects[hidden] { display: none; }
   .export-selects label { color: var(--text-dim); font-size: 11px; }
+  /* Bitrate segmented control (video export) */
+  .bitrate-seg { display: flex; gap: 4px; margin-left: auto; }
+  .br-btn {
+    padding: 4px 9px; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: var(--rsm); font-size: 11px; font-family: inherit;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; transition: border-color 0.15s, color 0.15s;
+  }
+  .br-btn.active { border-color: var(--accent); color: var(--text); }
+  .br-btn:hover:not(.active) { color: var(--text-mid); border-color: var(--border2); }
   select {
     background: var(--surface); border: 1px solid var(--border);
     color: var(--text); border-radius: var(--rsm);
@@ -1016,6 +1050,8 @@
 
   /* ── Import mode picker ── */
   .import-mode-row { display: flex; gap: 6px; margin-bottom: 10px; }
+  /* display:flex above overrides UA [hidden]; force it so video boards can hide this */
+  .import-mode-row[hidden] { display: none !important; }
   .import-mode-btn {
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px;
     padding: 10px 6px 9px;
@@ -1026,6 +1062,47 @@
   }
   .import-mode-btn.active { border-color: var(--accent); color: var(--text); }
   .import-mode-btn:hover:not(.active) { color: var(--text-mid); border-color: var(--border2); }
+
+  /* ── Board type chip: Photos vs Video (preview top-left, mirrors 3-dot) ── */
+  #boardTypeChip {
+    position: absolute; top: 7px; left: 7px; z-index: 11;
+    display: flex; gap: 2px;
+    background: rgba(0,0,0,0.45); border-radius: 9px; padding: 3px;
+  }
+  #boardTypeChip[hidden] { display: none !important; }
+  #boardTypeChip.below-indicator { top: 44px; }
+  .btc-seg {
+    width: 32px; height: 24px; border: none; border-radius: 6px;
+    background: transparent; color: rgba(255,255,255,0.5);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: background 0.15s, color 0.15s;
+  }
+  .btc-seg.active { background: rgba(255,255,255,0.18); color: #fff; }
+
+  /* ── Video-clip controls (video boards) ── */
+  #clipImportArea[hidden] { display: none; }
+  .clip-add-slim {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px; margin-bottom: 10px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rsm);
+    color: var(--text-mid); cursor: pointer; font-family: inherit; font-size: 12px;
+    transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent;
+  }
+  .clip-add-slim:hover, .clip-add-slim:active { border-color: var(--border2); color: var(--text); }
+  .clip-len-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .clip-len-label { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; white-space: nowrap; }
+  #clipLenSlider {
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 3px; background: var(--border2); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  #clipLenSlider::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px;
+    border-radius: 50%; background: var(--accent); cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .clip-len-val { font-size: 11px; color: var(--text-mid); min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
 
   .video-sub-row { display: flex; gap: 4px; margin-bottom: 8px; }
   .video-sub-btn {
@@ -1134,7 +1211,7 @@
     padding: 10px 16px 4px; flex-shrink: 0;
   }
   #msPrevFrameBtn, #msNextFrameBtn, #msPrev10Btn, #msNext10Btn {
-    width: 38px; height: 38px; flex-shrink: 0;
+    min-width: 38px; height: 38px; flex-shrink: 0; padding: 0 8px; gap: 3px;
     background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
     color: var(--text-mid); font-size: 13px; cursor: pointer; font-family: inherit;
     display: flex; align-items: center; justify-content: center;
@@ -1142,6 +1219,7 @@
   }
   #msPrevFrameBtn:hover, #msNextFrameBtn:hover,
   #msPrev10Btn:hover, #msNext10Btn:hover { color: var(--text); }
+  .ms-fnum { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
   #msPlayBtn {
     width: 48px; height: 48px; flex-shrink: 0;
     background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
@@ -1195,6 +1273,119 @@
     font-size: 10px; cursor: pointer; color: var(--text);
     display: flex; align-items: center; justify-content: center;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* ── Shot picker (video boards) ── */
+  #shotPicker {
+    position: fixed; inset: 0; z-index: 455;
+    background: var(--bg); display: flex; flex-direction: column;
+  }
+  #shotPicker[hidden] { display: none; }
+  #shotPicker.opening { animation: pageIn 0.22s ease forwards; }
+  #spCancelBtn, #spAddBtn {
+    background: none; border: none; cursor: pointer; font-family: inherit;
+    font-size: 13px; padding: 4px 6px; -webkit-tap-highlight-color: transparent;
+    border-radius: var(--rsm);
+  }
+  #spCancelBtn { color: var(--text-dim); }
+  #spAddBtn { color: var(--accent); font-weight: 500; }
+  #spAddBtn:disabled { opacity: 0.3; cursor: default; }
+  .sp-status {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    flex: 1; min-height: 0; color: var(--text-dim); font-size: 12px;
+  }
+  .sp-status[hidden] { display: none; }
+  .sp-grid {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 10px; padding: 16px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    align-content: start; -webkit-overflow-scrolling: touch;
+  }
+  .sp-grid[hidden] { display: none; }
+  .sp-shot {
+    position: relative; aspect-ratio: var(--shot-aspect, 9 / 16); border-radius: 8px; overflow: hidden;
+    cursor: pointer; background: #000; border: 2px solid transparent;
+    transition: border-color 0.12s; -webkit-tap-highlight-color: transparent;
+  }
+  .sp-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sp-shot.selected { border-color: var(--accent); }
+  .sp-shot-dur {
+    position: absolute; left: 6px; bottom: 6px;
+    background: rgba(0,0,0,0.6); color: #fff; font-size: 10px;
+    padding: 2px 6px; border-radius: 4px; font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .sp-shot-check {
+    position: absolute; top: 6px; right: 6px; width: 20px; height: 20px;
+    border-radius: 50%; background: var(--accent); color: var(--accent-fg);
+    display: none; align-items: center; justify-content: center; font-size: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .sp-shot.selected .sp-shot-check { display: flex; }
+  /* Already added to the board — dimmed + an "Added" badge, not re-selectable */
+  .sp-shot.added { cursor: default; opacity: 0.45; border-color: transparent; }
+  .sp-shot.added .sp-shot-check { display: none; }
+  .sp-shot-added {
+    position: absolute; top: 6px; right: 6px;
+    background: rgba(0,0,0,0.7); color: #fff; font-size: 9px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 3px 6px; border-radius: 5px;
+  }
+  .sp-shot-gear {
+    position: absolute; top: 6px; left: 6px; width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 50%;
+    cursor: pointer; -webkit-tap-highlight-color: transparent; padding: 0;
+  }
+  .sp-shot-gear:active { background: rgba(0,0,0,0.8); }
+
+  /* ── Clip in/out trimmer ── */
+  #clipTrimmer {
+    position: fixed; inset: 0; z-index: 460;
+    background: var(--bg); display: flex; flex-direction: column;
+  }
+  #clipTrimmer[hidden] { display: none; }
+  #clipTrimmer.opening { animation: pageIn 0.22s ease forwards; }
+  #ctCancel, #ctDone {
+    background: none; border: none; cursor: pointer; font-family: inherit;
+    font-size: 13px; padding: 4px 6px; border-radius: var(--rsm);
+    -webkit-tap-highlight-color: transparent;
+  }
+  #ctCancel { color: var(--text-dim); }
+  #ctDone { color: var(--accent); font-weight: 500; }
+  .ct-video-wrap {
+    flex: 1; min-height: 0; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  #ctVideo { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .ct-info {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 20px 4px; font-size: 11px; color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+  .ct-info .ct-dur { color: var(--accent); font-weight: 600; }
+  .ct-bar {
+    position: relative; height: 40px; margin: 6px 20px 4px;
+    background: var(--surface2); border-radius: var(--rsm); touch-action: none;
+  }
+  .ct-range {
+    position: absolute; top: 0; bottom: 0;
+    background: rgba(var(--accent-rgb, 80,160,255), 0.18);
+    border-left: 2px solid var(--accent); border-right: 2px solid var(--accent);
+  }
+  .ct-handle {
+    position: absolute; top: 50%; width: 22px; height: 44px;
+    transform: translate(-50%, -50%);
+    display: flex; align-items: center; justify-content: center;
+    cursor: ew-resize; touch-action: none;
+  }
+  .ct-handle::after {
+    content: ''; width: 8px; height: 30px; border-radius: 4px;
+    background: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+  .ct-hint {
+    text-align: center; font-size: 11px; color: var(--text-dim);
+    padding: 6px 20px max(16px, env(safe-area-inset-bottom));
   }
 
   /* ── Export progress bar ── */
@@ -1309,12 +1500,25 @@
   .undo-item.danger:hover { background: rgba(239,68,68,0.08); color: #ef4444; }
 
   /* Reset confirm overlay */
-  #resetConfirm, #deleteBoardConfirm {
+  #resetConfirm, #deleteBoardConfirm, #customRatioModal {
     position: fixed; inset: 0; z-index: 510;
     background: rgba(0,0,0,0.6);
     display: flex; align-items: center; justify-content: center;
   }
-  #resetConfirm[hidden], #deleteBoardConfirm[hidden] { display: none; }
+  #resetConfirm[hidden], #deleteBoardConfirm[hidden], #customRatioModal[hidden] { display: none; }
+  .crm-inputs {
+    display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px;
+  }
+  .crm-inputs input {
+    width: 72px; box-sizing: border-box; text-align: center;
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--rsm);
+    color: var(--text); font-family: inherit; font-size: 18px; padding: 10px 6px; outline: none;
+    -moz-appearance: textfield;
+  }
+  .crm-inputs input:focus { border-color: var(--accent); }
+  .crm-colon { color: var(--text-mid); font-size: 18px; font-weight: 600; }
+  .crm-err { color: #ef4444; font-size: 11px; margin: -8px 0 12px; }
+  .crm-err[hidden] { display: none; }
 
   /* ── Shared page transition keyframes ── */
   @keyframes pageIn {
@@ -1750,6 +1954,9 @@
       -webkit-tap-highlight-color: transparent;
     }
     .m-add-btn:active { border-color: var(--muted); color: var(--text); }
+    .m-add-btn.disabled, .m-add-btn:disabled {
+      opacity: 0.3; cursor: default; pointer-events: none; border-style: dashed;
+    }
 
     /* Image thumbnails */
     .image-list {
@@ -2260,6 +2467,15 @@
         <button class="bam-item" id="bamAdd">Add Board</button>
         <button class="bam-item danger" id="bamDelete">Delete Board</button>
       </div>
+      <!-- Photo / Video board-type switch — top-left, mirrors the 3-dot button. Empty board only. -->
+      <div id="boardTypeChip" hidden>
+        <button class="btc-seg active" data-btype="photo" aria-label="Photo board" title="Photos">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </button>
+        <button class="btc-seg" data-btype="video" aria-label="Video board" title="Video">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        </button>
+      </div>
       <!-- Cap toast — shown briefly when 10-board limit is hit -->
       <div id="boardCapMsg" hidden>Projects are limited to 10 boards</div>
     </div>
@@ -2320,6 +2536,21 @@
         <button id="videoPickBtn" class="video-pick-btn" hidden>Select Video</button>
       </div>
 
+      <!-- Video-clip controls (video boards only). -->
+      <div id="clipImportArea" hidden>
+        <button id="clipAddBtn" class="clip-add-slim">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="7"/></svg>
+          <span>Add video for auto clip detection</span>
+        </button>
+        <div class="clip-len-row">
+          <span class="clip-len-label">Total length</span>
+          <input type="range" id="clipLenSlider" min="10" max="20" step="1" value="15">
+          <span class="clip-len-val" id="clipLenVal">15s</span>
+        </div>
+      </div>
+      <input type="file" id="clipFileInput" accept="video/*" hidden>
+      <input type="file" id="clipFullFileInput" accept="video/*" multiple hidden>
+
       <!-- Stills strip — always below import area -->
       <button class="photos-toggle" id="photosToggle">
         <span>Stills</span>
@@ -2344,7 +2575,7 @@
           <button class="btn active" data-ratio="9:16">9:16</button>
           <button class="btn" data-ratio="1:1">1:1</button>
           <button class="btn" data-ratio="4:5">4:5</button>
-          <button class="btn" data-ratio="16:9">16:9</button>
+          <button class="btn" id="customRatioBtn" data-ratio="custom">Custom</button>
         </div>
       </div>
 
@@ -2488,7 +2719,8 @@
 <div class="ps" id="psExport">
   <div class="section-label">Export</div>
   <div class="ctrl">
-    <div class="export-selects">
+    <!-- Still export options (photo boards) -->
+    <div class="export-selects" id="stillExportOpts">
       <label>Format</label>
       <select id="exportFormat">
         <option value="png">PNG</option>
@@ -2500,6 +2732,16 @@
         <option value="2" selected>2×</option>
         <option value="3">3×</option>
       </select>
+    </div>
+    <!-- Video export options (video boards) -->
+    <div class="export-selects" id="videoExportOpts" hidden>
+      <label>Bitrate</label>
+      <div class="bitrate-seg" id="bitrateSeg">
+        <button class="br-btn" data-br="low">Low</button>
+        <button class="br-btn" data-br="medium">Med</button>
+        <button class="br-btn active" data-br="high">High</button>
+        <button class="br-btn" data-br="max">Max</button>
+      </div>
     </div>
     <button class="export-btn" id="exportBtn" disabled>Export</button>
   </div>
@@ -2520,25 +2762,29 @@
   </div>
   <!-- Transport row: prev-1 | prev-10 | play | next-10 | next-1 -->
   <div class="ms-transport-row">
-    <button id="msPrevFrameBtn" aria-label="Previous frame">
+    <button id="msPrevFrameBtn" aria-label="Back 1 frame">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/>
       </svg>
+      <span class="ms-fnum">1</span>
     </button>
     <button id="msPrev10Btn" aria-label="Back 10 frames">
       <svg width="15" height="13" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="21 20 11 12 21 4 21 20"/><polygon points="10 20 0 12 10 4 10 20"/>
         <line x1="25" y1="19" x2="25" y2="5"/>
       </svg>
+      <span class="ms-fnum">10</span>
     </button>
     <button id="msPlayBtn"><svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><path d="M1 1l10 6-10 6V1z"/></svg></button>
     <button id="msNext10Btn" aria-label="Forward 10 frames">
+      <span class="ms-fnum">10</span>
       <svg width="15" height="13" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="5 4 15 12 5 20 5 4"/><polygon points="16 4 26 12 16 20 16 4"/>
         <line x1="1" y1="5" x2="1" y2="19"/>
       </svg>
     </button>
-    <button id="msNextFrameBtn" aria-label="Next frame">
+    <button id="msNextFrameBtn" aria-label="Forward 1 frame">
+      <span class="ms-fnum">1</span>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
       </svg>
@@ -2554,6 +2800,41 @@
     <button id="msGrabBtn">Grab Still</button>
   </div>
   <div class="ms-grabbed-strip" id="msGrabbed"></div>
+</div>
+
+<!-- Shot picker — split a video into shots and choose which become looping clips -->
+<div id="shotPicker" hidden>
+  <div class="ms-header">
+    <button id="spCancelBtn">Cancel</button>
+    <span class="ms-title">Pick Shots</span>
+    <button id="spAddBtn" disabled>Add</button>
+  </div>
+  <div id="spStatus" class="sp-status">
+    <div class="ms-load-ring"></div>
+    <span id="spStatusText">Preparing video…</span>
+  </div>
+  <div id="spGrid" class="sp-grid"></div>
+</div>
+
+<!-- In/out trimmer for a single detected shot -->
+<div id="clipTrimmer" hidden>
+  <div class="ms-header">
+    <button id="ctCancel">Cancel</button>
+    <span class="ms-title">Adjust Clip</span>
+    <button id="ctDone">Done</button>
+  </div>
+  <div class="ct-video-wrap"><video id="ctVideo" playsinline muted></video></div>
+  <div class="ct-info">
+    <span id="ctInTime">0.00s</span>
+    <span id="ctDur" class="ct-dur">0.0s</span>
+    <span id="ctOutTime">0.00s</span>
+  </div>
+  <div class="ct-bar" id="ctBar">
+    <div class="ct-range" id="ctRange"></div>
+    <div class="ct-handle" id="ctIn"></div>
+    <div class="ct-handle" id="ctOut"></div>
+  </div>
+  <div class="ct-hint">Drag the handles to set the start and end (±1s)</div>
 </div>
 
 <!-- Settings panel -->
@@ -2708,6 +2989,24 @@
     <div class="dc-btns">
       <button id="dbcCancel">Cancel</button>
       <button id="dbcYes" style="background:#ef4444;color:#fff;font-weight:600;">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div id="customRatioModal" hidden>
+  <div class="dc-box">
+    <p>Custom ratio</p>
+    <div class="crm-inputs">
+      <input type="text" id="customRatioW" inputmode="decimal" autocomplete="off" autocorrect="off"
+             spellcheck="false" placeholder="16" aria-label="Width">
+      <span class="crm-colon">:</span>
+      <input type="text" id="customRatioH" inputmode="decimal" autocomplete="off" autocorrect="off"
+             spellcheck="false" placeholder="9" aria-label="Height">
+    </div>
+    <div class="crm-err" id="customRatioErr" hidden>Enter two numbers, e.g. 16 : 9</div>
+    <div class="dc-btns">
+      <button id="customRatioCancel" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);">Cancel</button>
+      <button id="customRatioApply" style="background:var(--accent);color:var(--accent-fg);font-weight:600;">Apply</button>
     </div>
   </div>
 </div>
@@ -2991,14 +3290,17 @@ const RATIOS = { '9:16': [9,16], '1:1': [1,1], '4:5': [4,5], '16:9': [16,9] };
 
 // ── State ──────────────────────────────────────────────────────────────────
 const state = {
-  images: [],   // { id, name, img, transforms: { vertical:{…}, horizontal:{…}, grid:{…} } }
-  ratio: '9:16',
+  images: [],   // { id, name, img, transforms } for stills; clips add { type:'clip', src, start, end }
+  ratio: '9:16',        // a RATIOS key, or 'custom' (uses customRatio)
+  customRatio: null,    // [w, h] when ratio === 'custom'
   layout: 'vertical',   // 'vertical' | 'horizontal' | 'grid'
   gridCols: 2,
   gridRows: 2,
   gap: 6,
   padding: 0,
   bg: '#000000',
+  boardType: 'photo',   // 'photo' | 'video' — video boards hold looping clips
+  clipDuration: 15,     // seconds; video-board loop length (10–20), used at export (Phase 2)
 };
 
 // Returns (and lazily creates) the transform for the current layout
@@ -3018,6 +3320,17 @@ function snapshotImages() {
     img: item.img,
     exportSrc: item.exportSrc,
     thumb: item.thumb,
+    // Video-clip fields (undefined for stills) — preserved so undo/redo keeps clips intact
+    type: item.type,
+    src: item.src,
+    _blob: item._blob,
+    start: item.start,
+    end: item.end,
+    nativeLoop: item.nativeLoop,
+    _shotIdx: item._shotIdx,
+    _shotSrc: item._shotSrc,
+    videoW: item.videoW,
+    videoH: item.videoH,
     transforms: JSON.parse(JSON.stringify(item.transforms)),
   }));
 }
@@ -3048,10 +3361,21 @@ function applySnapshot(snap) {
     img: s.img,
     exportSrc: s.exportSrc,
     thumb: s.thumb,
+    type: s.type,
+    src: s.src,
+    _blob: s._blob,
+    start: s.start,
+    end: s.end,
+    nativeLoop: s.nativeLoop,
+    _shotIdx: s._shotIdx,
+    _shotSrc: s._shotSrc,
+    videoW: s.videoW,
+    videoH: s.videoH,
     transforms: JSON.parse(JSON.stringify(s.transforms)),
   }));
   renderList();
   buildLayout();
+  applyBoardTypeUI();   // empty after undo → re-show the Photos/Video switch
 }
 
 function updateUndoBtn() {
@@ -3258,22 +3582,42 @@ function serializeBoards(boards) {
   return boards.map(board => ({
     id:             board.id,
     ratio:          board.ratio,
+    customRatio:    board.customRatio || null,
     layout:         board.layout,
     gridCols:       board.gridCols,
     gridRows:       board.gridRows,
     gap:            board.gap,
     padding:        board.padding,
     bg:             board.bg,
+    boardType:      board.boardType || 'photo',
+    clipDuration:   board.clipDuration ?? 15,
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
-      .map(item => ({
-        id:         item.id,
-        name:       item.name,
-        src:        item.exportSrc || item.img?.src || '',
-        transforms: item.transforms || {},
-      }))
-      // Skip blob: URLs — they are non-persistent video object URLs
-      .filter(item => item.src && !item.src.startsWith('blob:')),
+      .map(item => {
+        // Video clip → persist the actual (small, trimmed) bytes as a Blob. IndexedDB
+        // stores Blobs natively, so the board reopens fully playable.
+        if (item.type === 'clip') {
+          if (!item._blob) return null;   // no bytes captured → can't persist this clip
+          return {
+            id:         item.id,
+            name:       item.name,
+            type:       'clip',
+            clipBlob:   item._blob,
+            start:      item.start,
+            end:        item.end,
+            nativeLoop: item.nativeLoop,
+            thumb:      item.thumb,
+            videoW:     item.videoW,
+            videoH:     item.videoH,
+            transforms: item.transforms || {},
+          };
+        }
+        // Still → store the export-quality dataURL (skip any non-persistent blob: src)
+        const src = item.exportSrc || item.img?.src || '';
+        if (!src || src.startsWith('blob:')) return null;
+        return { id: item.id, name: item.name, src, transforms: item.transforms || {} };
+      })
+      .filter(Boolean),
   }));
 }
 
@@ -3282,6 +3626,23 @@ async function deserializeBoards(savedBoards) {
   return Promise.all(savedBoards.map(async board => {
     const images = (await Promise.all(
       (board.images || []).map(async item => {
+        // Restore a video clip from its stored Blob → fresh object URL + poster.
+        if (item.type === 'clip') {
+          if (!item.clipBlob) return null;
+          try {
+            const src = URL.createObjectURL(item.clipBlob);
+            const poster = await _loadImg(item.thumb);
+            return {
+              id: item.id, name: item.name, type: 'clip',
+              img: poster, thumb: item.thumb, src, _blob: item.clipBlob,
+              start: item.start || 0, end: item.end || 0,
+              nativeLoop: item.nativeLoop !== false,
+              videoW: item.videoW || poster.naturalWidth,
+              videoH: item.videoH || poster.naturalHeight,
+              transforms: item.transforms || {},
+            };
+          } catch (e) { return null; }
+        }
         if (!item.src) return null;
         try {
           // Rebuild the light display proxy + thumb; the stored src becomes the
@@ -3293,12 +3654,15 @@ async function deserializeBoards(savedBoards) {
     return {
       id:             board.id             || genId(),
       ratio:          board.ratio          || '9:16',
+      customRatio:    board.customRatio     || null,
       layout:         board.layout         || 'vertical',
       gridCols:       board.gridCols       || 2,
       gridRows:       board.gridRows       || 2,
       gap:            board.gap            ?? 6,
       padding:        board.padding        ?? 0,
       bg:             board.bg             || '#000000',
+      boardType:      board.boardType      || 'photo',
+      clipDuration:   board.clipDuration   ?? 15,
       usedShotRanges: board.usedShotRanges || [],
       images,
     };
@@ -3422,6 +3786,7 @@ function generateThumbnail() {
   ctx.save();
   ctx.translate(ox, oy);
   getSlots(tW, tH).forEach(({ item, x, y, w, h }) => {
+    if (!item || !item.img) return;   // skip loading placeholders
     const { img } = item; const t = itemT(item);
     const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
     const totalS = coverS * t.scale;
@@ -3439,12 +3804,15 @@ function saveCurrentBoardSnapshot() {
   _projectBoards[_activeBoardIdx] = {
     id:             _projectBoards[_activeBoardIdx]?.id || genId(),
     ratio:          state.ratio,
+    customRatio:    state.customRatio || null,
     layout:         state.layout,
     gridCols:       state.gridCols,
     gridRows:       state.gridRows,
     gap:            state.gap,
     padding:        state.padding,
     bg:             state.bg,
+    boardType:      state.boardType || 'photo',
+    clipDuration:   state.clipDuration ?? 15,
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
   };
@@ -3520,17 +3888,23 @@ const _swipeGap   = 20; // px gap between board cards during swipe
 let _swipePrevOk  = false, _swipeNextOk = false;
 
 function loadBoardState(board) {
-  state.ratio    = board.ratio;
+  discardDetectedShots();   // drop any analysed-video context from the previous board
+  state.ratio       = board.ratio;
+  state.customRatio = board.customRatio || null;
   state.layout   = board.layout;
   state.gridCols = board.gridCols;
   state.gridRows = board.gridRows;
   state.gap      = board.gap;
   state.padding  = board.padding;
   state.bg       = board.bg;
+  state.boardType    = board.boardType || 'photo';
+  state.clipDuration = board.clipDuration ?? 15;
   state.images         = board.images.slice();
   state.usedShotRanges = board.usedShotRanges ? [...board.usedShotRanges] : [];
   // Sync all controls to new state
+  applyBoardTypeUI();
   document.querySelectorAll('[data-ratio]').forEach(b => b.classList.toggle('active', b.dataset.ratio === state.ratio));
+  updateCustomRatioBtn();
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === state.layout));
   updateGridOpts();
   colsVal.textContent = state.gridCols;
@@ -3587,6 +3961,8 @@ const boardActionsMenu = document.getElementById('boardActionsMenu');
 
 boardActionsBtn.addEventListener('click', e => {
   e.stopPropagation();
+  // Multiple boards aren't supported for video projects yet — hide "Add Board".
+  document.getElementById('bamAdd').style.display = (state.boardType === 'video') ? 'none' : '';
   boardActionsMenu.hidden = !boardActionsMenu.hidden;
 });
 
@@ -3667,17 +4043,19 @@ function showBoardCapMsg() {
 }
 
 function addNewBoard() {
+  if (state.boardType === 'video') return;   // video projects are single-board for now
   if (_projectBoards.length >= 10) {
     showBoardCapMsg();
     return;
   }
   saveCurrentBoardSnapshot();
-  const newBoard = { id: genId(), ratio: state.ratio, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, images: [] };
+  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, boardType: state.boardType, clipDuration: state.clipDuration, images: [] };
   _projectBoards.push(newBoard);
   switchToBoard(_projectBoards.length - 1, 'left');
 }
 
 function goHome() {
+  discardDetectedShots();   // release any analysed-video source when leaving the project
   if (_currentProjectId) {
     saveCurrentBoardSnapshot();
     const hasImages = _projectBoards.some(b => b.images.length > 0);
@@ -3715,12 +4093,37 @@ function goHome() {
 const homeBtn = document.getElementById('homeBtn');
 homeBtn.addEventListener('click', goHome);
 
+// Persist the open project to IndexedDB without leaving it — used when the app is
+// backgrounded or closed, so video boards (and everything else) survive.
+function writeCurrentProjectToDB() {
+  if (!_currentProjectId) return;
+  saveCurrentBoardSnapshot();
+  if (!_projectBoards.some(b => b.images.length > 0)) return;
+  const project = projects.find(p => p.id === _currentProjectId);
+  if (project) {
+    const thumb = generateThumbnail();
+    if (thumb) project.thumbnail = thumb;
+    project.updatedAt  = Date.now();
+    project.boardCount = _projectBoards.length;
+    saveProjects();
+  }
+  const serial = serializeBoards(_projectBoards);
+  dbPut(_currentProjectId, { id: _currentProjectId, boards: serial }).catch(err => console.warn('IDB save failed', err));
+}
+
+// iOS fires visibilitychange→hidden when the app is backgrounded/closed; pagehide
+// covers reloads. Both save the in-progress project.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') writeCurrentProjectToDB();
+});
+window.addEventListener('pagehide', writeCurrentProjectToDB);
+
 homeNewBtn.addEventListener('click', () => {
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, updatedAt: Date.now(), thumbnail: null });
   saveProjects();
   _boardSwitching = false;
-  _projectBoards = [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', images: [] }];
+  _projectBoards = [{ id: genId(), ratio: '9:16', layout: 'vertical', gridCols: 2, gridRows: 2, gap: 6, padding: 0, bg: '#000000', boardType: 'photo', clipDuration: 15, images: [] }];
   _activeBoardIdx = 0;
   loadBoardState(_projectBoards[0]);
   updateBoardNav();
@@ -3796,7 +4199,7 @@ let previewW = 0, previewH = 0;
 let _previewAnimating = false;
 
 function computePreviewSize() {
-  const [rw, rh] = RATIOS[state.ratio];
+  const [rw, rh] = state.ratio === 'custom' ? (state.customRatio || [9, 16]) : (RATIOS[state.ratio] || [9, 16]);
   const avW = previewOuter.clientWidth  - 8;
   const avH = previewOuter.clientHeight - 8;
   if (avW < 10 || avH < 10) return;
@@ -3815,7 +4218,7 @@ function computePreviewSize() {
 // (Apple-style easeInOut) while the slots reflow to fit every frame.
 let _ratioAnimRaf = null, _ratioAnimGen = 0;
 function setRatioAnimated(newRatio) {
-  if (newRatio === state.ratio) return;
+  if (newRatio === state.ratio && newRatio !== 'custom') return;   // custom may have a new value
   const gen = ++_ratioAnimGen;
   if (_ratioAnimRaf) cancelAnimationFrame(_ratioAnimRaf);
 
@@ -3877,7 +4280,8 @@ ro.observe(previewOuter);
 
 // ── Slot computation ───────────────────────────────────────────────────────
 function canonicalDims() {
-  const [rw, rh] = RATIOS[state.ratio];
+  const r = state.ratio === 'custom' ? (state.customRatio || [9, 16]) : (RATIOS[state.ratio] || [9, 16]);
+  const [rw, rh] = r;
   return [CANONICAL_W, Math.round(CANONICAL_W * rh / rw)];
 }
 
@@ -3960,6 +4364,11 @@ function applyZoom(t, img, slotW, slotH, cx, cy, newScale) {
 
 function positionSlotImage(imgEl, item, slotW, slotH) {
   const { img } = item; const t = itemT(item);
+  // Keep the pan/zoom in bounds for the CURRENT slot size. Transforms are stored
+  // per-layout but their valid range depends on slot dims, which change with the
+  // ratio — re-clamping here settles a clip into the new ratio's frame smoothly
+  // (during the morph) instead of leaving a stale crop until it's next touched.
+  clampTransform(t, img, slotW, slotH);
   const coverS = Math.max(slotW / img.naturalWidth, slotH / img.naturalHeight);
   const totalS = coverS * t.scale;
   const iW   = img.naturalWidth  * totalS;
@@ -4001,24 +4410,27 @@ function onWheelEnd() {
 
 // ── Per-slot interactions ──────────────────────────────────────────────────
 function attachSlotEvents(slotDiv, item) {
-  const gi = () => slotDiv.querySelector('.slot-img');
+  slotDiv._item = item;
+  const cur = () => slotDiv._item || item;   // live item (reused slots get reassigned)
+  const gi  = () => slotDiv.querySelector('.slot-img');
 
   // Mouse drag
   slotDiv.addEventListener('mousedown', e => {
     if (e.button !== 0) return;
     e.preventDefault();
-    activeDrag = { item, slotDiv, lx: e.clientX, ly: e.clientY };
+    activeDrag = { item: cur(), slotDiv, lx: e.clientX, ly: e.clientY };
     slotDiv.classList.add('grabbing');
   });
 
   // Scroll zoom
   slotDiv.addEventListener('wheel', e => {
     e.preventDefault();
+    const it = cur();
     const r = slotDiv.getBoundingClientRect();
-    applyZoom(itemT(item), item.img, r.width, r.height,
+    applyZoom(itemT(it), it.img, r.width, r.height,
       e.clientX - r.left, e.clientY - r.top,
-      itemT(item).scale * (e.deltaY > 0 ? 0.92 : 1 / 0.92));
-    positionSlotImage(gi(), item, r.width, r.height);
+      itemT(it).scale * (e.deltaY > 0 ? 0.92 : 1 / 0.92));
+    positionSlotImage(gi(), it, r.width, r.height);
     onWheelEnd();
   }, { passive: false });
 
@@ -4027,10 +4439,11 @@ function attachSlotEvents(slotDiv, item) {
   slotDiv.addEventListener('click', () => {
     const now = Date.now();
     if (now - lclick < 300) {
+      const it = cur();
       pushHistory();
-      item.transforms[state.layout] = { scale: 1, fx: 0, fy: 0 };
+      it.transforms[state.layout] = { scale: 1, fx: 0, fy: 0 };
       const r = slotDiv.getBoundingClientRect();
-      positionSlotImage(gi(), item, r.width, r.height);
+      positionSlotImage(gi(), it, r.width, r.height);
     }
     lclick = now;
   });
@@ -4047,8 +4460,8 @@ function attachSlotEvents(slotDiv, item) {
       const now = Date.now();
       if (now - prevTap < 320) {
         pushHistory();
-        item.transforms[state.layout] = { scale: 1, fx: 0, fy: 0 };
-        positionSlotImage(gi(), item, rect.width, rect.height);
+        cur().transforms[state.layout] = { scale: 1, fx: 0, fy: 0 };
+        positionSlotImage(gi(), cur(), rect.width, rect.height);
         ts = null; slotDiv._lt = 0; return;
       }
       ts = { mode: 'pan', lx: e.touches[0].clientX, ly: e.touches[0].clientY, lastTap: now };
@@ -4067,16 +4480,17 @@ function attachSlotEvents(slotDiv, item) {
   slotDiv.addEventListener('touchmove', e => {
     e.preventDefault();
     if (!ts) return;
+    const it = cur();
     const rect = slotDiv.getBoundingClientRect();
-    const t = itemT(item);
+    const t = itemT(it);
 
     if (ts.mode === 'pan' && e.touches.length === 1) {
       const dx = e.touches[0].clientX - ts.lx;
       const dy = e.touches[0].clientY - ts.ly;
       ts.lx = e.touches[0].clientX; ts.ly = e.touches[0].clientY;
       t.fx += dx / rect.width; t.fy += dy / rect.height;
-      clampTransform(t, item.img, rect.width, rect.height);
-      positionSlotImage(gi(), item, rect.width, rect.height);
+      clampTransform(t, it.img, rect.width, rect.height);
+      positionSlotImage(gi(), it, rect.width, rect.height);
     } else if (e.touches.length >= 2) {
       if (ts.mode !== 'pinch') {
         const p0 = e.touches[0], p1 = e.touches[1];
@@ -4091,14 +4505,14 @@ function attachSlotEvents(slotDiv, item) {
       const mx = (p0.clientX + p1.clientX) / 2;
       const my = (p0.clientY + p1.clientY) / 2;
 
-      applyZoom(t, item.img, rect.width, rect.height,
+      applyZoom(t, it.img, rect.width, rect.height,
         mx - rect.left, my - rect.top,
         t.scale * (dist / ts.lastDist));
 
       t.fx += (mx - ts.lmx) / rect.width;
       t.fy += (my - ts.lmy) / rect.height;
-      clampTransform(t, item.img, rect.width, rect.height);
-      positionSlotImage(gi(), item, rect.width, rect.height);
+      clampTransform(t, it.img, rect.width, rect.height);
+      positionSlotImage(gi(), it, rect.width, rect.height);
 
       ts.lastDist = dist; ts.lmx = mx; ts.lmy = my;
     }
@@ -4118,12 +4532,136 @@ function attachSlotEvents(slotDiv, item) {
 }
 
 // ── Build preview ──────────────────────────────────────────────────────────
+// Each clip's seamless loop uses TWO <video> decoders (double-buffer). iOS limits how
+// many videos can decode at once, so beyond a few clips we drop to a single <video>
+// per clip (native loop — a hair less smooth, but it never exhausts the decoders and
+// freezes). Hero boards (1–2 clips) keep the silky loop. Export is unaffected (it's
+// composited natively, not from these preview videos).
+const MAX_DOUBLE_BUFFER_CLIPS = 2;
+function clipsUseDoubleBuffer() {
+  return state.images.filter(i => i.type === 'clip').length <= MAX_DOUBLE_BUFFER_CLIPS;
+}
+
+// Single <video loop> for a clip — one decoder, used when the board has many clips.
+function createSingleLoopVideo(item) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true;
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.preload = 'auto'; v.className = 'slot-img'; v.src = item.src; v.loop = true; v.draggable = false;
+  if (item.thumb) v.poster = item.thumb;
+  item._videoEl = v;
+  v.addEventListener('loadedmetadata', () => {
+    try { v.currentTime = 0; } catch (e) {}
+    const p = v.play(); if (p && p.catch) p.catch(() => {});
+  }, { once: true });
+  return v;
+}
+
+// Create the media element for a slot.
+//  • clip + nativeLoop  → double-buffered pair OR single <video loop> (decoder budget)
+//  • clip (web fallback) → a single <video> that JS sub-range loops
+//  • still              → an <img>
+function createSlotMedia(item) {
+  if (item.type === 'clip' && item.nativeLoop) {
+    return clipsUseDoubleBuffer() ? createClipLoop(item) : createSingleLoopVideo(item);
+  }
+
+  let mediaEl;
+  if (item.type === 'clip') {
+    mediaEl = document.createElement('video');
+    mediaEl.muted = true; mediaEl.playsInline = true;
+    mediaEl.setAttribute('playsinline', ''); mediaEl.setAttribute('muted', '');
+    mediaEl.preload = 'auto'; mediaEl.src = item.src;
+    if (item.thumb) mediaEl.poster = item.thumb;   // show the clip's frame, never black, while it loads
+    item._videoEl = mediaEl;
+    mediaEl.addEventListener('loadedmetadata', () => {
+      try { mediaEl.currentTime = item.start; } catch (e) {}
+      const p = mediaEl.play(); if (p && p.catch) p.catch(() => {});
+    }, { once: true });
+  } else {
+    mediaEl = document.createElement('img');
+    mediaEl.src = item.img.src;
+  }
+  mediaEl.className = 'slot-img';
+  mediaEl.draggable = false;
+  return mediaEl;
+}
+
+// Double-buffered clip container. Two videos of the same trimmed clip alternate:
+// while A plays, B sits primed (decoded, paused on frame 0); just before A ends we
+// swap to B (already showing frame 0) and re-prime A. The reset is never visible,
+// so the loop flows with no stop/black at the seam.
+function createClipLoop(item) {
+  const wrap = document.createElement('div');
+  wrap.className = 'slot-img clip-loop';
+  wrap.draggable = false;
+
+  const mkVid = () => {
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true;
+    v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+    v.preload = 'auto'; v.className = 'clip-loop-vid'; v.src = item.src;
+    v.loop = true;   // safety net: if the ping-pong swap runs late (e.g. under export
+                     // load), the clip auto-loops instead of stalling on its last frame
+    if (item.thumb) v.poster = item.thumb;   // a clip frame, never black, while it loads
+    return v;
+  };
+  const a = mkVid(), b = mkVid();
+  a.classList.add('active');
+  wrap.append(a, b);
+
+  const ctl = { a, b, cur: a, item, wrap };
+  wrap._clipCtl = ctl;
+  item._videoEl = a;
+
+  // A starts playing; B primes its first frame (play→pause decodes & shows frame 0)
+  a.addEventListener('loadeddata', () => {
+    try { a.currentTime = 0; } catch (e) {}
+    const p = a.play(); if (p && p.catch) p.catch(() => {});
+  }, { once: true });
+  b.addEventListener('loadeddata', async () => {
+    try { b.currentTime = 0; await b.play(); b.pause(); b.currentTime = 0; } catch (e) {}
+  }, { once: true });
+
+  return wrap;
+}
+
+// One ping-pong step: if the visible video is about to end, swap to the primed one.
+function _tickClipLoop(c) {
+  const cur = c.cur;
+  if (!cur || !cur.duration || cur.readyState < 2) return;
+  const LEAD = 0.1;    // swap before the end so we never show the reset frame (extra
+                       // margin keeps it smooth even when rAF is starved during export)
+  if (cur.currentTime >= cur.duration - LEAD) {
+    const nxt = (cur === c.a) ? c.b : c.a;
+    try { nxt.currentTime = 0; } catch (e) {}
+    const p = nxt.play(); if (p && p.catch) p.catch(() => {});
+    nxt.classList.add('active');
+    cur.classList.remove('active');
+    c.cur = nxt; c.item._videoEl = nxt;
+    cur.pause();
+    try { cur.currentTime = 0; } catch (e) {}   // re-prime the now-hidden one
+  }
+}
+
+// A loading placeholder that fills its slot while a clip's proxy is being prepared.
+function createLoadingEl() {
+  const d = document.createElement('div');
+  d.className = 'slot-loading';
+  d.innerHTML = '<div class="ms-load-ring"></div>';
+  return d;
+}
+
+// Reconciling renderer: reuses existing slot DIVs (and their <video> decoders) by
+// item id, so changing ratio / layout / gap / fullscreen never tears down a clip —
+// no black flash, no stalled playback. Only added/removed items touch the DOM.
 function buildLayout() {
   if (previewW < 10) return;
   if (activeDrag) { activeDrag.slotDiv.classList.remove('grabbing'); activeDrag = null; }
-  layoutPreview.innerHTML = '';
 
   if (state.images.length === 0) {
+    layoutPreview.innerHTML = '';
+    _resetClipPlayers();
     layoutPreview.style.display = 'none';
     emptyState.style.display = '';
     exportBtn.disabled = true;
@@ -4134,19 +4672,65 @@ function buildLayout() {
   layoutPreview.style.display = 'block';
   layoutPreview.style.background = state.bg;
 
-  getSlots(previewW, previewH).forEach(({ item, x, y, w, h }) => {
-    const slotDiv = document.createElement('div');
-    slotDiv.className = 'slot';
-    slotDiv.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
-    const imgEl = document.createElement('img');
-    imgEl.className = 'slot-img';
-    imgEl.src = item.img.src;
-    imgEl.draggable = false;
-    slotDiv.appendChild(imgEl);
-    attachSlotEvents(slotDiv, item);
-    layoutPreview.appendChild(slotDiv);
-    positionSlotImage(imgEl, item, w, h);
+  const slots  = getSlots(previewW, previewH);
+  const wanted = new Set(slots.map(s => String(s.item.id)));
+
+  // Drop slots whose item is no longer shown (e.g. grid hides overflow items)
+  layoutPreview.querySelectorAll('.slot').forEach(div => {
+    if (!wanted.has(div.dataset.itemId)) div.remove();
   });
+  const existing = new Map();
+  layoutPreview.querySelectorAll('.slot').forEach(div => existing.set(div.dataset.itemId, div));
+
+  // Rebuild the JS sub-range loop list (web fallback) without touching the videos.
+  _clipPlayers = [];
+
+  slots.forEach(({ item, x, y, w, h }) => {
+    const id = String(item.id);
+    // Render kind — also encodes clip buffer mode so crossing the decoder threshold
+    // (double-buffer ↔ single video) rebuilds those slots.
+    const kind = item.placeholder ? 'load'
+               : (item.type === 'clip' && item.nativeLoop) ? (clipsUseDoubleBuffer() ? 'clip2' : 'clip1')
+               : 'media';
+    let slotDiv = existing.get(id);
+    // Render kind changed (a loading placeholder just became a real clip) → rebuild the slot.
+    if (slotDiv && slotDiv.dataset.kind !== kind) { slotDiv.remove(); slotDiv = null; }
+    let mediaEl;
+    if (slotDiv) {
+      slotDiv._item = item;          // refresh live item (undo swaps in new objects)
+      slotDiv.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+      mediaEl = slotDiv.querySelector('.slot-img, .slot-loading');
+      if (item.type === 'clip' && !item.placeholder) {
+        const ctl = mediaEl && mediaEl._clipCtl;
+        if (ctl) { ctl.item = item; item._videoEl = ctl.cur; }  // native double-buffer
+        else item._videoEl = mediaEl;                           // web-fallback single video
+      }
+    } else {
+      slotDiv = document.createElement('div');
+      slotDiv.className = 'slot';
+      slotDiv.dataset.itemId = id;
+      slotDiv.dataset.kind = kind;
+      slotDiv.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px`;
+      if (item.placeholder) {
+        mediaEl = createLoadingEl();
+        slotDiv.appendChild(mediaEl);   // no media / no reframe events while loading
+      } else {
+        mediaEl = createSlotMedia(item);
+        slotDiv.appendChild(mediaEl);
+        attachSlotEvents(slotDiv, item);
+      }
+      layoutPreview.appendChild(slotDiv);
+    }
+    if (item.placeholder) return;       // loading box fills the slot via CSS
+    if (item.type === 'clip' && !item.nativeLoop && mediaEl && mediaEl.tagName === 'VIDEO') {
+      _clipPlayers.push({ el: mediaEl, start: item.start, end: item.end });
+    }
+    positionSlotImage(mediaEl, item, w, h);
+  });
+
+  // Native double-buffered clips: gather their controllers (they persist across reconcile)
+  _clipLoops = [...layoutPreview.querySelectorAll('.clip-loop')].map(w => w._clipCtl).filter(Boolean);
+  _ensureClipRaf();
 
   exportBtn.disabled = false;
 }
@@ -4212,6 +4796,21 @@ async function makeStillItem({ id, name, src, mime, transforms }) {
 async function resolveExportImages(images) {
   const map = new Map();
   await Promise.all(images.map(async it => {
+    // Video clip (Phase 1): export a still snapshot of the live current frame.
+    if (it.type === 'clip') {
+      const v = it._videoEl;
+      if (v && v.readyState >= 2 && v.videoWidth) {
+        try {
+          const c = document.createElement('canvas');
+          c.width = v.videoWidth; c.height = v.videoHeight;
+          c.getContext('2d').drawImage(v, 0, 0);
+          map.set(it, await _loadImg(c.toDataURL('image/jpeg', 0.92)));
+          return;
+        } catch (e) {}
+      }
+      map.set(it, it.img);   // fallback to poster frame
+      return;
+    }
     if (it.exportSrc && it.exportSrc !== it.img?.src) {
       try { map.set(it, await _loadImg(it.exportSrc)); return; } catch (e) {}
     }
@@ -4444,8 +5043,12 @@ async function processVideo(fileOrURL) {
 
 fileInput.addEventListener('change', e => loadFiles(e.target.files));
 mAddBtn.addEventListener('click', () => {
-  if (importMode === 'video' && isNativeVideo()) {
-    // Route to native PHPicker for video
+  if (state.boardType === 'video') {
+    // Disabled on video boards — full-video import is deferred (roadmap).
+    // (Kept: startFullVideoImport() and its native bridge for a future update.)
+    return;
+  } else if (importMode === 'video' && isNativeVideo()) {
+    // Route to native PHPicker for video (grab stills)
     window.webkit.messageHandlers.requestVideoSelection.postMessage(null);
   } else {
     fileInput.click();
@@ -4516,12 +5119,21 @@ function renderList() {
   if (state.images.length > 0) {
     markOnboarded();
     dismissCoach('editor');
-    showCoach('canvas', 900);   // first stills landed — start the guided tour
+    // The guided tour text is stills-oriented — skip it on video boards for now.
+    if (state.boardType !== 'video') showCoach('canvas', 900);
   }
   imageList.innerHTML = '';
   state.images.forEach((item, i) => {
     const div = document.createElement('div');
-    div.className = 'image-item'; div.draggable = true; div.dataset.index = i;
+    div.className = 'image-item'; div.dataset.index = i;
+    // Loading placeholder during a multi-clip import — a small spinner, no controls.
+    if (item.placeholder) {
+      div.classList.add('image-item-loading');
+      div.innerHTML = '<div class="ms-load-ring"></div>';
+      imageList.appendChild(div);
+      return;
+    }
+    div.draggable = true;
     const thumb = document.createElement('img');
     thumb.className = 'image-thumb'; thumb.src = item.thumb || item.img.src;
     const name = document.createElement('span');
@@ -4533,6 +5145,7 @@ function renderList() {
       pushHistory();
       state.images.splice(i, 1);
       renderList(); buildLayout();
+      applyBoardTypeUI();   // re-show the Photos/Video switch if the board is now empty
     });
     div.appendChild(thumb); div.appendChild(name); div.appendChild(rm);
     div.addEventListener('dragstart', () => { listDragSrc = i; div.classList.add('dragging'); });
@@ -4583,7 +5196,7 @@ imageList.addEventListener('touchstart', e => {
     div.removeEventListener('touchend',    onPreEnd);
     div.removeEventListener('touchcancel', onPreEnd);
     beginMobileDrag(initX, initY, div);
-  }, 480);
+  }, 280);
 }, { passive: true });
 
 function beginMobileDrag(initX, initY, div) {
@@ -4696,10 +5309,66 @@ function onMobileEnd() {
 // ── Controls ───────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-ratio]').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (btn.dataset.ratio === 'custom') { openCustomRatioDialog(); return; }
     document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     setRatioAnimated(btn.dataset.ratio);
   });
+});
+
+// ── Custom ratio ────────────────────────────────────────────────────────────
+const customRatioBtn   = document.getElementById('customRatioBtn');
+const customRatioModal = document.getElementById('customRatioModal');
+const customRatioW     = document.getElementById('customRatioW');
+const customRatioH     = document.getElementById('customRatioH');
+const customRatioErr   = document.getElementById('customRatioErr');
+
+function trimNum(n) { return Number.isInteger(n) ? String(n) : String(+(+n).toFixed(2)); }
+function ratioLabel(r) { return `${trimNum(r[0])}:${trimNum(r[1])}`; }
+
+// Reflect the current custom ratio on its button (shows the value, or "Custom").
+function updateCustomRatioBtn() {
+  if (!customRatioBtn) return;
+  customRatioBtn.textContent = state.customRatio ? ratioLabel(state.customRatio) : 'Custom';
+  customRatioBtn.classList.toggle('active', state.ratio === 'custom');
+}
+
+// Accept "16:9", "16/9", "16x9", decimals too (e.g. 2.35:1). Sane bounds 0.1–10.
+function parseRatio(str) {
+  const m = String(str || '').trim().match(/^(\d*\.?\d+)\s*[:/xX×]\s*(\d*\.?\d+)$/);
+  if (!m) return null;
+  const w = parseFloat(m[1]), h = parseFloat(m[2]);
+  if (!(w > 0) || !(h > 0)) return null;
+  const ar = w / h;
+  if (ar < 0.1 || ar > 10) return null;
+  return [w, h];
+}
+
+function openCustomRatioDialog() {
+  const cur = (state.ratio === 'custom' && state.customRatio) ? state.customRatio : null;
+  customRatioW.value = cur ? trimNum(cur[0]) : '';
+  customRatioH.value = cur ? trimNum(cur[1]) : '';
+  customRatioErr.hidden = true;
+  customRatioModal.hidden = false;
+  setTimeout(() => { customRatioW.focus(); customRatioW.select(); }, 50);
+}
+
+function applyCustomRatio() {
+  const w = parseFloat(customRatioW.value), h = parseFloat(customRatioH.value);
+  const ar = w / h;
+  if (!(w > 0) || !(h > 0) || !(ar >= 0.1 && ar <= 10)) { customRatioErr.hidden = false; return; }
+  customRatioModal.hidden = true;
+  state.customRatio = [w, h];
+  document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
+  setRatioAnimated('custom');     // sets state.ratio = 'custom'
+  updateCustomRatioBtn();         // …then reflect active + label
+}
+
+document.getElementById('customRatioApply').addEventListener('click', applyCustomRatio);
+document.getElementById('customRatioCancel').addEventListener('click', () => { customRatioModal.hidden = true; });
+[customRatioW, customRatioH].forEach(el => {
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') applyCustomRatio(); });
+  el.addEventListener('input', () => { customRatioErr.hidden = true; });
 });
 
 document.querySelectorAll('[data-layout]').forEach(btn => {
@@ -4813,6 +5482,739 @@ function handleVideoFile(file) {
 
 function onVideoComplete() {
   // Leave the import UI exactly as-is — buttons stay visible for another pick
+}
+
+// ── Board type: Photos (stills) vs Video (looping clips) ────────────────────
+const boardTypeChip    = document.getElementById('boardTypeChip');
+const importSection    = document.getElementById('importSection');
+const clipImportArea   = document.getElementById('clipImportArea');
+const clipFileInput    = document.getElementById('clipFileInput');
+const clipLenSlider    = document.getElementById('clipLenSlider');
+const clipLenVal       = document.getElementById('clipLenVal');
+const boardIndicatorEl = document.getElementById('boardIndicator');
+const stillExportOpts  = document.getElementById('stillExportOpts');
+const videoExportOpts  = document.getElementById('videoExportOpts');
+
+// Video-export bitrate levels (target avg bitrate at ~1080p H.264)
+const BITRATE_LEVELS = { low: 3000000, medium: 6000000, high: 12000000, max: 24000000 };
+let _exportBitrate = 'high';
+document.querySelectorAll('#bitrateSeg .br-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#bitrateSeg .br-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    _exportBitrate = btn.dataset.br;
+  });
+});
+
+// Reflect state.boardType + emptiness across the editor.
+function applyBoardTypeUI() {
+  const isVideo = state.boardType === 'video';
+  const empty   = state.images.length === 0;
+  // The Photos/Video chip is only offered while the board is still empty.
+  boardTypeChip.hidden = !empty;
+  boardTypeChip.querySelectorAll('.btc-seg').forEach(b =>
+    b.classList.toggle('active', b.dataset.btype === state.boardType));
+  // Drop below the board counter/pips when those are showing (multi-board).
+  boardTypeChip.classList.toggle('below-indicator', !!(boardIndicatorEl && !boardIndicatorEl.hidden));
+
+  if (isVideo) {
+    importModeRow.hidden   = true;
+    importSection.hidden   = true;
+    videoImportArea.hidden = true;
+    clipImportArea.hidden  = false;
+  } else {
+    importModeRow.hidden   = false;
+    importSection.hidden   = false;
+    clipImportArea.hidden  = true;
+    dropzone.hidden        = (importMode === 'video');
+    videoImportArea.hidden = (importMode !== 'video');
+  }
+
+  // Strip label reads "Clips" for video boards.
+  const lbl = photosToggle.querySelector('span');
+  if (lbl) lbl.textContent = isVideo ? 'Clips' : 'Stills';
+
+  // Strip + button: adds images on photo boards; greyed out on video boards
+  // (adding whole videos as clips is deferred — coming in a future update).
+  mAddBtn.disabled = isVideo;
+  mAddBtn.classList.toggle('disabled', isVideo);
+
+  // Export options: Format/Scale for photos, Bitrate for video.
+  if (stillExportOpts) stillExportOpts.hidden = isVideo;
+  if (videoExportOpts) videoExportOpts.hidden = !isVideo;
+
+  updateClipAddBtnLabel();
+  clipLenSlider.value = state.clipDuration;
+  clipLenVal.textContent = state.clipDuration + 's';
+}
+
+boardTypeChip.querySelectorAll('.btc-seg').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (state.images.length > 0) return;          // locked once content lands
+    if (state.boardType === btn.dataset.btype) return;
+    state.boardType = btn.dataset.btype;
+    applyBoardTypeUI();
+  });
+});
+
+clipLenSlider.addEventListener('input', () => {
+  state.clipDuration = +clipLenSlider.value;
+  clipLenVal.textContent = state.clipDuration + 's';
+});
+
+// Auto clip detection — analyse one video and pick its shots. Slim button only.
+function startClipImport() {
+  if (!throttle('clipvid', 1200)) return;
+  discardDetectedShots();                             // fresh video replaces any prior one
+  if (isNativeVideo()) {
+    openShotPicker();                                  // "Preparing…" behind PHPicker
+    window.webkit.messageHandlers.requestVideoProxy.postMessage(null);
+  } else {
+    clipFileInput.value = '';
+    clipFileInput.click();                             // web/desktop fallback
+  }
+}
+
+// Reopen the picker for the already-analysed video so the user can add more shots.
+function reopenShotPicker() {
+  _clipSelected = new Set();                           // start with none selected
+  shotPicker.hidden = false;
+  shotPicker.classList.add('opening');
+  setTimeout(() => shotPicker.classList.remove('opening'), 240);
+  renderShotGrid();
+}
+
+// Slim button: first use analyses a video; afterwards it reopens the shot selection.
+document.getElementById('clipAddBtn').addEventListener('click', () => {
+  if (_clipShots.length > 0 && _clipSrcURL) reopenShotPicker();
+  else startClipImport();
+});
+
+// ── Add whole videos as clips (Clips strip +). Multi-select, no shot analysis. ──
+const clipFullFileInput = document.getElementById('clipFullFileInput');
+
+function startFullVideoImport() {
+  if (!throttle('clipvid', 1200)) return;
+  if (isNativeVideo() && window.webkit?.messageHandlers?.requestFullClips) {
+    exportBar.hidden = false;
+    exportBarFill.style.transition = 'none'; exportBarFill.style.width = '15%';
+    exportBarLabel.textContent = 'Preparing…';
+    window.webkit.messageHandlers.requestFullClips.postMessage(null);
+  } else {
+    clipFullFileInput.value = '';
+    clipFullFileInput.click();                         // web/desktop fallback
+  }
+}
+
+// Web/desktop fallback — process the picked files one by one so slots fill in live.
+clipFullFileInput.addEventListener('change', async e => {
+  const files = [...(e.target.files || [])].filter(f => f.type.startsWith('video/'));
+  if (!files.length) return;
+  beginFullImport(files.length);
+  for (let i = 0; i < files.length; i++) {
+    let item = null;
+    try { item = await makeFullClipItem(URL.createObjectURL(files[i]), files[i], files[i].name.replace(/\.[^.]+$/, '')); } catch (e2) {}
+    fillFullImportSlot(i, item);
+  }
+  endFullImport();
+});
+
+// ── Progressive multi-clip import ───────────────────────────────────────────
+// Build N loading slots immediately, then fill each as its clip becomes ready, so
+// the user sees the board take shape during a slow multi-clip import.
+let _fullImportIds = [];
+let _fullImportTotal = 0, _fullImportDone = 0;
+
+function beginFullImport(count) {
+  _fullImportTotal = count; _fullImportDone = 0; _fullImportIds = [];
+  if (!count) return;
+  exportBar.hidden = false;
+  exportBarFill.style.transition = 'none'; exportBarFill.style.width = '5%';
+  exportBarLabel.textContent = `Importing 0/${count}…`;
+  pushHistory();
+  for (let k = 0; k < count; k++) {
+    const id = Date.now() + Math.random() + k;
+    _fullImportIds.push(id);
+    state.images.push({ id, placeholder: true, transforms: {} });
+  }
+  imgStripOuter.classList.remove('collapsed');
+  photosToggle.classList.remove('closed');
+  renderList(); applyBoardTypeUI(); buildLayout();
+}
+
+function fillFullImportSlot(index, item) {
+  const id = _fullImportIds[index];
+  if (id == null) return;
+  const i = state.images.findIndex(it => it.id === id);
+  if (i >= 0) {
+    if (item) { item.id = id; state.images[i] = item; }   // keep slot id so it reconciles in place
+    else { state.images.splice(i, 1); }                   // this clip failed
+  }
+  _fullImportIds[index] = item ? id : null;
+  _fullImportDone++;
+  if (_fullImportTotal) {
+    exportBarFill.style.width = Math.round(5 + (_fullImportDone / _fullImportTotal) * 90) + '%';
+    exportBarLabel.textContent = `Importing ${_fullImportDone}/${_fullImportTotal}…`;
+  }
+  renderList(); buildLayout();
+  if (state.images.length) exportBtn.disabled = false;
+}
+
+function endFullImport() {
+  state.images = state.images.filter(it => !it.placeholder);   // drop any that failed
+  _fullImportIds = []; _fullImportTotal = 0;
+  exportBarFill.style.transition = 'width 0.3s ease'; exportBarFill.style.width = '100%';
+  exportBarLabel.textContent = 'Added';
+  setTimeout(() => { exportBar.hidden = true; exportBarFill.style.transition = 'none'; exportBarFill.style.width = '0%'; }, 800);
+  renderList(); applyBoardTypeUI(); buildLayout();
+}
+
+// Native streaming callbacks: count first, then each clip as its proxy finishes.
+window.nativeFullClipsStart = function(count) {
+  if (!count) { exportBar.hidden = true; return; }
+  beginFullImport(count);
+};
+window.nativeFullClipReady = async function(payload) {
+  if (!payload) return;
+  const info = payload.clip;
+  let item = null;
+  if (info && info.webURL) {
+    try {
+      const { url, blob } = await toBlobObj(info.webURL);
+      item = await buildClipFromMeta({ src: url, blob, name: info.fileName,
+        poster: info.poster, duration: info.duration, width: info.width, height: info.height });
+    } catch (e) { item = null; }
+  }
+  fillFullImportSlot(payload.index, item);
+};
+window.nativeFullClipsDone = function() { endFullImport(); };
+
+// Build a clip item from native-supplied metadata — no video element opened.
+async function buildClipFromMeta(it) {
+  const poster = await _loadImg(it.poster);
+  return {
+    id: Date.now() + Math.random(), name: it.name || 'clip', type: 'clip',
+    img: poster, thumb: it.poster, src: it.src, _blob: it.blob || null,
+    start: 0, end: it.duration || 5, nativeLoop: true,
+    videoW: it.width || poster.naturalWidth, videoH: it.height || poster.naturalHeight,
+    transforms: {},
+  };
+}
+
+// Web/desktop fallback: build a clip from a WHOLE video by opening it to grab a poster.
+async function makeFullClipItem(srcURL, blob, name) {
+  const video = Object.assign(document.createElement('video'),
+    { muted: true, playsInline: true, preload: 'auto', src: srcURL });
+  await new Promise((res, rej) => {
+    video.addEventListener('loadedmetadata', res, { once: true });
+    video.addEventListener('error', rej, { once: true });
+  });
+  const dur = video.duration;
+  if (!dur || !isFinite(dur)) throw new Error('bad duration');
+  const vw = video.videoWidth || 9, vh = video.videoHeight || 16;
+  // Poster from an early frame
+  await _seekVideo(video, Math.min(0.3, dur / 2));
+  const tW = Math.min(vw, 320), tH = Math.max(1, Math.round(tW * vh / Math.max(1, vw)));
+  const c = Object.assign(document.createElement('canvas'), { width: tW, height: tH });
+  c.getContext('2d').drawImage(video, 0, 0, tW, tH);
+  const thumb = c.toDataURL('image/jpeg', 0.72);
+  const poster = await _loadImg(thumb);
+  video.removeAttribute('src'); video.load();
+  return {
+    id: Date.now() + Math.random(), name: name || 'clip', type: 'clip',
+    img: poster, thumb, src: srcURL, _blob: blob || null,
+    start: 0, end: dur, nativeLoop: true,
+    videoW: poster.naturalWidth, videoH: poster.naturalHeight, transforms: {},
+  };
+}
+
+// ── Video-clip import → shot picker → looping clips ─────────────────────────
+const shotPicker   = document.getElementById('shotPicker');
+const spCancelBtn  = document.getElementById('spCancelBtn');
+const spAddBtn     = document.getElementById('spAddBtn');
+const spStatus     = document.getElementById('spStatus');
+const spStatusText = document.getElementById('spStatusText');
+const spGrid       = document.getElementById('spGrid');
+
+let _clipSrcURL        = null;   // detection source: stlls-video:// URL (native) or object URL (web)
+let _clipSrcIsObjURL   = false;
+let _clipSourceKey     = null;   // native asset key of the import source (used for trimming / release)
+let _clipNative        = false;  // true when the source came from the native bridge (enables trimming)
+let _clipAspect        = 9 / 16; // imported video's aspect ratio (for the shot-picker tiles)
+let _clipShots         = [];     // [{ start, end, dur, thumb }] — retained so "Add more from video" can reopen
+let _clipSelected      = new Set();
+let _pendingClips      = null;   // resolve() awaiting native trim results
+
+// Which shots of the current video are CURRENTLY on the board — derived from the
+// clips themselves (each clip remembers its shot index + source), so deleting a clip
+// frees its shot again automatically, and undo/redo stay in sync.
+function addedShotIndices() {
+  const set = new Set();
+  for (const it of state.images) {
+    if (it.type === 'clip' && it._shotSrc === _clipSrcURL && it._shotIdx != null) set.add(it._shotIdx);
+  }
+  return set;
+}
+
+// The slim button reads "Add video for auto clip detection" until a video has been
+// analysed in this board; after that it becomes "Add more from video" and reopens the
+// shot picker so the user can add more shots from the same video.
+function updateClipAddBtnLabel() {
+  const span = document.querySelector('#clipAddBtn span');
+  if (span) span.textContent = (_clipShots.length > 0 && _clipSrcURL)
+    ? 'Add more from video' : 'Add video for auto clip detection';
+}
+
+// Drop the analysed video + its shots (release the native source). Used when leaving
+// the board, or cancelling a fresh import before anything was added.
+function discardDetectedShots() {
+  if (_clipSrcIsObjURL && _clipSrcURL) { try { URL.revokeObjectURL(_clipSrcURL); } catch (e) {} }
+  else if (_clipSourceKey) nativeRelease(_clipSourceKey);
+  _clipSrcURL = null; _clipSrcIsObjURL = false; _clipSourceKey = null; _clipNative = false;
+  _clipShots = []; _clipSelected = new Set();
+  updateClipAddBtnLabel();
+}
+
+clipFileInput.addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file || !file.type.startsWith('video/')) return;
+  openShotPicker();
+  startClipAnalysis(URL.createObjectURL(file), { isObjURL: true, native: false, key: null });
+});
+
+// Native callback — Swift handed back the import source (original web codec, or a
+// proxy for ProRes). Clips themselves are trimmed natively when the user taps Add.
+window.nativeVideoProxyReady = function(payload) {
+  if (!payload || !payload.webURL) {
+    spStatus.hidden = false; spGrid.hidden = true;
+    spStatusText.textContent = 'Could not load video';
+    setTimeout(() => { if (_clipShots.length === 0) closeShotPicker(); }, 1300);
+    return;
+  }
+  startClipAnalysis(payload.webURL, { isObjURL: false, native: true, key: payload.assetKey || null });
+};
+
+function openShotPicker() {
+  _clipShots = []; _clipSelected = new Set();
+  spGrid.innerHTML = ''; spGrid.hidden = true;
+  spStatus.hidden = false; spStatusText.textContent = 'Preparing video…';
+  updateSpAddBtn();
+  shotPicker.hidden = false;
+  shotPicker.classList.add('opening');
+  setTimeout(() => shotPicker.classList.remove('opening'), 240);
+}
+
+// Just hide the picker — the analysed shots + source are kept so "Add more from video"
+// can reopen them. Use discardDetectedShots() to actually drop them.
+function closeShotPicker() {
+  shotPicker.hidden = true;
+  _clipSelected = new Set();
+}
+
+async function startClipAnalysis(srcURL, opts) {
+  _clipSrcURL = srcURL; _clipSrcIsObjURL = !!opts.isObjURL;
+  _clipNative = !!opts.native; _clipSourceKey = opts.key || null;
+  spStatus.hidden = false; spGrid.hidden = true;
+  spStatusText.textContent = 'Analysing video…';
+  try {
+    const result = await analyzeVideoForClips(srcURL, pct => {
+      spStatusText.textContent = `Analysing video… ${pct}%`;
+    });
+    if (!result || !result.shots.length) {
+      spStatusText.textContent = 'No shots found';
+      setTimeout(closeShotPicker, 1300); return;
+    }
+    _clipShots = result.shots;
+    _clipAspect = result.aspect || (9 / 16);
+   
+    _clipSelected = new Set(result.shots.map((_, i) => i));   // default: all selected
+    updateClipAddBtnLabel();
+    renderShotGrid();
+  } catch (e) {
+    console.warn('Clip analysis failed:', e);
+    spStatusText.textContent = 'Could not analyse video';
+    setTimeout(closeShotPicker, 1300);
+  }
+}
+
+function _seekVideo(vid, t) {
+  return new Promise(res => {
+    let done = false;
+    const finish = () => { if (done) return; done = true; vid.removeEventListener('seeked', finish); res(); };
+    vid.addEventListener('seeked', finish, { once: true });
+    vid.currentTime = Math.min(Math.max(t, 0), (isFinite(vid.duration) && vid.duration) || t);
+    // Safety: if a frame never fires 'seeked' (odd codecs/proxies), don't hang.
+    setTimeout(finish, 2500);
+  });
+}
+
+// Shot detection. Builds a per-step frame-difference signal, then takes only the
+// PEAK spikes above a threshold and spaced out — this avoids the duplicate shots
+// and gradual-motion false cuts of a plain threshold test. Ranges are then inset
+// to drop the transition frames at each cut (no bleed). Returns { shots, aspect }.
+async function analyzeVideoForClips(srcURL, onProgress) {
+  const video = Object.assign(document.createElement('video'),
+    { muted: true, playsInline: true, preload: 'auto', src: srcURL });
+  await new Promise((res, rej) => {
+    video.addEventListener('loadedmetadata', res, { once: true });
+    video.addEventListener('error', rej, { once: true });
+  });
+  const duration = video.duration;
+  if (!duration || !isFinite(duration)) throw new Error('bad duration');
+  const vidW = video.videoWidth || 9, vidH = video.videoHeight || 16;
+  const aspect = vidW / vidH;
+
+  const CW = 96, CH = Math.max(1, Math.round(96 * vidH / Math.max(1, vidW)));
+  const cmp = Object.assign(document.createElement('canvas'), { width: CW, height: CH });
+  const cctx = cmp.getContext('2d', { willReadFrequently: true });
+
+  const STEP      = Math.min(0.25, Math.max(0.1, duration / 260));  // finer scan = sharper cuts
+  const MIN_SHOT  = 0.7;     // shots closer than this are merged (kills duplicates)
+  const THRESHOLD = 32;      // a real hard cut spikes well above motion noise
+  const FRAME     = 0.04;    // ~1 frame — nudge in past the cut on each end
+
+  // Pass 1 — frame-difference signal
+  const times = [], diffs = [];
+  let prev = null;
+  const steps = Math.ceil(duration / STEP);
+  for (let s = 0; s <= steps; s++) {
+    const t = Math.min(s * STEP, duration);
+    await _seekVideo(video, t);
+    cctx.drawImage(video, 0, 0, CW, CH);
+    const data = cctx.getImageData(0, 0, CW, CH).data;
+    let d = 0;
+    if (prev) {
+      for (let i = 0; i < data.length; i += 4)
+        d += Math.abs(data[i]-prev[i]) + Math.abs(data[i+1]-prev[i+1]) + Math.abs(data[i+2]-prev[i+2]);
+      d /= (data.length / 4) * 3;
+    }
+    times.push(t); diffs.push(d);
+    prev = data;
+    if (onProgress) onProgress(Math.round((s / steps) * 90));
+  }
+
+  // Pass 2 — cut INDICES (the first sampled frame of each new shot)
+  const cutIdx = [0];
+  let lastCutT = 0;
+  for (let i = 1; i < diffs.length - 1; i++) {
+    if (diffs[i] > THRESHOLD && diffs[i] >= diffs[i-1] && diffs[i] >= diffs[i+1]
+        && (times[i] - lastCutT) >= MIN_SHOT) {
+      cutIdx.push(i); lastCutT = times[i];
+    }
+  }
+  cutIdx.push(times.length);   // sentinel
+
+  // A shot spans [first new frame … last frame strictly BEFORE the next cut].
+  // Using the last pre-cut sample as the end is what stops the following shot's
+  // frames bleeding into the tail; then nudge one frame in on each side.
+  const ranges = [];
+  for (let k = 0; k < cutIdx.length - 1; k++) {
+    const startIdx = cutIdx[k];
+    const endIdx   = cutIdx[k + 1] - 1;
+    if (endIdx <= startIdx) continue;
+    let a = times[startIdx] + FRAME;     // one frame after the cut
+    let b = times[endIdx]   - FRAME;     // one frame before the next cut
+    if (b - a < 0.25) { a = times[startIdx]; b = times[endIdx]; }
+    if (b - a < 0.15) continue;          // drop tiny fragments
+    ranges.push([a, b]);
+  }
+  if (ranges.length === 0) ranges.push([FRAME, Math.max(0.5, duration - FRAME)]);
+
+  // Midpoint thumbnails in the video's own aspect ratio
+  const tW = Math.min(vidW, 320), tH = Math.max(1, Math.round(tW * vidH / Math.max(1, vidW)));
+  const tcvs = Object.assign(document.createElement('canvas'), { width: tW, height: tH });
+  const tctx = tcvs.getContext('2d');
+  const shots = [];
+  for (let i = 0; i < ranges.length; i++) {
+    const [a, b] = ranges[i];
+    await _seekVideo(video, (a + b) / 2);
+    tctx.drawImage(video, 0, 0, tW, tH);
+    shots.push({ start: a, end: b, dur: Math.max(0.1, b - a), thumb: tcvs.toDataURL('image/jpeg', 0.72) });
+    if (onProgress) onProgress(90 + Math.round(((i + 1) / ranges.length) * 10));
+  }
+  video.removeAttribute('src'); video.load();
+  return { shots, aspect };
+}
+
+function renderShotGrid() {
+  spStatus.hidden = true; spGrid.hidden = false;
+  spGrid.style.setProperty('--shot-aspect', String(_clipAspect || (9 / 16)));
+  spGrid.innerHTML = '';
+  const added = addedShotIndices();
+  _clipShots.forEach((shot, i) => {
+    const isAdded = added.has(i);
+    const tile = document.createElement('div');
+    tile.className = 'sp-shot' + (_clipSelected.has(i) ? ' selected' : '') + (isAdded ? ' added' : '');
+    const img = document.createElement('img'); img.src = shot.thumb; img.draggable = false;
+    const dur = document.createElement('div'); dur.className = 'sp-shot-dur'; dur.textContent = shot.dur.toFixed(1) + 's';
+    const chk = document.createElement('div'); chk.className = 'sp-shot-check'; chk.textContent = '✓';
+    tile.append(img, dur, chk);
+    if (isAdded) {
+      const badge = document.createElement('div'); badge.className = 'sp-shot-added'; badge.textContent = 'Added';
+      tile.appendChild(badge);
+    } else {
+      // Gear → adjust this shot's in/out points before adding
+      const gear = document.createElement('button');
+      gear.className = 'sp-shot-gear'; gear.setAttribute('aria-label', 'Adjust in/out');
+      gear.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+      gear.addEventListener('click', e => { e.stopPropagation(); openClipTrimmer(i); });
+      tile.appendChild(gear);
+    }
+    tile.addEventListener('click', () => {
+      if (isAdded) return;   // already on the board — not re-selectable
+      if (_clipSelected.has(i)) _clipSelected.delete(i); else _clipSelected.add(i);
+      tile.classList.toggle('selected');
+      updateSpAddBtn();
+    });
+    // Long-press also opens the in/out trimmer
+    let lpTimer = null;
+    tile.addEventListener('touchstart', () => { if (isAdded) return; lpTimer = setTimeout(() => openClipTrimmer(i), 500); }, { passive: true });
+    tile.addEventListener('touchend',   () => clearTimeout(lpTimer));
+    tile.addEventListener('touchmove',  () => clearTimeout(lpTimer));
+    spGrid.appendChild(tile);
+  });
+  updateSpAddBtn();
+}
+
+function updateSpAddBtn() {
+  spAddBtn.disabled = _clipSelected.size === 0;
+  spAddBtn.textContent = _clipSelected.size ? `Add (${_clipSelected.size})` : 'Add';
+}
+
+// ── In/out trimmer for a single detected shot ───────────────────────────────
+const ctEl = {
+  root:  document.getElementById('clipTrimmer'),
+  video: document.getElementById('ctVideo'),
+  bar:   document.getElementById('ctBar'),
+  range: document.getElementById('ctRange'),
+  inH:   document.getElementById('ctIn'),
+  outH:  document.getElementById('ctOut'),
+  inT:   document.getElementById('ctInTime'),
+  outT:  document.getElementById('ctOutTime'),
+  dur:   document.getElementById('ctDur'),
+};
+let _ctIdx = -1, _ctWinA = 0, _ctWinB = 1, _ctIn = 0, _ctOut = 1, _ctVidDur = 1;
+
+async function openClipTrimmer(i) {
+  if (!_clipSrcURL || !_clipShots[i]) return;
+  _ctIdx = i;
+  const shot = _clipShots[i];
+  ctEl.video.src = _clipSrcURL;
+  await new Promise(res => {
+    if (ctEl.video.readyState >= 1) return res();
+    ctEl.video.addEventListener('loadedmetadata', res, { once: true });
+    ctEl.video.addEventListener('error', res, { once: true });
+    setTimeout(res, 2000);
+  });
+  _ctVidDur = (isFinite(ctEl.video.duration) && ctEl.video.duration) || (shot.end + 1);
+  const PAD = 1.0;   // 1s handle on each side
+  _ctWinA = Math.max(0, shot.start - PAD);
+  _ctWinB = Math.min(_ctVidDur, shot.end + PAD);
+  _ctIn = shot.start; _ctOut = shot.end;
+  ctEl.root.hidden = false;
+  ctEl.root.classList.add('opening');
+  setTimeout(() => ctEl.root.classList.remove('opening'), 240);
+  ctRender();
+  ctSeek(_ctIn);
+}
+
+function ctPct(t) { const w = (_ctWinB - _ctWinA) || 1; return ((t - _ctWinA) / w) * 100; }
+function ctTimeFromX(x) {
+  const r = ctEl.bar.getBoundingClientRect();
+  const f = Math.min(1, Math.max(0, (x - r.left) / (r.width || 1)));
+  return _ctWinA + f * (_ctWinB - _ctWinA);
+}
+function ctRender() {
+  ctEl.inH.style.left  = ctPct(_ctIn) + '%';
+  ctEl.outH.style.left = ctPct(_ctOut) + '%';
+  ctEl.range.style.left  = ctPct(_ctIn) + '%';
+  ctEl.range.style.width = (ctPct(_ctOut) - ctPct(_ctIn)) + '%';
+  ctEl.inT.textContent  = _ctIn.toFixed(2) + 's';
+  ctEl.outT.textContent = _ctOut.toFixed(2) + 's';
+  ctEl.dur.textContent  = (_ctOut - _ctIn).toFixed(1) + 's';
+}
+function ctSeek(t) { try { ctEl.video.currentTime = Math.min(Math.max(t, 0), _ctVidDur); } catch (e) {} }
+
+function ctDragHandle(el, isIn) {
+  const onMove = x => {
+    const MIN = 0.3;
+    const t = ctTimeFromX(x);
+    if (isIn) _ctIn  = Math.max(_ctWinA, Math.min(t, _ctOut - MIN));
+    else      _ctOut = Math.min(_ctWinB, Math.max(t, _ctIn + MIN));
+    ctRender();
+    ctSeek(isIn ? _ctIn : _ctOut);
+  };
+  el.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const mm = ev => onMove(ev.clientX);
+    const mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+    document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+  });
+  el.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  el.addEventListener('touchmove',  e => { e.preventDefault(); if (e.touches[0]) onMove(e.touches[0].clientX); }, { passive: false });
+}
+ctDragHandle(ctEl.inH, true);
+ctDragHandle(ctEl.outH, false);
+
+function closeClipTrimmer() {
+  try { ctEl.video.pause(); ctEl.video.removeAttribute('src'); ctEl.video.load(); } catch (e) {}
+  ctEl.root.hidden = true;
+  _ctIdx = -1;
+}
+document.getElementById('ctCancel').addEventListener('click', closeClipTrimmer);
+document.getElementById('ctDone').addEventListener('click', async () => {
+  const i = _ctIdx;
+  if (i >= 0 && _clipShots[i]) {
+    const shot = _clipShots[i];
+    shot.start = _ctIn; shot.end = _ctOut; shot.dur = Math.max(0.1, _ctOut - _ctIn);
+    // regrab the thumbnail at the new midpoint
+    await new Promise(res => {
+      const v = ctEl.video; const done = () => { v.removeEventListener('seeked', done); res(); };
+      v.addEventListener('seeked', done, { once: true });
+      try { v.currentTime = (_ctIn + _ctOut) / 2; } catch (e) { res(); }
+      setTimeout(res, 1500);
+    });
+    try {
+      const v = ctEl.video;
+      const tW = Math.min(v.videoWidth || 320, 320);
+      const tH = Math.max(1, Math.round(tW * (v.videoHeight || 568) / Math.max(1, v.videoWidth || 320)));
+      const c = Object.assign(document.createElement('canvas'), { width: tW, height: tH });
+      c.getContext('2d').drawImage(v, 0, 0, tW, tH);
+      shot.thumb = c.toDataURL('image/jpeg', 0.72);
+    } catch (e) {}
+  }
+  closeClipTrimmer();
+  renderShotGrid();
+});
+
+spCancelBtn.addEventListener('click', () => {
+  // If nothing was added from this video, drop it entirely; otherwise keep it so
+  // "Add more from video" can reopen the selection.
+  if (addedShotIndices().size === 0) discardDetectedShots();
+  closeShotPicker();
+});
+
+spAddBtn.addEventListener('click', () => {
+  if (_clipSelected.size === 0) return;
+  addSelectedClips();
+});
+
+// Fetch a clip fully into memory; returns { url (blob URL), blob }. The blob both
+// enables seamless looping (plays from RAM) and lets the board be saved to disk.
+// Falls back to the streaming scheme URL if fetch is unavailable/blocked.
+async function toBlobObj(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return { url, blob: null };
+    const blob = await r.blob();
+    return { url: URL.createObjectURL(blob), blob };
+  } catch (e) { return { url, blob: null }; }
+}
+
+// Native callback — Swift finished trimming the selected shots into their own
+// tiny low-res clips. Each loops seamlessly via the <video> `loop` attribute.
+window.nativeVideoClipsReady = function(payload) {
+  const resolve = _pendingClips; _pendingClips = null;
+  if (resolve) resolve(payload && payload.clips ? payload.clips : null);
+};
+
+async function addSelectedClips() {
+  const idxs = [..._clipSelected].sort((a, b) => a - b);
+
+  // Build the playback source for each selected shot.
+  // Native: trim each shot into its own clip → instant, seamless native loop.
+  // Web fallback: share the source URL and loop the sub-range via JS.
+  let sources;
+  if (_clipNative && _clipSourceKey) {
+    spStatus.hidden = false; spGrid.hidden = true;
+    spStatusText.textContent = `Preparing ${idxs.length} clip${idxs.length !== 1 ? 's' : ''}…`;
+    const ranges = idxs.map(i => [_clipShots[i].start, _clipShots[i].end]);
+    const clips = await new Promise(resolve => {
+      _pendingClips = resolve;
+      window.webkit.messageHandlers.requestVideoClips.postMessage({ key: _clipSourceKey, ranges });
+    });
+    if (!clips || clips.length === 0) {
+      spStatusText.textContent = 'Could not prepare clips';
+      setTimeout(closeShotPicker, 1300); return;
+    }
+    // Pull each tiny trimmed clip fully into memory (blob): seamless looping + savable.
+    sources = await Promise.all(clips.map(async c => {
+      const { url, blob } = await toBlobObj(c.webURL);
+      return { src: url, blob, start: 0, end: c.dur || 0, nativeLoop: true };
+    }));
+  } else {
+    // Web fallback (desktop testing): clips share the one source; grab its bytes once
+    // so the board can still be saved/reloaded.
+    let srcBlob = null;
+    try { const r = await fetch(_clipSrcURL); if (r.ok) srcBlob = await r.blob(); } catch (e) {}
+    sources = idxs.map(i => ({ src: _clipSrcURL, blob: srcBlob, start: _clipShots[i].start, end: _clipShots[i].end, nativeLoop: false }));
+  }
+
+  pushHistory();
+  for (let j = 0; j < idxs.length; j++) {
+    const i = idxs[j], shot = _clipShots[i], s = sources[j];
+    if (!s) continue;
+    let poster;
+    try { poster = await _loadImg(shot.thumb); } catch (e) { continue; }
+    state.images.push({
+      id: Date.now() + Math.random(),
+      name: `clip_${i + 1}`,
+      type: 'clip',
+      img: poster,               // poster frame — drives cover math, thumbnail & snapshot
+      thumb: shot.thumb,
+      src: s.src,
+      _blob: s.blob || null,     // trimmed clip bytes — persisted to IndexedDB on save
+      start: s.start,
+      end: s.end,
+      nativeLoop: s.nativeLoop,  // true = own trimmed file w/ native <video loop>
+      _shotIdx: i,               // which detected shot this is (frees it again on delete)
+      _shotSrc: _clipSrcURL,     // of which analysed video
+      videoW: poster.naturalWidth,
+      videoH: poster.naturalHeight,
+      transforms: {},
+    });
+  }
+  imgStripOuter.classList.remove('collapsed');
+  photosToggle.classList.remove('closed');
+  // KEEP the analysed video + source alive so "Add more from video" can reopen the
+  // picker and trim further shots. (Which shots are "added" is derived from the clips.)
+  closeShotPicker();
+  renderList();
+  applyBoardTypeUI();            // board now has content → lock the type switch
+  updateClipAddBtnLabel();       // → "Add more from video"
+  buildLayout();
+  if (state.images.length) exportBtn.disabled = false;
+}
+
+// ── Looping-clip playback manager ───────────────────────────────────────────
+// Each clip slot is a <video> that loops a sub-range [start,end] of the proxy.
+let _clipPlayers = [];   // web-fallback single videos: { el, start, end } sub-range loop
+let _clipLoops   = [];   // native clips: double-buffer ping-pong controllers
+let _clipRaf = null;
+
+function _resetClipPlayers() {
+  _clipPlayers = [];
+  _clipLoops   = [];
+  if (_clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
+}
+
+function _ensureClipRaf() {
+  const active = _clipPlayers.length || _clipLoops.length;
+  if (active && !_clipRaf) _clipRaf = requestAnimationFrame(_clipTick);
+  else if (!active && _clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
+}
+
+function _clipTick() {
+  for (const e of _clipPlayers) {
+    const v = e.el;
+    if (!v || v.readyState < 2) continue;
+    if (v.currentTime >= e.end - 0.03 || v.currentTime < e.start - 0.05) {
+      try { v.currentTime = e.start; } catch (err) {}
+      if (v.paused) { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+    }
+  }
+  for (const c of _clipLoops) _tickClipLoop(c);
+  _clipRaf = (_clipPlayers.length || _clipLoops.length) ? requestAnimationFrame(_clipTick) : null;
 }
 
 // ── Native video bridge (iOS WKWebView / AVAssetImageGenerator) ────────────
@@ -5366,14 +6768,18 @@ function resetCurrentBoard() {
   redoHistory.length = 0;
   state.images = [];
   state.ratio = '9:16';
+  state.customRatio = null;
   state.layout = 'vertical';
   state.gridCols = 2;
   state.gridRows = 2;
   state.gap = 6;
   state.padding = 0;
   state.bg = '#000000';
+  state.boardType = 'photo';
+  state.clipDuration = 15;
   // Reset UI controls
   document.querySelectorAll('[data-ratio]').forEach(b => b.classList.toggle('active', b.dataset.ratio === '9:16'));
+  updateCustomRatioBtn();
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === 'vertical'));
   gapSlider.value = 6; gapVal.textContent = 6;
   padSlider.value = 0; padVal.textContent = 0;
@@ -5382,6 +6788,7 @@ function resetCurrentBoard() {
   updateGridOpts();
   updateUndoBtn();
   renderList(); buildLayout();
+  applyBoardTypeUI();   // empty board again → re-show the Photos/Video switch
 }
 
 const resetConfirm = document.getElementById('resetConfirm');
@@ -5799,7 +7206,7 @@ previewExpandBtn.addEventListener('click', () => {
   layoutPreview.style.transform = '';             // clear any leftover scale
   const startT = performance.now();
   function ecFrame(now) {
-    const d = computeBoardDims(state.ratio);      // fit to the CURRENT preview area
+    const d = computeBoardDims(state.ratio, state.customRatio);      // fit to the CURRENT preview area
     layoutPreview.style.width  = d.w + 'px';
     layoutPreview.style.height = d.h + 'px';
     if (slots.length) {
@@ -5845,8 +7252,8 @@ function _swipeApplyTx(tx) {
 
 // Preview dimensions for any ratio (matches computePreviewSize exactly so a
 // neighbour's snapshot is pixel-identical to what loadBoardState will rebuild).
-function computeBoardDims(ratio) {
-  const [rw, rh] = RATIOS[ratio] || RATIOS['9:16'];
+function computeBoardDims(ratio, customRatio) {
+  const [rw, rh] = ratio === 'custom' ? (customRatio || [9, 16]) : (RATIOS[ratio] || RATIOS['9:16']);
   const avW = previewOuter.clientWidth  - 8;
   const avH = previewOuter.clientHeight - 8;
   if (avW < 10 || avH < 10) return { w: previewW, h: previewH };
@@ -5871,7 +7278,7 @@ function _swipeSetupCanvases() {
   // viewport, one page to the side — so the incoming board lands exactly where
   // loadBoardState will rebuild it (no end-of-swipe jump for any ratio mix).
   const place = (canvas, board, dir) => {
-    const d = computeBoardDims(board.ratio);
+    const d = computeBoardDims(board.ratio, board.customRatio);
     renderBoardSnapshot(canvas, board, d.w, d.h);
     canvas.style.top       = Math.round((wrapH - d.h) / 2) + 'px';
     canvas.style.left      = Math.round((wrapW - d.w) / 2 + dir * _swipePage) + 'px';
@@ -6009,6 +7416,7 @@ let _labelRaf = null;
 
 exportBarX.addEventListener('click', () => {
   _exportCancelled = true;
+  _videoExportCancel = true;
   cancelAnimationFrame(_labelRaf);
   exportBar.hidden = true;
   exportBarFill.style.transition = 'none';
@@ -6045,6 +7453,7 @@ function startExportBar() {
 let _exportFmt;
 
 exportBtn.addEventListener('click', () => {
+  if (state.boardType === 'video') { doVideoExport(); return; }   // looping-video export
   if (_projectBoards.length > 1) {
     document.getElementById('exportChoiceModal').hidden = false;
   } else {
@@ -6171,7 +7580,7 @@ async function doExport() {
 }
 
 window.exportComplete = function(success) {
-  if (_exportCancelled) return;
+  if (_exportCancelled || _videoExportCancel) return;
   cancelAnimationFrame(_labelRaf);
 
   exportBarFill.style.transition = 'width 0.3s ease-out';
@@ -6185,6 +7594,200 @@ window.exportComplete = function(success) {
     exportBarLabel.textContent = '0%';
   }, 1300);
 };
+
+// ── Looping-video export (Phase 2) ──────────────────────────────────────────
+// Renders the board's clips to a canvas at full resolution (same cover/reframe
+// math as the still export, but drawing each clip's live video frame) and captures
+// it with MediaRecorder for `clipDuration` seconds → an MP4 saved to Photos.
+let _videoExportCancel = false;
+
+// Phase-2 export engine. true = native AVFoundation compositor (deterministic,
+// stall-free loop). Set to false to instantly revert to the web MediaRecorder path.
+const VIDEO_EXPORT_NATIVE = true;
+
+function startVideoExportBar(durationMs) {
+  exportBar.hidden = false;
+  exportBarFill.style.transition = 'none';
+  exportBarFill.style.width = '0%';
+  exportBarLabel.textContent = 'Exporting… 0%';
+  const start = performance.now();
+  function tick(now) {
+    if (_videoExportCancel) return;
+    const p = Math.min((now - start) / durationMs, 1);
+    exportBarFill.style.transition = 'none';
+    exportBarFill.style.width = Math.round(p * 95) + '%';
+    exportBarLabel.textContent = `Exporting… ${Math.round(p * 100)}%`;
+    if (p < 1) _labelRaf = requestAnimationFrame(tick);
+  }
+  _labelRaf = requestAnimationFrame(tick);
+}
+
+function saveExportedVideo(blob, ext) {
+  exportBarLabel.textContent = 'Saving…';
+  if (window.webkit?.messageHandlers?.exportVideo) {
+    const reader = new FileReader();
+    reader.onload  = () => window.webkit.messageHandlers.exportVideo.postMessage(reader.result);
+    reader.onerror = () => window.exportComplete(false);
+    reader.readAsDataURL(blob);   // native decodes → saves to Photos → window.exportComplete
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `stlls-video.${ext}`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    window.exportComplete(true);
+  }
+}
+
+function _blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload  = () => { const s = String(r.result); resolve(s.slice(s.indexOf(',') + 1)); };
+    r.onerror = () => reject(new Error('b64'));
+    r.readAsDataURL(blob);
+  });
+}
+
+// Progress callback from the native exporter (0..1 during compose+encode).
+window.exportProgress = function(p) {
+  if (_exportCancelled || _videoExportCancel) return;
+  const pct = Math.max(30, Math.min(98, Math.round(30 + (+p || 0) * 68)));
+  exportBarFill.style.transition = 'none';
+  exportBarFill.style.width = pct + '%';
+  exportBarLabel.textContent = `Exporting… ${pct}%`;
+};
+
+// Native AVFoundation export: hand the layout geometry + each clip's bytes to Swift,
+// which builds an AVMutableComposition (each clip looped to fill the duration) and
+// composites each into its slot via crop+transform — a pre-rendered, stall-free loop.
+async function doVideoExportNative() {
+  _exportCancelled = false; _videoExportCancel = false;
+  const [W, H] = canonicalDims();
+  const duration = Math.max(1, state.clipDuration || 15);
+  const slots = getSlots(W, H);
+
+  exportBar.hidden = false;
+  exportBarFill.style.transition = 'none'; exportBarFill.style.width = '10%';
+  exportBarLabel.textContent = 'Exporting…';
+
+  const clips = [];
+  for (const { item, x, y, w, h } of slots) {
+    if (item.type !== 'clip' || !item._blob) continue;
+    const v = item._videoEl;
+    const dw = (v && v.videoWidth)  || item.videoW || 1;
+    const dh = (v && v.videoHeight) || item.videoH || 1;
+    const t = itemT(item);
+    const coverS = Math.max(w / dw, h / dh);
+    const totalS = coverS * t.scale;
+    const left = (w - dw * totalS) / 2 + t.fx * w;
+    const top  = (h - dh * totalS) / 2 + t.fy * h;
+    let data;
+    try { data = await _blobToBase64(item._blob); } catch (e) { continue; }
+    if (_videoExportCancel) return;
+    clips.push({
+      data,
+      dest: [x, y, w, h],                                           // slot in canonical coords
+      crop: [(-left / totalS) / dw, (-top / totalS) / dh,           // visible region, normalized
+             (w / totalS) / dw, (h / totalS) / dh],
+    });
+  }
+  if (!clips.length) { window.exportComplete(false); return; }
+
+  exportBarFill.style.width = '30%';
+  window.webkit.messageHandlers.exportVideoNative.postMessage({
+    width: W, height: H, duration, bg: state.bg || '#000000',
+    bitrate: BITRATE_LEVELS[_exportBitrate] || BITRATE_LEVELS.high,
+    clips,
+  });
+  // Swift drives window.exportProgress(...) then window.exportComplete(success).
+}
+
+async function doVideoExport() {
+  if (!throttle('export', 3000)) return;
+  if (!state.images.length) return;
+  // Native compositor path (stall-free pre-rendered loop). Reverse: VIDEO_EXPORT_NATIVE=false.
+  if (VIDEO_EXPORT_NATIVE && window.webkit?.messageHandlers?.exportVideoNative) {
+    return doVideoExportNative();
+  }
+  if (!window.MediaRecorder) { window.exportComplete(false); return; }
+  _exportCancelled = false; _videoExportCancel = false;
+
+  // Pick a recorder format the platform supports (iOS → mp4, desktop → webm).
+  const cand = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=h264', 'video/webm;codecs=vp9', 'video/webm'];
+  const mime = cand.find(m => { try { return MediaRecorder.isTypeSupported(m); } catch (e) { return false; } });
+  if (!mime) { window.exportComplete(false); return; }
+  const ext = mime.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+
+  // Full canonical resolution (1080-wide) — NO downscale, so the export stays crisp.
+  const [W, H] = canonicalDims();
+  const durationMs = Math.max(1, (state.clipDuration || 15)) * 1000;
+  const FPS = 30;
+  const bitrate = BITRATE_LEVELS[_exportBitrate] || BITRATE_LEVELS.high;
+
+  const cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  const ctx = cvs.getContext('2d', { alpha: false });
+  const slots = getSlots(W, H);
+
+  const drawExportFrame = () => {
+    ctx.fillStyle = state.bg || '#000'; ctx.fillRect(0, 0, W, H);
+    for (const { item, x, y, w, h } of slots) {
+      const v = item._videoEl;
+      const useVid = item.type === 'clip' && v && v.readyState >= 2 && v.videoWidth;
+      const drawable = useVid ? v : item.img;
+      if (!drawable) continue;
+      const dw = useVid ? v.videoWidth  : drawable.naturalWidth;
+      const dh = useVid ? v.videoHeight : drawable.naturalHeight;
+      if (!dw || !dh) continue;
+      const t = itemT(item);
+      const coverS = Math.max(w / dw, h / dh);
+      const totalS = coverS * t.scale;
+      const left = (w - dw * totalS) / 2 + t.fx * w;
+      const top  = (h - dh * totalS) / 2 + t.fy * h;
+      try { ctx.drawImage(drawable, -left / totalS, -top / totalS, w / totalS, h / totalS, x, y, w, h); } catch (e) {}
+    }
+  };
+
+  // Show the bar, then WARM UP: restart each clip and let it decode its first frame
+  // before we start recording — this is what removes the black frames at the start.
+  exportBar.hidden = false;
+  exportBarFill.style.transition = 'none'; exportBarFill.style.width = '0%';
+  exportBarLabel.textContent = 'Exporting…';
+  state.images.forEach(it => {
+    const v = it._videoEl;
+    if (v) { try { v.currentTime = it.nativeLoop ? 0 : (it.start || 0); } catch (e) {} const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+  });
+  await new Promise(r => setTimeout(r, 500));      // warm-up
+  if (_videoExportCancel) return;
+  drawExportFrame();                                // seed the canvas with a real frame
+
+  let stream, rec;
+  try {
+    stream = cvs.captureStream(FPS);
+    rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
+  } catch (e) { window.exportComplete(false); return; }
+
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const stopped = new Promise(res => { rec.onstop = res; });
+
+  startVideoExportBar(durationMs);
+  rec.start(200);
+
+  const startT = performance.now();
+  function loop() {
+    if (_videoExportCancel) { try { rec.stop(); } catch (e) {} return; }
+    drawExportFrame();
+    if (performance.now() - startT >= durationMs) { try { rec.stop(); } catch (e) {} return; }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  await stopped;
+  try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  if (_videoExportCancel) return;
+  if (!chunks.length) { window.exportComplete(false); return; }
+  saveExportedVideo(new Blob(chunks, { type: mime }), ext);
+}
 
 // ── Home button breathing glow ────────────────────────────────────────────────
 (function initHomeGlow() {

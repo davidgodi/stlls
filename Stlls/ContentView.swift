@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 import AVFoundation
 import UserNotifications
 
-// MARK: - JS → Swift bridge for image export
+// MARK: - JS → Swift bridge for image & video export
 
 class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     weak var webView: WKWebView?
@@ -16,23 +16,251 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
-        guard message.name == "exportImage",
-              let dataURL = message.body as? String else { return }
-
-        let parts = dataURL.components(separatedBy: ",")
-        guard parts.count == 2,
-              let data = Data(base64Encoded: parts[1]),
-              let image = UIImage(data: data) else {
-            callback(false); return
+        // Native looping-video compositor: payload is a dictionary, not a dataURL string.
+        if message.name == "exportVideoNative" {
+            guard let body = message.body as? [String: Any] else { callback(false); return }
+            exportComposition(body); return
         }
 
+        guard let dataURL = message.body as? String else { return }
+        let parts = dataURL.components(separatedBy: ",")
+        guard parts.count == 2, let data = Data(base64Encoded: parts[1]) else { callback(false); return }
+
+        if message.name == "exportVideo" {
+            saveVideo(data: data, mimePrefix: parts[0]); return
+        }
+        // exportImage
+        guard let image = UIImage(data: data) else { callback(false); return }
         PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
-            guard status == .authorized || status == .limited else {
-                self?.callback(false); return
-            }
+            guard status == .authorized || status == .limited else { self?.callback(false); return }
             PHPhotoLibrary.shared().performChanges({
                 PHAssetChangeRequest.creationRequestForAsset(from: image)
             }) { success, _ in self?.callback(success) }
+        }
+    }
+
+    private func saveVideo(data: Data, mimePrefix: String) {
+        // Photos accepts .mp4 / .mov; MediaRecorder on iOS produces H.264 mp4.
+        let ext = mimePrefix.contains("quicktime") ? "mov" : "mp4"
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + "." + ext)
+        do { try data.write(to: tmp) } catch { callback(false); return }
+
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
+            guard status == .authorized || status == .limited else {
+                try? FileManager.default.removeItem(at: tmp); self?.callback(false); return
+            }
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: tmp)
+            }) { success, _ in
+                try? FileManager.default.removeItem(at: tmp)
+                self?.callback(success)
+            }
+        }
+    }
+
+    // MARK: Native looping-video composition (Phase 2 export)
+    // Builds one video track per clip, each looped to fill `duration`, and composites
+    // each into its slot via crop + affine transform. The loop is pre-rendered, so the
+    // exported MP4 has no live-playback stall at the seam.
+
+    private func nums(_ v: Any?) -> [Double] {
+        (v as? [Any])?.compactMap { ($0 as? NSNumber)?.doubleValue } ?? []
+    }
+
+    private func exportComposition(_ body: [String: Any]) {
+        guard let width    = (body["width"]    as? NSNumber)?.intValue,
+              let height   = (body["height"]   as? NSNumber)?.intValue,
+              let duration = (body["duration"] as? NSNumber)?.doubleValue,
+              let clips    = body["clips"] as? [[String: Any]], !clips.isEmpty
+        else { callback(false); return }
+
+        let bitrate = (body["bitrate"] as? NSNumber)?.intValue ?? 12_000_000
+        let renderSize = CGSize(width: width, height: height)
+        let totalDur   = CMTime(seconds: duration, preferredTimescale: 600)
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let comp = AVMutableComposition()
+            var layerInstructions: [AVMutableVideoCompositionLayerInstruction] = []
+            var temps: [URL] = []
+
+            for clip in clips {
+                guard let b64 = clip["data"] as? String,
+                      let data = Data(base64Encoded: b64) else { continue }
+                let dest = self.nums(clip["dest"]), crop = self.nums(clip["crop"])
+                guard dest.count == 4, crop.count == 4 else { continue }
+
+                let tmp = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString + ".mp4")
+                do { try data.write(to: tmp) } catch { continue }
+                temps.append(tmp)
+
+                let asset = AVURLAsset(url: tmp)
+                guard let srcTrack = asset.tracks(withMediaType: .video).first,
+                      let compTrack = comp.addMutableTrack(withMediaType: .video,
+                                          preferredTrackID: kCMPersistentTrackID_Invalid)
+                else { continue }
+
+                let clipDur = asset.duration
+                if clipDur.seconds <= 0 { continue }
+
+                // Loop-fill: concatenate the clip end-to-end until it covers the duration.
+                var cursor = CMTime.zero
+                while cursor < totalDur {
+                    let insertDur = min(clipDur, totalDur - cursor)
+                    if insertDur.seconds <= 0 { break }
+                    try? compTrack.insertTimeRange(CMTimeRange(start: .zero, duration: insertDur),
+                                                   of: srcTrack, at: cursor)
+                    cursor = cursor + insertDur
+                }
+
+                // Clips are re-encoded upright by the trim (identity preferredTransform),
+                // so natural size == display size and we crop in those coords.
+                let natW = srcTrack.naturalSize.width
+                let natH = srcTrack.naturalSize.height
+                let cropRect = CGRect(x: CGFloat(crop[0]) * natW, y: CGFloat(crop[1]) * natH,
+                                      width: CGFloat(crop[2]) * natW, height: CGFloat(crop[3]) * natH)
+                let destRect = CGRect(x: CGFloat(dest[0]), y: CGFloat(dest[1]),
+                                      width: CGFloat(dest[2]), height: CGFloat(dest[3]))
+                let sx = destRect.width  / max(1, cropRect.width)
+                let sy = destRect.height / max(1, cropRect.height)
+                // Map cropped region → slot: translate(-crop) · scale · translate(dest)
+                var tf = CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY)
+                tf = tf.concatenating(CGAffineTransform(scaleX: sx, y: sy))
+                tf = tf.concatenating(CGAffineTransform(translationX: destRect.minX, y: destRect.minY))
+
+                let li = AVMutableVideoCompositionLayerInstruction(assetTrack: compTrack)
+                li.setCropRectangle(cropRect, at: .zero)
+                li.setTransform(tf, at: .zero)
+                layerInstructions.append(li)
+            }
+
+            guard !layerInstructions.isEmpty else {
+                temps.forEach { try? FileManager.default.removeItem(at: $0) }
+                self.callback(false); return
+            }
+
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: totalDur)
+            instruction.layerInstructions = layerInstructions
+
+            let videoComp = AVMutableVideoComposition()
+            videoComp.renderSize    = renderSize
+            videoComp.frameDuration = CMTime(value: 1, timescale: 30)
+            videoComp.instructions  = [instruction]
+
+            let outURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + ".mp4")
+            self.renderComposition(comp, videoComp: videoComp, size: CGSize(width: width, height: height),
+                                   duration: duration, bitrate: bitrate, outURL: outURL, temps: temps)
+        }
+    }
+
+    // Reader/writer transcode so we can honour an explicit average bitrate (presets
+    // don't expose one). Falls back to AVAssetExportSession (highest quality) if the
+    // reader/writer can't be set up.
+    private func renderComposition(_ comp: AVMutableComposition,
+                                   videoComp: AVMutableVideoComposition,
+                                   size: CGSize, duration: Double, bitrate: Int,
+                                   outURL: URL, temps: [URL]) {
+        let cleanup = { temps.forEach { try? FileManager.default.removeItem(at: $0) } }
+        do {
+            let reader = try AVAssetReader(asset: comp)
+            let readerOutput = AVAssetReaderVideoCompositionOutput(
+                videoTracks: comp.tracks(withMediaType: .video),
+                videoSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
+            readerOutput.videoComposition = videoComp
+            readerOutput.alwaysCopiesSampleData = false
+            guard reader.canAdd(readerOutput) else { throw NSError(domain: "stlls", code: 1) }
+            reader.add(readerOutput)
+
+            let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
+            let settings: [String: Any] = [
+                AVVideoCodecKey:  AVVideoCodecType.h264,
+                AVVideoWidthKey:  Int(size.width),
+                AVVideoHeightKey: Int(size.height),
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey:      bitrate,
+                    AVVideoMaxKeyFrameIntervalKey: 60,
+                    AVVideoProfileLevelKey:        AVVideoProfileLevelH264HighAutoLevel,
+                ],
+            ]
+            guard writer.canApply(outputSettings: settings, forMediaType: .video) else {
+                throw NSError(domain: "stlls", code: 2)
+            }
+            let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+            writerInput.expectsMediaDataInRealTime = false
+            guard writer.canAdd(writerInput) else { throw NSError(domain: "stlls", code: 3) }
+            writer.add(writerInput)
+
+            guard reader.startReading() else { throw NSError(domain: "stlls", code: 4) }
+            guard writer.startWriting() else { reader.cancelReading(); throw NSError(domain: "stlls", code: 5) }
+            writer.startSession(atSourceTime: .zero)
+
+            let q = DispatchQueue(label: "stlls.export")
+            writerInput.requestMediaDataWhenReady(on: q) { [weak self] in
+                guard let self else { return }
+                while writerInput.isReadyForMoreMediaData {
+                    if reader.status == .reading, let sample = readerOutput.copyNextSampleBuffer() {
+                        let pt = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                        writerInput.append(sample)
+                        let p = duration > 0 ? min(1.0, pt / duration) : 0
+                        DispatchQueue.main.async {
+                            self.webView?.evaluateJavaScript("window.exportProgress && window.exportProgress(\(p))",
+                                                             completionHandler: nil)
+                        }
+                    } else {
+                        writerInput.markAsFinished()
+                        if reader.status == .reading { reader.cancelReading() }
+                        writer.finishWriting {
+                            cleanup()
+                            DispatchQueue.main.async {
+                                if writer.status == .completed { self.saveVideoFile(outURL) }
+                                else { try? FileManager.default.removeItem(at: outURL); self.callback(false) }
+                            }
+                        }
+                        break
+                    }
+                }
+            }
+        } catch {
+            // Fallback: proven export-session path (no custom bitrate).
+            self.renderWithExportSession(comp, videoComp: videoComp, outURL: outURL, temps: temps)
+        }
+    }
+
+    private func renderWithExportSession(_ comp: AVMutableComposition,
+                                         videoComp: AVMutableVideoComposition,
+                                         outURL: URL, temps: [URL]) {
+        guard let export = AVAssetExportSession(asset: comp,
+                              presetName: AVAssetExportPresetHighestQuality) else {
+            temps.forEach { try? FileManager.default.removeItem(at: $0) }
+            callback(false); return
+        }
+        export.outputURL = outURL
+        export.outputFileType = .mp4
+        export.videoComposition = videoComp
+        export.exportAsynchronously {
+            temps.forEach { try? FileManager.default.removeItem(at: $0) }
+            DispatchQueue.main.async {
+                if export.status == .completed { self.saveVideoFile(outURL) }
+                else { self.callback(false) }
+            }
+        }
+    }
+
+    private func saveVideoFile(_ url: URL) {
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { [weak self] status in
+            guard status == .authorized || status == .limited else {
+                try? FileManager.default.removeItem(at: url); self?.callback(false); return
+            }
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+            }) { success, _ in
+                try? FileManager.default.removeItem(at: url)
+                self?.callback(success)
+            }
         }
     }
 
@@ -94,6 +322,7 @@ class VideoSchemeHandler: NSObject, WKURLSchemeHandler {
             var start = 0, end = totalSize - 1, statusCode = 200
             var headers: [String: String] = [
                 "Accept-Ranges": "bytes",
+                "Access-Control-Allow-Origin": "*",   // allow web fetch() → blob for seamless looping
                 "Content-Type":  fileURL.pathExtension.lowercased() == "mov"
                                    ? "video/quicktime" : "video/mp4",
             ]
@@ -151,6 +380,13 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     private var webKeys:   Set<String>       = []    // H.264 / HEVC web-served assets
     private var activeGenerators: [String: AVAssetImageGenerator] = [:]
 
+    // When true, the next pick produces a low-res looping-clip PROXY (video boards)
+    // instead of the still-grab flow. Reset to false as soon as a pick is handled.
+    private var proxyMode = false
+    // When true, the next pick allows MULTIPLE videos and each whole video becomes a
+    // clip (no shot analysis). Reset to false as soon as a pick is handled.
+    private var fullClipsMode = false
+
     // MARK: Message routing
 
     func userContentController(
@@ -159,7 +395,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     ) {
         switch message.name {
         case "requestVideoSelection":
-            DispatchQueue.main.async { self.presentVideoPicker() }
+            DispatchQueue.main.async { self.proxyMode = false; self.fullClipsMode = false; self.presentVideoPicker() }
+        case "requestVideoProxy":
+            DispatchQueue.main.async { self.proxyMode = true; self.fullClipsMode = false; self.presentVideoPicker() }
+        case "requestFullClips":
+            DispatchQueue.main.async { self.fullClipsMode = true; self.proxyMode = false; self.presentVideoPicker() }
+        case "requestVideoClips":
+            guard let body = message.body as? [String: Any] else { return }
+            DispatchQueue.main.async { self.trimClips(body) }
         case "extractVideoFrame":
             guard let body = message.body as? [String: Any] else { return }
             extractFrame(body)
@@ -174,7 +417,7 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
 
     private func presentVideoPicker() {
         var cfg = PHPickerConfiguration(photoLibrary: .shared())
-        cfg.selectionLimit = 1
+        cfg.selectionLimit = fullClipsMode ? 10 : 1   // full-clips mode allows multiple
         cfg.filter = .videos
         // Deliver the original file as-is. The default (.automatic) transcodes
         // HEVC iPhone videos to H.264 for "compatibility", which adds ~3s before
@@ -189,20 +432,33 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(animated: true)
 
+        // Full-clips mode: multiple whole videos, each → a low-res clip (no analysis).
+        if fullClipsMode {
+            fullClipsMode = false
+            makeFullClips(results); return   // handles the empty case (sends count 0)
+        }
+
+        // Snapshot the mode now — the rest runs async and a later pick must not flip it.
+        let doProxy = proxyMode
+        proxyMode = false
+        let failJS = doProxy
+            ? "if (window.nativeVideoProxyReady) window.nativeVideoProxyReady(null)"
+            : "window.nativeVideoReady(null)"
+
         guard let result = results.first,
               result.itemProvider.hasItemConformingToTypeIdentifier(UTType.movie.identifier) else {
-            sendToJS("window.nativeVideoReady(null)"); return
+            sendToJS(failJS); return
         }
 
         result.itemProvider.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { [weak self] url, _ in
-            guard let url else { self?.sendToJS("window.nativeVideoReady(null)"); return }
+            guard let url else { self?.sendToJS(failJS); return }
 
             // Hardlink (instant, no copy) or fall back to a full copy
             let dest = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString + "." + url.pathExtension)
             do    { try FileManager.default.linkItem(at: url, to: dest) }
             catch { do    { try FileManager.default.copyItem(at: url, to: dest) }
-                    catch { self?.sendToJS("window.nativeVideoReady(null)"); return } }
+                    catch { self?.sendToJS(failJS); return } }
 
             let asset = AVURLAsset(url: dest)
 
@@ -257,9 +513,37 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                 let key           = UUID().uuidString
 
                 await MainActor.run {
-                    self.tempFiles[key] = dest
-
                     let fileName = url.lastPathComponent
+
+                    // Video-board path. Detection runs on the ORIGINAL (no whole-video
+                    // transcode → fast); individual shots are trimmed on demand when the
+                    // user taps Add (see requestVideoClips). ProRes can't be web-played,
+                    // so it falls back to a low-res proxy used for both detect + trim.
+                    if doProxy {
+                        if useWebPath {
+                            self.tempFiles[key] = dest
+                            self.assets[key]    = asset          // kept for trimming
+                            self.webKeys.insert(key)
+                            self.schemeHandler?.register(key: key, url: dest)
+                            let payload: [String: Any] = [
+                                "webURL":   "stlls-video://v?k=\(key)",
+                                "assetKey": key,
+                                "duration": finalDuration,
+                                "width":    finalW,
+                                "height":   finalH,
+                                "fileName": fileName,
+                            ]
+                            self.webView?.callAsyncJavaScript(
+                                "if (typeof window.nativeVideoProxyReady === 'function') window.nativeVideoProxyReady(payload)",
+                                arguments: ["payload": payload], in: nil, in: .page, completionHandler: nil)
+                        } else {
+                            self.exportProxy(asset: asset, source: dest,
+                                             duration: finalDuration, fileName: fileName)
+                        }
+                        return
+                    }
+
+                    self.tempFiles[key] = dest
                     let jsCallback = "if (typeof window.nativeVideoReady === 'function') window.nativeVideoReady(payload)"
 
                     if useWebPath {
@@ -291,6 +575,244 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                             arguments: ["payload": payload],
                             in: nil, in: .page, completionHandler: nil)
                     }
+                }
+            }
+        }
+    }
+
+    // MARK: Low-res proxy export (ProRes fallback only)
+    // ProRes can't be played in <video>, so make one low-res H.264 proxy that the
+    // web side detects on; individual shots are then trimmed from it on Add.
+
+    private func exportProxy(asset: AVURLAsset, source: URL, duration: Double, fileName: String) {
+        let fail = "if (window.nativeVideoProxyReady) window.nativeVideoProxyReady(null)"
+        // 540p keeps decode cost low for multi-clip boards; the web side buffers each
+        // short clip fully into memory so several can play at once without lag.
+        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset960x540) else {
+            sendToJS(fail); cleanupTemp(source); return
+        }
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".mp4")
+        export.outputURL = outURL
+        export.outputFileType = .mp4
+        export.shouldOptimizeForNetworkUse = true
+
+        export.exportAsynchronously { [weak self] in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.cleanupTemp(source)   // original no longer needed
+                guard export.status == .completed else { self.sendToJS(fail); return }
+
+                let key = UUID().uuidString
+                self.tempFiles[key] = outURL
+                self.assets[key]    = AVURLAsset(url: outURL)   // kept for trimming
+                self.webKeys.insert(key)
+                self.schemeHandler?.register(key: key, url: outURL)
+                let payload: [String: Any] = [
+                    "webURL":   "stlls-video://v?k=\(key)",
+                    "assetKey": key,
+                    "duration": duration,
+                    "fileName": fileName,
+                ]
+                self.webView?.callAsyncJavaScript(
+                    "if (typeof window.nativeVideoProxyReady === 'function') window.nativeVideoProxyReady(payload)",
+                    arguments: ["payload": payload], in: nil, in: .page, completionHandler: nil)
+            }
+        }
+    }
+
+    private func cleanupTemp(_ url: URL) {
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    // MARK: Whole-video clips (Clips strip + — multi-select, no analysis)
+    // Each picked video is re-encoded to a low-res proxy and handed back as a clip.
+
+    private func makeFullClips(_ results: [PHPickerResult]) {
+        let movieType = UTType.movie.identifier
+        let valid = results.filter { $0.itemProvider.hasItemConformingToTypeIdentifier(movieType) }
+
+        // Tell the web how many clips are coming so it can build the loading slots now.
+        webView?.callAsyncJavaScript(
+            "if (typeof window.nativeFullClipsStart === 'function') window.nativeFullClipsStart(n)",
+            arguments: ["n": valid.count], in: nil, in: .page, completionHandler: nil)
+        guard !valid.isEmpty else { return }
+        // Strictly ONE at a time: a single big iPhone transcode gets the whole device,
+        // which avoids the memory/encoder exhaustion that made concurrent ones fail.
+        processFullClipsSequentially(valid, index: 0, movieType: movieType)
+    }
+
+    private func processFullClipsSequentially(_ results: [PHPickerResult], index: Int, movieType: String) {
+        if index >= results.count {
+            webView?.callAsyncJavaScript(
+                "if (typeof window.nativeFullClipsDone === 'function') window.nativeFullClipsDone()",
+                arguments: [:], in: nil, in: .page, completionHandler: nil)
+            return
+        }
+        let next: () -> Void = { [weak self] in
+            self?.processFullClipsSequentially(results, index: index + 1, movieType: movieType)
+        }
+        results[index].itemProvider.loadFileRepresentation(forTypeIdentifier: movieType) { [weak self] url, _ in
+            guard let self else { return }
+            guard let url else { self.sendFullClip(index, nil); next(); return }
+            let dest = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + "." + url.pathExtension)
+            do { try FileManager.default.linkItem(at: url, to: dest) }
+            catch { do { try FileManager.default.copyItem(at: url, to: dest) }
+                    catch { self.sendFullClip(index, nil); next(); return } }
+            let fileName = url.deletingPathExtension().lastPathComponent
+            self.exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName) { info in
+                self.sendFullClip(index, info)   // stream this clip in, then start the next
+                next()
+            }
+        }
+    }
+
+    private func sendFullClip(_ index: Int, _ info: [String: Any]?) {
+        DispatchQueue.main.async {
+            let payload: [String: Any] = ["index": index, "clip": info ?? NSNull()]
+            self.webView?.callAsyncJavaScript(
+                "if (typeof window.nativeFullClipReady === 'function') window.nativeFullClipReady(payload)",
+                arguments: ["payload": payload], in: nil, in: .page, completionHandler: nil)
+        }
+    }
+
+    private func exportFullProxy(asset: AVURLAsset, source: URL, fileName: String,
+                                 preset: String = AVAssetExportPreset960x540, retriesLeft: Int = 1,
+                                 completion: @escaping ([String: Any]?) -> Void) {
+        guard let export = AVAssetExportSession(asset: asset, presetName: preset) else {
+            // Can't even build this preset → last-resort passthrough, else give up.
+            if preset != AVAssetExportPresetPassthrough {
+                exportFullProxy(asset: asset, source: source, fileName: fileName,
+                                preset: AVAssetExportPresetPassthrough, retriesLeft: 0, completion: completion)
+            } else { cleanupTemp(source); completion(nil) }
+            return
+        }
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".mp4")
+        export.outputURL = outURL
+        export.outputFileType = .mp4
+        export.shouldOptimizeForNetworkUse = true
+        // Cap whole-video clips to the first 10s — also makes the transcode far faster on
+        // long iPhone clips (only 10s is decoded/encoded). Works on passthrough too.
+        let maxClipSeconds = 10.0
+        if asset.duration.seconds > maxClipSeconds {
+            export.timeRange = CMTimeRange(start: .zero,
+                                           duration: CMTime(seconds: maxClipSeconds, preferredTimescale: 600))
+        }
+        // 960x540 orients + downscales every normal input. One export runs at a time
+        // (sequential) with a retry; if it still fails (e.g. an HDR/Dolby-Vision clip the
+        // H.264 preset can't convert), fall back to PASSTHROUGH (copies the original,
+        // can't fail on format) so the clip loads instead of vanishing.
+        export.exportAsynchronously { [weak self] in
+            guard let self else { return }
+            guard export.status == .completed else {
+                try? FileManager.default.removeItem(at: outURL)
+                if retriesLeft > 0 {
+                    DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.6) {
+                        self.exportFullProxy(asset: asset, source: source, fileName: fileName,
+                                             preset: preset, retriesLeft: retriesLeft - 1, completion: completion)
+                    }
+                } else if preset != AVAssetExportPresetPassthrough {
+                    self.exportFullProxy(asset: asset, source: source, fileName: fileName,
+                                         preset: AVAssetExportPresetPassthrough, retriesLeft: 0, completion: completion)
+                } else {
+                    self.cleanupTemp(source); completion(nil)
+                }
+                return
+            }
+            self.finalizeProxy(outURL, source: source, fileName: fileName, completion: completion)
+        }
+    }
+
+    // Build the poster + metadata for a finished proxy (off-thread), register it, and
+    // hand it back to the web. Shared by the downscale and passthrough export paths.
+    private func finalizeProxy(_ outURL: URL, source: URL, fileName: String,
+                               completion: @escaping ([String: Any]?) -> Void) {
+        let proxyAsset = AVURLAsset(url: outURL)
+        let dur = proxyAsset.duration.seconds
+        var w = 0.0, h = 0.0
+        if let track = proxyAsset.tracks(withMediaType: .video).first {
+            let sz = track.naturalSize.applying(track.preferredTransform)
+            w = abs(sz.width); h = abs(sz.height)
+        }
+        var poster: String? = nil
+        let gen = AVAssetImageGenerator(asset: proxyAsset)
+        gen.appliesPreferredTrackTransform = true
+        gen.maximumSize = CGSize(width: 360, height: 360)
+        let at = CMTime(seconds: min(0.2, max(0, dur / 2)), preferredTimescale: 600)
+        if let cg = try? gen.copyCGImage(at: at, actualTime: nil),
+           let jpeg = UIImage(cgImage: cg).jpegData(compressionQuality: 0.7) {
+            poster = "data:image/jpeg;base64," + jpeg.base64EncodedString()
+        }
+        DispatchQueue.main.async {
+            self.cleanupTemp(source)
+            let key = UUID().uuidString
+            self.tempFiles[key] = outURL
+            self.webKeys.insert(key)
+            self.schemeHandler?.register(key: key, url: outURL)
+            var info: [String: Any] = [
+                "webURL": "stlls-video://v?k=\(key)", "fileName": fileName,
+                "duration": dur, "width": w, "height": h,
+            ]
+            if let poster { info["poster"] = poster }
+            completion(info)
+        }
+    }
+
+    // MARK: Per-shot trimming (video-board clips)
+    // Trims each selected shot range into its own tiny low-res clip. Each loops
+    // seamlessly via the <video loop> attribute (no JS seek hitch), and re-encoding
+    // the exact range means no transition frames bleed in from adjacent shots.
+
+    private func trimClips(_ body: [String: Any]) {
+        let fail = "if (window.nativeVideoClipsReady) window.nativeVideoClipsReady(null)"
+        guard let key    = body["key"] as? String,
+              let ranges = body["ranges"] as? [[Double]],
+              let asset  = assets[key] else {
+            sendToJS(fail); return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            var clips: [[String: Any]] = []
+            for r in ranges where r.count == 2 {
+                if let info = await self.trimOne(asset: asset, start: r[0], end: r[1]) {
+                    clips.append(info)
+                }
+            }
+            await MainActor.run {
+                // Keep the source alive so "Add more from video" can trim further shots.
+                // The web releases it (releaseVideoAsset) when it discards the analysed video.
+                let payload: [String: Any] = ["clips": clips]
+                self.webView?.callAsyncJavaScript(
+                    "if (typeof window.nativeVideoClipsReady === 'function') window.nativeVideoClipsReady(payload)",
+                    arguments: ["payload": payload], in: nil, in: .page, completionHandler: nil)
+            }
+        }
+    }
+
+    private func trimOne(asset: AVAsset, start: Double, end: Double) async -> [String: Any]? {
+        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPreset960x540) else { return nil }
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".mp4")
+        let dur = max(0.1, end - start)
+        export.outputURL = outURL
+        export.outputFileType = .mp4
+        export.shouldOptimizeForNetworkUse = true
+        export.timeRange = CMTimeRange(
+            start:    CMTime(seconds: max(0, start), preferredTimescale: 600),
+            duration: CMTime(seconds: dur,           preferredTimescale: 600))
+
+        return await withCheckedContinuation { cont in
+            export.exportAsynchronously {
+                DispatchQueue.main.async {
+                    guard export.status == .completed else { cont.resume(returning: nil); return }
+                    let k = UUID().uuidString
+                    self.tempFiles[k] = outURL
+                    self.webKeys.insert(k)
+                    self.schemeHandler?.register(key: k, url: outURL)
+                    cont.resume(returning: ["webURL": "stlls-video://v?k=\(k)", "dur": dur])
                 }
             }
         }
@@ -353,9 +875,8 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         activeGenerators.removeValue(forKey: key)
         if webKeys.remove(key) != nil {
             schemeHandler?.unregister(key: key)
-        } else {
-            assets.removeValue(forKey: key)
         }
+        assets.removeValue(forKey: key)   // web clip sources also keep an asset for trimming
         if let url = tempFiles.removeValue(forKey: key) {
             try? FileManager.default.removeItem(at: url)
         }
@@ -516,7 +1037,12 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
     private func setupWebView() {
         let userContent = WKUserContentController()
         userContent.add(exportHandler,    name: "exportImage")
+        userContent.add(exportHandler,    name: "exportVideo")
+        userContent.add(exportHandler,    name: "exportVideoNative")
         userContent.add(videoHandler,     name: "requestVideoSelection")
+        userContent.add(videoHandler,     name: "requestVideoProxy")
+        userContent.add(videoHandler,     name: "requestFullClips")
+        userContent.add(videoHandler,     name: "requestVideoClips")
         userContent.add(videoHandler,     name: "extractVideoFrame")
         userContent.add(videoHandler,     name: "releaseVideoAsset")
         userContent.add(remindersHandler, name: "scheduleReminders")

@@ -622,9 +622,27 @@
   .coach-dim.on { opacity: 1; }
   .coach-dim[hidden] { display: none; }
   .coach-dim-fixed { position: fixed; z-index: 210; }
+  /* "Pick your clips" tip — a centered card with a light scrim; tap anywhere to dismiss.
+     Sits above the shot-picker overlay (z 455). */
+  #coachDimShots {
+    position: fixed; inset: 0; z-index: 459;
+    background: rgba(0,0,0,0.4);
+    opacity: 0; transition: opacity 0.25s ease;
+  }
+  #coachDimShots.on { opacity: 1; }
+  #guideShots {
+    z-index: 460; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: shotsPop 0.3s cubic-bezier(0.16,1,0.3,1);
+  }
+  #guideShots.coach-leaving { animation: shotsPopOut 0.22s cubic-bezier(0.16,1,0.3,1) forwards; }
+  @keyframes shotsPop    { from { opacity: 0; transform: translate(-50%,-50%) scale(0.92); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+  @keyframes shotsPopOut { to   { opacity: 0; transform: translate(-50%,-50%) scale(0.96); } }
   /* Targets lift above the scrim while their guide is active */
   body.coach-home-on #homeNewGroup { position: relative; z-index: 6; }
-  body.coach-editor-on #psImages   { position: relative; z-index: 211; }
+  body.coach-editor-on #psImages,
+  body.coach-addclip-on #psImages,
+  body.coach-autodetect-on #psImages { position: relative; z-index: 211; }
   body.coach-canvas-on #psCanvas,
   body.coach-adjust-on #psAdjust   { position: relative; z-index: 211; }
   body.coach-export-on #psExport   { z-index: 211; }   /* already fixed — just lift */
@@ -863,7 +881,7 @@
     transition: border-color 0.2s, background 0.2s; position: relative;
   }
   .dropzone:hover, .dropzone.drag-over { border-color: var(--muted); background: #131313; }
-  .dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; pointer-events: none; }
+  .dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
   /* + → Stills / Clips choice popup */
   #addChoicePopup {
     position: fixed; z-index: 520;
@@ -1099,15 +1117,25 @@
     display: flex; gap: 2px;
     background: rgba(0,0,0,0.45); border-radius: 9px; padding: 3px;
   }
+  /* Lift the preview (and the switch chip inside it) above the coach scrim */
+  body.coach-switch-on #previewOuter { z-index: 211; }
   #boardTypeChip[hidden] { display: none !important; }
   #boardTypeChip.below-indicator { top: 44px; }
   .btc-seg {
     width: 32px; height: 24px; border: none; border-radius: 6px;
     background: transparent; color: rgba(255,255,255,0.5);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
-    -webkit-tap-highlight-color: transparent; transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent; transition: background 0.2s, color 0.2s, box-shadow 0.2s;
   }
-  .btc-seg.active { background: rgba(255,255,255,0.18); color: #fff; }
+  .btc-seg.active { color: #fff; }
+  .btc-seg[data-btype="photo"].active {
+    background: linear-gradient(135deg, #ff9a3d, #ff5e3a);
+    box-shadow: 0 2px 10px rgba(255,94,58,0.45);
+  }
+  .btc-seg[data-btype="video"].active {
+    background: linear-gradient(135deg, #9d6bff, #6c3ff0);
+    box-shadow: 0 2px 10px rgba(108,63,240,0.5);
+  }
 
   /* ── Video-clip controls (video boards) ── */
   #clipImportArea[hidden] { display: none; }
@@ -1119,6 +1147,11 @@
     transition: border-color 0.15s, color 0.15s; -webkit-tap-highlight-color: transparent;
   }
   .clip-add-slim:hover, .clip-add-slim:active { border-color: var(--border2); color: var(--text); }
+  /* Two import buttons side by side to save vertical space */
+  .clip-btn-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  .clip-btn-row .clip-add-slim { flex: 1; width: auto; min-width: 0; margin-bottom: 0; padding: 9px 5px; white-space: nowrap; }
+  .clip-btn-row .clip-add-slim span { overflow: hidden; text-overflow: ellipsis; }
+  .clip-add-slim[hidden] { display: none; }   /* collapse to one button once a library exists */
   .clip-len-row {
     display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
   }
@@ -1238,7 +1271,7 @@
   /* Transport row: prev-frame | play | next-frame */
   .ms-transport-row {
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    padding: 10px 16px 4px; flex-shrink: 0;
+    padding: 12px 16px 4px; flex-shrink: 0; border-top: 1px solid var(--border);
   }
   #msPrevFrameBtn, #msNextFrameBtn, #msPrev10Btn, #msNext10Btn {
     min-width: 38px; height: 38px; flex-shrink: 0; padding: 0 8px; gap: 3px;
@@ -1270,8 +1303,12 @@
   }
   #msScrubber::-webkit-slider-thumb {
     -webkit-appearance: none; width: 22px; height: 22px;
-    border-radius: 50%; background: var(--accent); cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    border-radius: 50%; background: #ff8a3d; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4), 0 0 6px rgba(255,138,61,0.5);
+  }
+  #msScrubber::-moz-range-thumb {
+    width: 22px; height: 22px; border: none;
+    border-radius: 50%; background: #ff8a3d; cursor: pointer;
   }
   .ms-action-row {
     display: flex; gap: 8px; padding: 8px 16px 10px; flex-shrink: 0;
@@ -1321,10 +1358,43 @@
   #spAddBtn { color: var(--accent); font-weight: 500; }
   #spAddBtn:disabled { opacity: 0.3; cursor: default; }
   .sp-status {
-    display: flex; align-items: center; justify-content: center; gap: 10px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
     flex: 1; min-height: 0; color: var(--text-dim); font-size: 12px;
   }
   .sp-status[hidden] { display: none; }
+
+  /* ── Pretty "analysing" loader — a gradient ring that fills with progress, % in the centre ── */
+  .analyze-loader { position: relative; width: 66px; height: 66px; }
+  .analyze-loader--sm { width: 26px; height: 26px; flex-shrink: 0; }
+  /* Only the SVG spins, so the centred percentage stays upright. -90° keeps 0% at the top. */
+  .al-svg { width: 100%; height: 100%; display: block; animation: alSpin 3s linear infinite; }
+  @keyframes alSpin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+  .al-track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 5; }
+  .al-prog {
+    fill: none; stroke: url(#alGrad); stroke-width: 5; stroke-linecap: round;
+    stroke-dasharray: 163.36; stroke-dashoffset: 153.6;   /* starts with a small visible arc */
+    transition: stroke-dashoffset 0.5s cubic-bezier(0.22,1,0.36,1);
+    filter: drop-shadow(0 0 5px rgba(140,90,255,0.55));
+  }
+  .analyze-loader--sm .al-track, .analyze-loader--sm .al-prog { stroke-width: 7; }
+  .analyze-loader::after {       /* soft pulsing core for liveliness */
+    content: ''; position: absolute; inset: 26%; border-radius: 50%; z-index: 1;
+    background: radial-gradient(circle, rgba(140,90,255,0.35), transparent 70%);
+    animation: alPulse 1.7s ease-in-out infinite;
+  }
+  .analyze-loader--sm::after { display: none; }
+  @keyframes alPulse { 0%,100% { opacity: 0.3; transform: scale(0.85); } 50% { opacity: 0.8; transform: scale(1.05); } }
+  .al-pct {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; color: var(--text);
+    font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+  }
+  .analyze-loader--sm .al-pct { display: none; }
+
+  /* ── Import controls slide-in when switching Photo / Video mode ── */
+  @keyframes controlsIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  .controls-anim { animation: controlsIn 0.3s cubic-bezier(0.16,1,0.3,1); }
   .sp-grid {
     flex: 1; min-height: 0; overflow-y: auto;
     display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
@@ -1356,6 +1426,84 @@
   /* Already added to the board — dimmed + an "Added" badge, not re-selectable */
   .sp-shot.added { cursor: default; opacity: 0.45; border-color: transparent; }
   .sp-shot.added .sp-shot-check { display: none; }
+
+  /* Manual mode — empty-state CTA */
+  .sp-manual-empty {
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px; padding: 24px;
+  }
+  .sp-manual-empty[hidden] { display: none; }
+  .sp-manual-ico { color: var(--text-dim); opacity: 0.7; }
+  .sp-manual-empty p { color: var(--text-dim); font-size: 13px; text-align: center; max-width: 240px; margin: 0; }
+  #spSelectClipsBtn {
+    height: 44px; padding: 0 26px; background: var(--accent); color: var(--accent-fg);
+    border: none; border-radius: var(--rsm); font-family: inherit; font-size: 12px;
+    font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: opacity 0.1s;
+  }
+  #spSelectClipsBtn:active { opacity: 0.6; }
+  /* Manual mode — "select more" tile appended to the grid */
+  .sp-add-tile {
+    aspect-ratio: var(--shot-aspect, 9 / 16); border-radius: 8px;
+    border: 2px dashed var(--border2); background: var(--surface2);
+    color: var(--text-dim); cursor: pointer; font-family: inherit;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    -webkit-tap-highlight-color: transparent; transition: border-color 0.12s, color 0.12s;
+  }
+  .sp-add-tile:active { border-color: var(--accent); color: var(--text); }
+  .sp-add-tile span { font-size: 26px; line-height: 1; font-weight: 300; }
+  .sp-add-tile small { font-size: 10px; letter-spacing: 0.04em; }
+
+  /* Trimmer — Set In/Out row (single + manual), then Add-clip + collected-clips strip (manual only) */
+  #ctManualBar { flex-shrink: 0; }
+  #ctManualBar[hidden] { display: none; }
+  #ctInoutRow { flex-shrink: 0; border-top: 1px solid var(--border); }
+  #ctInoutRow[hidden] { display: none; }
+  .ct-inout-row { display: flex; gap: 8px; padding: 12px 16px; }
+  .ct-inout-row button {
+    flex: 1; height: 40px; display: flex; align-items: center; justify-content: center; gap: 5px;
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--rsm);
+    color: var(--text); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; transition: opacity 0.1s, border-color 0.15s;
+  }
+  .ct-inout-row button:active { opacity: 0.55; border-color: var(--accent); }
+  .ct-inout-row button b {
+    font-weight: 500; font-size: 10px; color: var(--accent);
+    font-variant-numeric: tabular-nums; min-width: 38px; text-align: center;
+  }
+  #ctSetIn b { text-align: right; }
+  #ctSetOut b { text-align: left; }
+  #ctAddClip {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: calc(100% - 32px); margin: 10px 16px 0; height: 42px;
+    background: var(--accent); color: var(--accent-fg); border: none; border-radius: var(--rsm);
+    font-family: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.1s;
+  }
+  #ctAddClip:active { opacity: 0.6; }
+  .ct-clip-strip {
+    display: flex; gap: 8px; overflow-x: auto; align-items: center;
+    padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+    min-height: 104px; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .ct-clip-strip::-webkit-scrollbar { display: none; }
+  .ct-clip-strip:empty::before {
+    content: 'Added clips appear here'; font-size: 11px; color: var(--text-dim);
+    white-space: nowrap; align-self: center;
+  }
+  .ct-clip-item { position: relative; flex-shrink: 0; }
+  .ct-clip-item img { width: 72px; height: 72px; border-radius: 8px; object-fit: cover; display: block; background: #000; }
+  .ct-clip-dur {
+    position: absolute; left: 4px; bottom: 4px; background: rgba(0,0,0,0.6); color: #fff;
+    font-size: 9px; padding: 1px 4px; border-radius: 3px; font-variant-numeric: tabular-nums;
+  }
+  .ct-clip-remove {
+    position: absolute; top: -5px; right: -5px; width: 18px; height: 18px;
+    background: #1c1c1c; border: 1px solid var(--border2); border-radius: 50%;
+    font-size: 11px; cursor: pointer; color: var(--text);
+    display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+  }
   .sp-shot-added {
     position: absolute; top: 6px; right: 6px;
     background: rgba(0,0,0,0.7); color: #fff; font-size: 9px; font-weight: 600;
@@ -1396,7 +1544,7 @@
   .ct-info .ct-dur { color: var(--accent); font-weight: 600; }
   .ct-bar {
     position: relative; height: 40px; margin: 6px 20px 4px;
-    background: var(--surface2); border-radius: var(--rsm); touch-action: none;
+    background: var(--surface2); border-radius: var(--rsm); touch-action: none; cursor: pointer;
   }
   .ct-range {
     position: absolute; top: 0; bottom: 0;
@@ -1414,15 +1562,22 @@
     background: var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,0.5);
   }
   .ct-playhead {
-    position: absolute; top: -3px; bottom: -3px; width: 2px;
-    background: #fff; border-radius: 2px; box-shadow: 0 0 4px rgba(0,0,0,0.6);
-    transform: translateX(-1px); pointer-events: none;
+    position: absolute; top: -4px; bottom: -4px; width: 3px;
+    background: #ff8a3d; border-radius: 2px; box-shadow: 0 0 6px rgba(255,138,61,0.7);
+    transform: translateX(-1.5px); pointer-events: none;
+  }
+  .ct-playhead::after {   /* knob so the playhead reads as draggable */
+    content: ''; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+    width: 12px; height: 12px; border-radius: 50%; background: #ff8a3d;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
   }
   /* Transport row in the trimmer — mirrors the manual stills scrubber */
   .ct-transport-row {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     padding: 10px 16px 2px; flex-shrink: 0;
   }
+  /* When the transport is the bottom-most control (single / adjust), pad for the home indicator. */
+  .ct-transport-row.is-last { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   #ctPrevFrame, #ctNextFrame, #ctPrev10, #ctNext10 {
     min-width: 38px; height: 38px; flex-shrink: 0; padding: 0 8px; gap: 3px;
     background: var(--surface); border: 1px solid var(--border2); border-radius: var(--rsm);
@@ -1442,6 +1597,7 @@
     text-align: center; font-size: 11px; color: var(--text-dim);
     padding: 6px 20px max(16px, env(safe-area-inset-bottom));
   }
+  .ct-hint[hidden] { display: none; }
 
   /* ── Export progress bar ── */
   #exportBar {
@@ -2345,6 +2501,14 @@
 </head>
 <body>
 
+<!-- Shared gradient for the analysing loader ring (orange → purple) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="alGrad" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ff8a3d"/>
+    <stop offset="1" stop-color="#8c5aff"/>
+  </linearGradient>
+</defs></svg>
+
 <!-- ── LANDSCAPE LOCK OVERLAY ── -->
 <div id="landscapeOverlay">
   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -2581,6 +2745,9 @@
 
       <!-- Video analysis row (shown during processVideo) -->
       <div id="videoAnalysisRow" hidden>
+        <div class="analyze-loader analyze-loader--sm" id="vaAnalyzeLoader">
+          <svg class="al-svg" viewBox="0 0 60 60"><circle class="al-track" cx="30" cy="30" r="26"/><circle class="al-prog" cx="30" cy="30" r="26"/></svg>
+        </div>
         <span id="videoAnalysisLabel">Analysing video…</span>
         <button id="videoCancelBtn" aria-label="Cancel video analysis">✕</button>
       </div>
@@ -2629,10 +2796,16 @@
 
       <!-- Video-clip controls (video boards only). -->
       <div id="clipImportArea" hidden>
-        <button id="clipAddBtn" class="clip-add-slim">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="7"/></svg>
-          <span>Add video for auto clip detection</span>
-        </button>
+        <div class="clip-btn-row">
+          <button id="clipAddBtn" class="clip-add-slim">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 21l-4.35-4.35"/><circle cx="11" cy="11" r="7"/></svg>
+            <span>Auto select</span>
+          </button>
+          <button id="clipManualBtn" class="clip-add-slim">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+            <span>Manual select</span>
+          </button>
+        </div>
         <div class="clip-len-row">
           <span class="clip-len-label">Total length</span>
           <input type="range" id="clipLenSlider" min="10" max="20" step="1" value="15">
@@ -2642,6 +2815,7 @@
       <input type="file" id="clipFileInput" accept="video/*" hidden>
       <input type="file" id="clipFullFileInput" accept="video/*" multiple hidden>
       <input type="file" id="clipSingleFileInput" accept="video/*" hidden>
+      <input type="file" id="clipManualFileInput" accept="video/*" hidden>
 
       <!-- Stills strip — always below import area -->
       <button class="photos-toggle" id="photosToggle">
@@ -2769,7 +2943,7 @@
 <div id="guideAdjust" class="coach coach-fixed" hidden>
   <div class="coach-bubble">
     <strong>Fine-tune</strong>
-    Set the gap between stills, add padding, and pick a background colour.
+    Set the gap between frames, round their corners, add padding, and pick a background colour.
   </div>
   <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
     <path d="M11 2 C 11 11, 11 19, 11 26"/>
@@ -2807,6 +2981,48 @@
     <path d="M11 2 C 11 11, 11 19, 11 26"/>
     <path d="M5 20 L 11 27 L 17 20"/>
   </svg>
+</div>
+
+<div id="guideSwitch" class="coach coach-fixed" hidden>
+  <div class="coach-bubble">
+    <strong>STLLS now has video</strong>
+    Make your stills come alive — switch this board to video for looping clips.
+  </div>
+  <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 2 C 11 11, 11 19, 11 26"/>
+    <path d="M5 20 L 11 27 L 17 20"/>
+  </svg>
+</div>
+
+<div id="guideAddClip" class="coach coach-fixed" hidden>
+  <div class="coach-bubble">
+    <strong>Add media</strong>
+    In video mode, you can add both stills and video clips into your board.
+  </div>
+  <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 2 C 11 11, 11 19, 11 26"/>
+    <path d="M5 20 L 11 27 L 17 20"/>
+  </svg>
+</div>
+
+<div id="guideAutoDetect" class="coach coach-fixed" hidden>
+  <div class="coach-bubble">
+    <strong>Scene detection</strong>
+    Or add a whole video and STLLS splits it into clips for you automatically.
+  </div>
+  <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 2 C 11 11, 11 19, 11 26"/>
+    <path d="M5 20 L 11 27 L 17 20"/>
+  </svg>
+</div>
+
+<!-- Shot picker tip — shown over the detected-clips grid -->
+<div id="coachDimShots" hidden></div>
+<div id="guideShots" class="coach coach-fixed" hidden>
+  <div class="coach-bubble">
+    <strong>Pick your clips</strong>
+    Tap to select the ones you want. Use the gear to trim any clip that isn't quite right.
+  </div>
 </div>
 
 <!-- Export bar — fixed at screen bottom on both desktop and mobile -->
@@ -2854,6 +3070,12 @@
     <img id="msFrameImg" hidden alt="">
     <div id="msFrameImgLoading" hidden><div class="ms-load-ring"></div></div>
   </div>
+  <!-- Scrubber row (timeline): time | track | time -->
+  <div class="ms-scrub-row">
+    <span class="ms-time" id="msTimeCur">0:00</span>
+    <input type="range" id="msScrubber" min="0" max="1" step="0.001" value="0">
+    <span class="ms-time" id="msTimeDur">0:00</span>
+  </div>
   <!-- Transport row: prev-1 | prev-10 | play | next-10 | next-1 -->
   <div class="ms-transport-row">
     <button id="msPrevFrameBtn" aria-label="Back 1 frame">
@@ -2884,12 +3106,6 @@
       </svg>
     </button>
   </div>
-  <!-- Scrubber row: time | track | time -->
-  <div class="ms-scrub-row">
-    <span class="ms-time" id="msTimeCur">0:00</span>
-    <input type="range" id="msScrubber" min="0" max="1" step="0.001" value="0">
-    <span class="ms-time" id="msTimeDur">0:00</span>
-  </div>
   <div class="ms-action-row">
     <button id="msGrabBtn">Grab Still</button>
   </div>
@@ -2904,10 +3120,21 @@
     <button id="spAddBtn" disabled>Add</button>
   </div>
   <div id="spStatus" class="sp-status">
-    <div class="ms-load-ring"></div>
+    <div class="analyze-loader" id="spAnalyzeLoader">
+      <svg class="al-svg" viewBox="0 0 60 60"><circle class="al-track" cx="30" cy="30" r="26"/><circle class="al-prog" cx="30" cy="30" r="26"/></svg>
+      <span class="al-pct">0%</span>
+    </div>
     <span id="spStatusText">Preparing video…</span>
   </div>
   <div id="spGrid" class="sp-grid"></div>
+  <!-- Manual mode: empty state before any clips have been picked -->
+  <div id="spManualEmpty" class="sp-manual-empty" hidden>
+    <div class="sp-manual-ico">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+    </div>
+    <p>Pick the parts of your video to use as clips.</p>
+    <button id="spSelectClipsBtn">Select clips</button>
+  </div>
 </div>
 
 <!-- In/out trimmer for a single detected shot -->
@@ -2928,6 +3155,12 @@
     <div class="ct-playhead" id="ctPlayhead"></div>
     <div class="ct-handle" id="ctIn"></div>
     <div class="ct-handle" id="ctOut"></div>
+  </div>
+  <!-- Set the in/out points to the playhead — sits directly under the timeline, above the transport.
+       Shown for manual clip selection, single-clip import, and adjusting a detected shot. -->
+  <div id="ctInoutRow" class="ct-inout-row" hidden>
+    <button id="ctSetIn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><line x1="14" y1="4" x2="14" y2="20"/></svg><span>Set In</span><b id="ctSetInVal">0.00s</b></button>
+    <button id="ctSetOut"><b id="ctSetOutVal">0.00s</b><span>Set Out</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><line x1="10" y1="4" x2="10" y2="20"/></svg></button>
   </div>
   <!-- Transport: prev-1 | prev-10 | play | next-10 | next-1 -->
   <div class="ct-transport-row">
@@ -2959,7 +3192,14 @@
       </svg>
     </button>
   </div>
-  <div class="ct-hint">Drag the handles to set the start and end (±1s)</div>
+  <div class="ct-hint" hidden>Drag the handles to set the start and end (±1s)</div>
+  <div id="ctManualBar" hidden>
+    <button id="ctAddClip">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add clip
+    </button>
+    <div class="ct-clip-strip" id="ctClipStrip"></div>
+  </div>
 </div>
 
 <!-- Settings panel -->
@@ -3207,6 +3447,9 @@ function setupCoach(key, o) {
     next:       o.next   || null,   // guide to chain into after this one is dismissed
     zone:       o.zone   || null,   // selectors the user may interact with without dismissing
     continueable: o.continueable || false,  // show a continue icon after they explore
+    onShow:     o.onShow   || null, // run when the guide appears (e.g. reveal its target)
+    onDismiss:  o.onDismiss|| null, // run after it leaves (e.g. restore the target)
+    autoDismiss: o.autoDismiss || 0, // ms after which the guide dismisses itself (0 = never)
     shown: false,
   };
 }
@@ -3223,7 +3466,14 @@ function showCoach(key, delay) {
   setTimeout(() => {
     if (localStorage.getItem(c.storageKey) === '1') return; // pre-empted meanwhile
     c.el.hidden  = false;
-    if (c.anchor) positionCoach(c);
+    if (c.onShow) c.onShow();          // reveal the target before measuring/positioning
+    if (c.anchor) {
+      positionCoach(c);
+      // onShow can reflow the panel/board (e.g. flipping to Video mode), which moves the
+      // target after this first measure — re-position once the layout settles.
+      requestAnimationFrame(() => { if (!c.el.hidden) positionCoach(c); });
+      setTimeout(() => { if (!c.el.hidden) positionCoach(c); }, 140);
+    }
     setCoachPulse(c, true);
     c.dim.hidden = false;
     document.body.classList.add(c.bodyClass);
@@ -3272,6 +3522,7 @@ function showCoach(key, delay) {
         c.el.hidden  = true;             // fallback if animationend never fires
         c.dim.hidden = true;
         document.body.classList.remove(c.bodyClass);
+        if (c.onDismiss) c.onDismiss();  // restore the target after the guide has left
       }, 600);
       c.area.removeEventListener('pointerdown', dismiss);
       delete _coachDismissers[key];
@@ -3281,6 +3532,8 @@ function showCoach(key, delay) {
 
     // Fallback: surface the continue affordance even if they never touch it.
     if (c.continueable) revealTimer = setTimeout(revealContinue, 5000);
+    // Self-dismissing guide (so the user isn't forced to act on it).
+    if (c.autoDismiss) setTimeout(() => dismiss(), c.autoDismiss);
 
     // First tap anywhere in the area means the guide did its job
     c.area.addEventListener('pointerdown', dismiss);
@@ -3305,6 +3558,7 @@ setupCoach('editor', {
   // Point the arrow at the actual + button (mobile) / drop frame (desktop)
   // — whichever is visible — and pulse that same whole frame.
   anchor: ['#mAddBtn', '#dropzone'], pulse: ['#mAddBtn', '#dropzone'],
+  onShow: ensureMediaBarOpen,            // make sure the bar is open so the + is visible
 });
 // Guided tour — starts when the first stills land (see renderList), then chains.
 // canvas/layout/adjust are "explore then continue" steps: a continue icon
@@ -3340,6 +3594,86 @@ setupCoach('export', {
   el: 'guideExport', store: 'stlls-guide-export', area: 'body',
   dim: 'coachDimEditor', body: 'coach-export-on',
   anchor: '#psExport', pulse: ['#exportBtn'],
+  // The switch guide follows: 2s after the user taps Export, or 5s after this guide
+  // appears if they never tap it.
+  onShow: () => {
+    let done = false;
+    const fire = () => { if (done) return; done = true; showCoach('switch', 0); };
+    const t5 = setTimeout(fire, 5000);
+    const btn = document.getElementById('exportBtn');
+    if (btn) btn.addEventListener('click', () => { clearTimeout(t5); setTimeout(fire, 2000); }, { once: true });
+  },
+});
+// The Photo/Video switch (top-left). The chip is always visible now, so no reveal needed.
+setupCoach('switch', {
+  el: 'guideSwitch', store: 'stlls-guide-switch', area: 'body',
+  dim: 'coachDimEditor', body: 'coach-switch-on',
+  anchor: '#boardTypeChip', pulse: ['#boardTypeChip'], next: 'addclip',
+});
+// Video features — shown in Video mode, so flip the board there for these two steps
+// (non-destructive: stills are kept), then restore the original mode afterwards.
+let _tourPrevBoardType = null;
+
+// Resolve once the editor is settled — no add overlay open and the app in the foreground
+// (a native picker backgrounds the web view) — so a follow-up guide doesn't interrupt.
+function whenEditorIdle(cb, startedAt) {
+  startedAt = startedAt || Date.now();
+  const busy = ['addChoicePopup', 'shotPicker', 'clipTrimmer', 'manualScrubber']
+                 .some(id => { const e = document.getElementById(id); return e && !e.hidden; })
+               || document.visibilityState !== 'visible';
+  if (!busy) { setTimeout(cb, 500); return; }
+  if (Date.now() - startedAt > 120000) return;     // safety cap
+  setTimeout(() => whenEditorIdle(cb, startedAt), 500);
+}
+
+// Expand the Media/Stills bar so a tip that points at the + button can anchor to it,
+// even if the user had collapsed the bar with its chevron.
+function ensureMediaBarOpen() {
+  const strip = document.querySelector('.img-strip-outer');
+  const toggle = document.getElementById('photosToggle');
+  if (strip)  strip.classList.remove('collapsed');
+  if (toggle) toggle.classList.remove('closed');
+}
+
+setupCoach('addclip', {
+  el: 'guideAddClip', store: 'stlls-guide-addclip', area: 'body',
+  dim: 'coachDimEditor', body: 'coach-addclip-on',
+  anchor: '#mAddBtn', pulse: ['#mAddBtn'],
+  onShow: () => {
+    _tourPrevBoardType = state.boardType;
+    if (state.boardType !== 'video') { state.boardType = 'video'; applyBoardTypeUI(); }
+    ensureMediaBarOpen();                  // the + button must be visible to anchor the tip
+    computePreviewSize(); buildLayout();   // settle the panel/board so the + button is placed correctly
+  },
+  // Don't chain straight to auto-detect — let the user tap + and add a clip/still (or tap
+  // out) first; the next tip waits until they're back in a settled editor.
+  onDismiss: () => {
+    setTimeout(() => whenEditorIdle(() => showCoach('autodetect', 0)), 500);
+  },
+});
+// Shot-picker tip — a centered card with a light scrim over the detected-clips grid
+// (triggered from renderShotGrid). Tap anywhere on the scrim to dismiss.
+setupCoach('shots', {
+  el: 'guideShots', store: 'stlls-guide-shots', area: '#coachDimShots',
+  dim: 'coachDimShots', body: 'coach-shots-on',
+});
+setupCoach('autodetect', {
+  el: 'guideAutoDetect', store: 'stlls-guide-autodetect', area: 'body',
+  dim: 'coachDimEditor', body: 'coach-autodetect-on',
+  anchor: '#clipAddBtn', pulse: ['#clipAddBtn'],
+  // Stays put until the user taps to dismiss (tapping empty space works too — they're not
+  // forced to press the scene-detection button), so it doesn't vanish abruptly.
+  onShow: () => {
+    if (state.boardType !== 'video') { state.boardType = 'video'; applyBoardTypeUI(); }
+    computePreviewSize(); buildLayout();
+  },
+  onDismiss: () => {
+    // Restore the original mode — unless the user actually added a clip (keep Video then).
+    if (_tourPrevBoardType && _tourPrevBoardType !== state.boardType && !hasClips()) {
+      state.boardType = _tourPrevBoardType; applyBoardTypeUI();
+    }
+    _tourPrevBoardType = null;
+  },
 });
 
 // Pick the first visible element from a selector or list of selectors
@@ -3767,6 +4101,7 @@ function serializeBoards(boards) {
       shots:   board.detection.shots,
       aspect:  board.detection.aspect || (9 / 16),
       srcBlob: board.detection.blob,
+      mode:    board.detection.mode || 'auto',
     } : null,
   }));
 }
@@ -3822,6 +4157,7 @@ async function deserializeBoards(savedBoards) {
         shots:  board.detection.shots,
         aspect: board.detection.aspect || (9 / 16),
         blob:   board.detection.srcBlob,
+        mode:   board.detection.mode || 'auto',
       } : null,
       images,
     };
@@ -3904,6 +4240,14 @@ function leaveHome(then) {
     // Editor first-time guide — fires now that the editor is actually visible.
     // Boards that load with images pre-empt it via dismissCoach in renderList.
     showCoach('editor', 700);
+    // Existing users who finished the original tour (export seen) but haven't met the
+    // newer video steps yet: start the Photo/Video switch tip here — it chains on to the
+    // clip tips. New users still get it through the export step, and showCoach is a no-op
+    // if it has already run, so there's no double-trigger.
+    if (localStorage.getItem('stlls-guide-export') === '1' &&
+        localStorage.getItem('stlls-guide-switch') !== '1') {
+      showCoach('switch', 1400);
+    }
   }, { once: true });
 }
 
@@ -3981,6 +4325,7 @@ function saveCurrentBoardSnapshot() {
       shots:  _clipShots,
       aspect: _clipAspect,
       blob:   _clipSrcBlob,
+      mode:   _detectMode,
     } : (_projectBoards[_activeBoardIdx]?.detection || null),
   };
 }
@@ -4085,7 +4430,10 @@ function loadBoardState(board) {
     _clipShots       = board.detection.shots;
     _clipAspect      = board.detection.aspect || (9 / 16);
     _clipDetId       = board.detection.id || null;
+    _detectMode      = board.detection.mode || 'auto';
     updateClipAddBtnLabel();
+  } else {
+    _detectMode = 'auto';
   }
   // Sync all controls to new state
   applyBoardTypeUI();
@@ -4404,8 +4752,76 @@ function computePreviewSize() {
 // Smoothly morph the board between aspect ratios — the frame scales fluidly
 // (Apple-style easeInOut) while the slots reflow to fit every frame.
 let _ratioAnimRaf = null, _ratioAnimGen = 0;
+// Effective source dimensions for a still (image) or clip (poster / videoW·H).
+function _frameDims(item) {
+  const img = item.img;
+  return [ (img && img.naturalWidth)  || item.videoW || 0,
+           (img && img.naturalHeight) || item.videoH || 0 ];
+}
+
+// ── Framing preservation across ratio changes ───────────────────────────────
+// A transform { scale, fx, fy } is relative to its slot, so the same values frame a
+// different part of the image once the ratio changes the slot. We capture the framing in
+// slot-independent terms — the image anchor at the slot centre (ax, ay) plus the cover
+// multiplier (scale) — for every layout, then rebuild the transforms after the ratio
+// changes so the subject stays centred at the same zoom (works for stills and clips).
+function captureFramings() {
+  const out = {}, savedLayout = state.layout;
+  const [cw, ch] = canonicalDims();
+  for (const layout of ['vertical', 'horizontal', 'grid']) {
+    if (!state.images.some(it => it.transforms && it.transforms[layout])) continue;
+    state.layout = layout;
+    const m = new Map();
+    for (const s of getSlots(cw, ch)) {
+      const t = s.item.transforms && s.item.transforms[layout];
+      if (!t) continue;
+      const [iw, ih] = _frameDims(s.item);
+      if (!(iw > 0 && ih > 0 && s.w > 0 && s.h > 0)) continue;
+      const totalS = Math.max(s.w / iw, s.h / ih) * (t.scale || 1);
+      m.set(String(s.item.id), {
+        ax: 0.5 - (t.fx || 0) * s.w / (totalS * iw),
+        ay: 0.5 - (t.fy || 0) * s.h / (totalS * ih),
+        scale: t.scale || 1,
+      });
+    }
+    out[layout] = m;
+  }
+  state.layout = savedLayout;
+  return out;
+}
+
+function applyFramings(framings) {
+  const savedLayout = state.layout;
+  const [cw, ch] = canonicalDims();
+  for (const layout of Object.keys(framings)) {
+    state.layout = layout;
+    const m = framings[layout];
+    for (const s of getSlots(cw, ch)) {
+      const f = m.get(String(s.item.id));
+      const t = s.item.transforms && s.item.transforms[layout];
+      if (!f || !t) continue;
+      const [iw, ih] = _frameDims(s.item);
+      if (!(iw > 0 && ih > 0 && s.w > 0 && s.h > 0)) continue;
+      const totalS = Math.max(s.w / iw, s.h / ih) * f.scale;
+      t.scale = f.scale;
+      t.fx = (0.5 - f.ax) * totalS * iw / s.w;
+      t.fy = (0.5 - f.ay) * totalS * ih / s.h;
+      clampTransform(t, { naturalWidth: iw, naturalHeight: ih }, s.w, s.h);
+    }
+  }
+  state.layout = savedLayout;
+}
+
 function setRatioAnimated(newRatio) {
   if (newRatio === state.ratio && newRatio !== 'custom') return;   // custom may have a new value
+  const _framings = captureFramings();            // capture subject framing (old ratio)
+  // Snapshot the current-layout transforms so the morph can interpolate old → new with
+  // no jump (both endpoints render the same framing, so the subject stays put).
+  const _oldTs = new Map();
+  state.images.forEach(it => {
+    const t = it.transforms && it.transforms[state.layout];
+    if (t) _oldTs.set(String(it.id), { scale: t.scale, fx: t.fx, fy: t.fy });
+  });
   const gen = ++_ratioAnimGen;
   if (_ratioAnimRaf) cancelAnimationFrame(_ratioAnimRaf);
 
@@ -4414,6 +4830,7 @@ function setRatioAnimated(newRatio) {
   const startW = parseFloat(layoutPreview.style.width)  || previewW;
   const startH = parseFloat(layoutPreview.style.height) || previewH;
   state.ratio = newRatio;
+  applyFramings(_framings);                    // rebuild transforms to keep the framing
   _previewAnimating = true;
   computePreviewSize();                       // updates previewW/H to target (no style write)
   const targetW = previewW, targetH = previewH;
@@ -4445,7 +4862,19 @@ function setRatioAnimated(newRatio) {
       sd.style.left = s.x + 'px'; sd.style.top = s.y + 'px';
       sd.style.width = s.w + 'px'; sd.style.height = s.h + 'px';
       const im = sd.querySelector('.slot-img');
-      if (im) positionSlotImage(im, s.item, s.w, s.h);
+      if (im) {
+        const oldT = _oldTs.get(sd.dataset.itemId);
+        if (oldT) {
+          const nt = itemT(s.item);              // the new (post-ratio) transform
+          positionSlotImage(im, s.item, s.w, s.h, {
+            scale: oldT.scale + (nt.scale - oldT.scale) * e,
+            fx:    oldT.fx    + (nt.fx    - oldT.fx)    * e,
+            fy:    oldT.fy    + (nt.fy    - oldT.fy)    * e,
+          });
+        } else {
+          positionSlotImage(im, s.item, s.w, s.h);
+        }
+      }
     });
     if (t < 1) { _ratioAnimRaf = requestAnimationFrame(frame); }
     else {
@@ -4552,8 +4981,8 @@ function applyZoom(t, img, slotW, slotH, cx, cy, newScale) {
   clampTransform(t, img, slotW, slotH);
 }
 
-function positionSlotImage(imgEl, item, slotW, slotH) {
-  const { img } = item; const t = itemT(item);
+function positionSlotImage(imgEl, item, slotW, slotH, tOverride) {
+  const { img } = item; const t = tOverride || itemT(item);
   // Keep the pan/zoom in bounds for the CURRENT slot size. Transforms are stored
   // per-layout but their valid range depends on slot dims, which change with the
   // ratio — re-clamping here settles a clip into the new ratio's frame smoothly
@@ -4846,7 +5275,6 @@ function createLoadingEl() {
 // item id, so changing ratio / layout / gap / fullscreen never tears down a clip —
 // no black flash, no stalled playback. Only added/removed items touch the DOM.
 function buildLayout() {
-  syncBoardType();              // keep boardType derived from content (stills/clips mix)
   if (previewW < 10) return;
   if (activeDrag) { activeDrag.slotDiv.classList.remove('grabbing'); activeDrag = null; }
 
@@ -5040,6 +5468,7 @@ let _processVideoCtrl = null;
 const _nativePending  = {};   // requestId → resolve callback (native bridge)
 const videoAnalysisRow   = document.getElementById('videoAnalysisRow');
 const videoAnalysisLabel = document.getElementById('videoAnalysisLabel');
+const vaAnalyzeLoader    = document.getElementById('vaAnalyzeLoader');
 const videoCancelBtn     = document.getElementById('videoCancelBtn');
 
 videoCancelBtn.addEventListener('click', () => {
@@ -5143,6 +5572,7 @@ async function processVideo(fileOrURL) {
     }
     prevData = data;
     const pct = Math.round((s / totalSteps) * 100);
+    setAnalyzeProgress(vaAnalyzeLoader, pct);
     videoAnalysisLabel.textContent = `Analysing video… ${pct}%`;
     setBar(Math.round((s / totalSteps) * 60), `Scanning… ${pct}%`);
   }
@@ -5204,7 +5634,8 @@ async function processVideo(fileOrURL) {
     state.images.push({ id: Date.now() + Math.random(), name: `${baseName}_${i+1}.jpg`, img, transforms: {} });
     imgStripOuter.classList.remove('collapsed');
     photosToggle.classList.remove('closed');
-    videoAnalysisLabel.textContent = `Extracting ${i+1} / ${selectedMids.length}`;
+    setAnalyzeProgress(vaAnalyzeLoader, ((i + 1) / selectedMids.length) * 100);
+    videoAnalysisLabel.textContent = `Extracting ${i + 1} / ${selectedMids.length}`;
     setBar(60 + Math.round(((i + 1) / selectedMids.length) * 38), `Extracting ${i+1} / ${selectedMids.length}`);
   }
 
@@ -5255,8 +5686,16 @@ function closeAddChoice() { addChoicePopup.hidden = true; }
 function toggleAddChoice(trigger) {
   if (addChoicePopup.hidden) openAddChoice(trigger); else closeAddChoice();
 }
-mAddBtn.addEventListener('click', e => { e.stopPropagation(); toggleAddChoice(mAddBtn); });
-dropzone.addEventListener('click', e => { e.stopPropagation(); toggleAddChoice(dropzone); });
+mAddBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  if (state.boardType === 'video') {
+    toggleAddChoice(mAddBtn);          // video board: + → Stills / Clips popup
+  } else if (importMode === 'video' && isNativeVideo()) {
+    window.webkit.messageHandlers.requestVideoSelection.postMessage(null);  // grab stills from a video
+  } else {
+    fileInput.click();                 // photo board: add images
+  }
+});
 document.getElementById('addChoiceStills').addEventListener('click', () => {
   closeAddChoice();
   fileInput.accept = 'image/*'; fileInput.setAttribute('multiple', ''); fileInput.value = '';
@@ -5727,47 +6166,62 @@ document.querySelectorAll('#bitrateSeg .br-btn').forEach(btn => {
 });
 
 function hasClips() { return state.images.some(it => it.type === 'clip'); }
-// Boards are unified — a "video" board is simply one that currently holds a clip. The type
-// is derived from content (not chosen up front), so export routing / single-board logic
-// that keys off state.boardType keeps working.
-function syncBoardType() { state.boardType = hasClips() ? 'video' : 'photo'; }
-
-// Reflect the unified board: stills + clips coexist; the + button chooses which to add;
-// export is a looping video (of the set length) when any clip is present, else a still.
+// Photo boards use the classic stills import (From Photos / From Video, auto + manual).
+// Video boards use the clip UI with the + → Stills/Clips popup, so stills and clips can be
+// mixed there. The board type is chosen via the switch while the board is still empty.
 function applyBoardTypeUI() {
-  syncBoardType();
-  const clips = hasClips();
-  boardTypeChip.hidden = true;            // retired — boards are mixed now
-  // The +-button popup replaces the old photo / video-grab mode UI.
-  importModeRow.hidden   = true;
-  videoImportArea.hidden = true;
-  dropzone.hidden        = false;
-  importSection.hidden   = false;         // dropzone stays as the desktop add affordance
-  clipImportArea.hidden  = false;         // auto-detect button (+ length when clips exist)
-  const lenRow = document.querySelector('.clip-len-row');
-  if (lenRow) lenRow.hidden = !clips;
+  const isVideo = state.boardType === 'video';
+  // The Photo/Video switch stays available — switching is non-destructive (video boards
+  // can also hold stills), so it no longer vanishes once content is added or exported.
+  boardTypeChip.hidden = false;
+  boardTypeChip.querySelectorAll('.btc-seg').forEach(b =>
+    b.classList.toggle('active', b.dataset.btype === state.boardType));
+  boardTypeChip.classList.toggle('below-indicator', !!(boardIndicatorEl && !boardIndicatorEl.hidden));
+
+  if (isVideo) {
+    importModeRow.hidden   = true;
+    importSection.hidden   = true;
+    videoImportArea.hidden = true;
+    clipImportArea.hidden  = false;         // auto-detect button + length (+ the + popup)
+    const lenRow = document.querySelector('.clip-len-row');
+    if (lenRow) lenRow.hidden = !hasClips();
+  } else {
+    importModeRow.hidden   = false;
+    importSection.hidden   = false;
+    clipImportArea.hidden  = true;
+    dropzone.hidden        = (importMode === 'video');
+    videoImportArea.hidden = (importMode !== 'video');
+  }
 
   const lbl = photosToggle.querySelector('span');
-  if (lbl) lbl.textContent = 'Media';
+  if (lbl) lbl.textContent = isVideo ? 'Media' : 'Stills';
 
   mAddBtn.disabled = false;
   mAddBtn.classList.remove('disabled');
-  mAddBtn.title = 'Add stills or clips';
+  mAddBtn.title = isVideo ? 'Add stills or clips' : 'Add images';
 
-  // Export options: Bitrate when there's video, Format/Scale otherwise.
-  if (stillExportOpts) stillExportOpts.hidden = clips;
-  if (videoExportOpts) videoExportOpts.hidden = !clips;
+  // Export options: Bitrate for video boards, Format/Scale for photo boards.
+  if (stillExportOpts) stillExportOpts.hidden = isVideo;
+  if (videoExportOpts) videoExportOpts.hidden = !isVideo;
 
   updateClipAddBtnLabel();
   clipLenSlider.value = state.clipDuration;
   clipLenVal.textContent = state.clipDuration + 's';
+
+  // When the Photo/Video mode actually changes, slide the swapped controls in (no hard cut).
+  const modeChanged = applyBoardTypeUI._prev !== undefined && applyBoardTypeUI._prev !== state.boardType;
+  applyBoardTypeUI._prev = state.boardType;
+  if (modeChanged) {
+    const anim = (isVideo ? [clipImportArea, videoExportOpts]
+                          : [importModeRow, importSection, stillExportOpts]).filter(Boolean);
+    anim.forEach(el => { el.classList.remove('controls-anim'); void el.offsetWidth; el.classList.add('controls-anim'); });
+  }
 }
 
 boardTypeChip.querySelectorAll('.btc-seg').forEach(btn => {
   btn.addEventListener('click', () => {
-    if (state.images.length > 0) return;          // locked once content lands
     if (state.boardType === btn.dataset.btype) return;
-    state.boardType = btn.dataset.btype;
+    state.boardType = btn.dataset.btype;   // non-destructive — content is kept either way
     applyBoardTypeUI();
   });
 });
@@ -5781,6 +6235,7 @@ clipLenSlider.addEventListener('input', () => {
 function startClipImport() {
   if (!throttle('clipvid', 1200)) return;
   _clipImportMode = 'auto';
+  _detectMode = 'auto';
   discardDetectedShots();                             // fresh video replaces any prior one
   if (isNativeVideo()) {
     openShotPicker();                                  // "Preparing…" behind PHPicker
@@ -5800,10 +6255,78 @@ function reopenShotPicker() {
   renderShotGrid();
 }
 
-// Slim button: first use analyses a video; afterwards it reopens the shot selection.
+// First press (no library): run auto detection on a chosen video. Afterwards this is the
+// single "Add more manually" button — it just reopens the existing shot-pick library so the
+// user can add more (via the "+ Add clips" tile) without resetting what's already there.
 document.getElementById('clipAddBtn').addEventListener('click', () => {
   if (_clipShots.length > 0 && _clipSrcURL) reopenShotPicker();
   else startClipImport();
+});
+
+// ── Manual shot select — hand-pick clips from a video with the trimmer ──────
+// Manual button → empty picker (with "Select clips") → trimmer → clip list → picker grid.
+function startManualClipImport() {
+  if (!throttle('clipvid', 1200)) return;
+  _clipImportMode = 'manual';
+  _detectMode = 'manual';
+  discardDetectedShots();          // fresh — replace any prior detection/source
+  openManualPicker();              // empty CTA; the video is picked from "Select clips"
+}
+// Only shown while there's no library yet (it collapses into the single button once one exists).
+document.getElementById('clipManualBtn').addEventListener('click', startManualClipImport);
+
+// Show the picker; populate the grid if clips exist, otherwise the manual empty CTA.
+function openManualPicker() {
+  _clipImportMode = 'manual';
+  _detectMode = 'manual';
+  _clipSelected = new Set();
+  shotPicker.hidden = false;
+  shotPicker.classList.add('opening');
+  setTimeout(() => shotPicker.classList.remove('opening'), 240);
+  refreshShotPicker();
+}
+
+// Decide what the open picker shows based on current state.
+function refreshShotPicker() {
+  if (_clipShots.length) {
+    spManualEmpty.hidden = true;
+    renderShotGrid();
+  } else if (_detectMode === 'manual') {
+    spStatus.hidden = true; spGrid.hidden = true; spGrid.innerHTML = '';
+    spManualEmpty.hidden = false;
+    updateSpAddBtn();
+  }
+}
+
+// Adopt a picked video as the manual source (no analysis — the user trims by hand).
+function setManualSource(srcURL, opts) {
+  _clipSrcURL = srcURL;
+  _clipSrcIsObjURL = !!opts.isObjURL;
+  _clipNative = !!opts.native;
+  _clipSourceKey = opts.key || null;
+  if (!_clipDetId) _clipDetId = genId();
+}
+
+// "Select clips" / the grid's "+" tile: open the trimmer (picking a video first if needed).
+function startManualTrim() {
+  _clipImportMode = 'manual';
+  if (_clipSrcURL) { openManualTrimmer(); return; }    // already have a video → add more
+  if (isNativeVideo()) {
+    spManualEmpty.hidden = true; spGrid.hidden = true;
+    spStatus.hidden = false; spStatusText.textContent = 'Preparing video…';
+    setAnalyzeProgress(spAnalyzeLoader, 0);
+    window.webkit.messageHandlers.requestVideoProxy.postMessage(null);
+  } else {
+    clipManualFileInput.value = '';
+    clipManualFileInput.click();                       // web/desktop fallback
+  }
+}
+document.getElementById('spSelectClipsBtn').addEventListener('click', startManualTrim);
+document.getElementById('clipManualFileInput').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file || !file.type.startsWith('video/')) return;
+  setManualSource(URL.createObjectURL(file), { native: false, isObjURL: true });
+  openManualTrimmer();
 });
 
 // ── Add ONE video as a clip (Clips strip +). Pick a video → trim the portion → import. ──
@@ -5975,6 +6498,22 @@ const spAddBtn     = document.getElementById('spAddBtn');
 const spStatus     = document.getElementById('spStatus');
 const spStatusText = document.getElementById('spStatusText');
 const spGrid       = document.getElementById('spGrid');
+const spManualEmpty   = document.getElementById('spManualEmpty');
+const spSelectClipsBtn = document.getElementById('spSelectClipsBtn');
+const clipManualFileInput = document.getElementById('clipManualFileInput');
+const spAnalyzeLoader = document.getElementById('spAnalyzeLoader');
+
+// Drive the gradient analysing ring (keeps a small visible arc so it always reads as active).
+function setAnalyzeProgress(loader, pct) {
+  if (!loader) return;
+  const prog = loader.querySelector('.al-prog');
+  if (!prog) return;
+  const C = 163.36;   // 2π·26
+  const v = Math.max(0, Math.min(100, +pct || 0));
+  prog.style.strokeDashoffset = String(C * (1 - Math.max(0.06, v / 100)));
+  const label = loader.querySelector('.al-pct');
+  if (label) label.textContent = Math.round(v) + '%';
+}
 
 let _clipSrcURL        = null;   // detection source: stlls-video:// URL (native) or object URL (web)
 let _clipSrcIsObjURL   = false;
@@ -5986,9 +6525,11 @@ let _clipSelected      = new Set();
 let _clipDetId         = null;   // stable id for the analysed video (survives save/reopen)
 let _clipSrcBlob       = null;   // analysed-video bytes — persisted so the picker reopens after restart
 let _pendingClips      = null;   // resolve() awaiting native trim results
-let _clipImportMode    = 'auto'; // 'auto' = shot detection, 'single' = pick one video + trim it
+let _clipImportMode    = 'auto'; // 'auto' = shot detection, 'single' = pick one video + trim it, 'manual' = pick segments
+let _detectMode        = 'auto'; // how the current picker was populated: 'auto' (detection) | 'manual' (hand-picked)
+let _manualClips       = [];     // clips collected in the manual trimmer this session (committed on Done)
 let _siCtx             = null;   // single-import source { srcURL, key, native, isObjURL, blob }
-let _ctMode            = 'shot'; // trimmer mode: 'shot' (adjust a detected shot) | 'single' (trim a whole video)
+let _ctMode            = 'shot'; // trimmer mode: 'shot' (adjust a detected shot) | 'single' (trim a whole video) | 'manual' (build a clip list)
 
 // Pull the analysed source fully into memory (background) so it can be saved to IDB and
 // the shot picker can reopen after the app is closed without re-picking a video.
@@ -6016,10 +6557,23 @@ function addedShotIndices() {
 // The slim button reads "Add video for auto clip detection" until a video has been
 // analysed in this board; after that it becomes "Add more from video" and reopens the
 // shot picker so the user can add more shots from the same video.
+// Two buttons (Auto / Manual) only while there's no library yet. Once a shot-pick library
+// exists for this video, collapse to ONE button that reopens it — both old buttons did the
+// same thing at that point, and Manual used to wrongly reset the library.
 function updateClipAddBtnLabel() {
-  const span = document.querySelector('#clipAddBtn span');
-  if (span) span.textContent = (_clipShots.length > 0 && _clipSrcURL)
-    ? 'Add more from video' : 'Add video for auto clip detection';
+  const hasLibrary = _clipShots.length > 0 && _clipSrcURL;
+  const autoBtn   = document.getElementById('clipAddBtn');
+  const manualBtn = document.getElementById('clipManualBtn');
+  const aSpan = autoBtn && autoBtn.querySelector('span');
+  const mSpan = manualBtn && manualBtn.querySelector('span');
+  if (hasLibrary) {
+    if (manualBtn) manualBtn.hidden = true;          // one consolidated button
+    if (aSpan) aSpan.textContent = 'Add more manually';
+  } else {
+    if (manualBtn) manualBtn.hidden = false;
+    if (aSpan) aSpan.textContent = 'Auto select';
+    if (mSpan) mSpan.textContent = 'Manual select';
+  }
 }
 
 // Drop the analysed video + its shots (release the native source). Used when leaving
@@ -6030,6 +6584,7 @@ function discardDetectedShots() {
   _clipSrcURL = null; _clipSrcIsObjURL = false; _clipSourceKey = null; _clipNative = false;
   _clipShots = []; _clipSelected = new Set();
   _clipSrcBlob = null; _clipDetId = null;
+  _manualClips = [];
   updateClipAddBtnLabel();
 }
 
@@ -6049,6 +6604,17 @@ window.nativeVideoProxyReady = function(payload) {
       openSingleTrimmer(payload.webURL, { native: true, key: payload.assetKey || null, isObjURL: false });
     return;
   }
+  if (_clipImportMode === 'manual') {
+    if (!payload || !payload.webURL) {
+      spStatus.hidden = false; spGrid.hidden = true; spManualEmpty.hidden = true;
+      spStatusText.textContent = 'Could not load video';
+      setTimeout(() => { if (!_clipShots.length) refreshShotPicker(); }, 1300);
+      return;
+    }
+    setManualSource(payload.webURL, { native: true, key: payload.assetKey || null, isObjURL: false });
+    openManualTrimmer();
+    return;
+  }
   if (!payload || !payload.webURL) {
     spStatus.hidden = false; spGrid.hidden = true;
     spStatusText.textContent = 'Could not load video';
@@ -6063,6 +6629,7 @@ function openShotPicker() {
   _clipSrcBlob = null; _clipDetId = null;
   spGrid.innerHTML = ''; spGrid.hidden = true;
   spStatus.hidden = false; spStatusText.textContent = 'Preparing video…';
+  setAnalyzeProgress(spAnalyzeLoader, 0);
   updateSpAddBtn();
   shotPicker.hidden = false;
   shotPicker.classList.add('opening');
@@ -6081,9 +6648,10 @@ async function startClipAnalysis(srcURL, opts) {
   _clipNative = !!opts.native; _clipSourceKey = opts.key || null;
   spStatus.hidden = false; spGrid.hidden = true;
   spStatusText.textContent = 'Analysing video…';
+  setAnalyzeProgress(spAnalyzeLoader, 0);
   try {
     const result = await analyzeVideoForClips(srcURL, pct => {
-      spStatusText.textContent = `Analysing video… ${pct}%`;
+      setAnalyzeProgress(spAnalyzeLoader, pct);
     });
     if (!result || !result.shots.length) {
       spStatusText.textContent = 'No shots found';
@@ -6134,12 +6702,50 @@ async function analyzeVideoForClips(srcURL, onProgress) {
   const cmp = Object.assign(document.createElement('canvas'), { width: CW, height: CH });
   const cctx = cmp.getContext('2d', { willReadFrequently: true });
 
-  const STEP      = Math.min(0.25, Math.max(0.1, duration / 260));  // finer scan = sharper cuts
-  const MIN_SHOT  = 0.7;     // shots closer than this are merged (kills duplicates)
-  const THRESHOLD = 32;      // a real hard cut spikes well above motion noise
+  const STEP      = Math.min(0.2, Math.max(0.08, duration / 320));  // finer scan = catches fast cuts
+  const MIN_SHOT  = 0.3;     // shots closer than this are merged — low, so fast cuts stay split
   const FRAME     = 0.04;    // ~1 frame — nudge in past the cut on each end
 
-  // Pass 1 — frame-difference signal
+  // Pass 0 — find baked-in letterbox / pillarbox bars so the static black borders
+  // don't dilute the diff signal (a row/col that stays dark in EVERY sample is a bar).
+  let ax0 = 0, ay0 = 0, ax1 = CW, ay1 = CH;
+  {
+    const rowMax = new Float32Array(CH);   // brightest this row ever gets across samples
+    const colMax = new Float32Array(CW);
+    const sampleN = 6;
+    for (let sIdx = 0; sIdx < sampleN; sIdx++) {
+      await _seekVideo(video, duration * (sIdx + 0.5) / sampleN);
+      cctx.drawImage(video, 0, 0, CW, CH);
+      const d = cctx.getImageData(0, 0, CW, CH).data;
+      for (let y = 0; y < CH; y++) {
+        let rs = 0;
+        for (let x = 0; x < CW; x++) {
+          const p = (y * CW + x) * 4;
+          rs += d[p]*0.299 + d[p+1]*0.587 + d[p+2]*0.114;
+        }
+        const rm = rs / CW; if (rm > rowMax[y]) rowMax[y] = rm;
+      }
+      for (let x = 0; x < CW; x++) {
+        let cs = 0;
+        for (let y = 0; y < CH; y++) {
+          const p = (y * CW + x) * 4;
+          cs += d[p]*0.299 + d[p+1]*0.587 + d[p+2]*0.114;
+        }
+        const cm = cs / CH; if (cm > colMax[x]) colMax[x] = cm;
+      }
+    }
+    const BAR = 20;   // never brighter than this across the whole clip ⇒ it's a bar
+    while (ay0 < CH && rowMax[ay0] < BAR) ay0++;
+    while (ay1 > ay0 + 1 && rowMax[ay1 - 1] < BAR) ay1--;
+    while (ax0 < CW && colMax[ax0] < BAR) ax0++;
+    while (ax1 > ax0 + 1 && colMax[ax1 - 1] < BAR) ax1--;
+    // Guard against pathological all-dark clips eating the whole frame.
+    if (ay1 - ay0 < CH * 0.4) { ay0 = 0; ay1 = CH; }
+    if (ax1 - ax0 < CW * 0.4) { ax0 = 0; ax1 = CW; }
+  }
+  const activePx = (ax1 - ax0) * (ay1 - ay0);
+
+  // Pass 1 — frame-difference signal over the live picture area only
   const times = [], diffs = [];
   let prev = null;
   const steps = Math.ceil(duration / STEP);
@@ -6150,21 +6756,41 @@ async function analyzeVideoForClips(srcURL, onProgress) {
     const data = cctx.getImageData(0, 0, CW, CH).data;
     let d = 0;
     if (prev) {
-      for (let i = 0; i < data.length; i += 4)
-        d += Math.abs(data[i]-prev[i]) + Math.abs(data[i+1]-prev[i+1]) + Math.abs(data[i+2]-prev[i+2]);
-      d /= (data.length / 4) * 3;
+      for (let y = ay0; y < ay1; y++) {
+        for (let x = ax0; x < ax1; x++) {
+          const p = (y * CW + x) * 4;
+          d += Math.abs(data[p]-prev[p]) + Math.abs(data[p+1]-prev[p+1]) + Math.abs(data[p+2]-prev[p+2]);
+        }
+      }
+      d /= activePx * 3;
     }
     times.push(t); diffs.push(d);
     prev = data;
     if (onProgress) onProgress(Math.round((s / steps) * 90));
   }
 
-  // Pass 2 — cut INDICES (the first sampled frame of each new shot)
+  // Pass 2 — adaptive cut detection. A cut is a local peak that spikes well above
+  // the LOCAL motion baseline, so it adapts to calm vs. busy footage instead of
+  // relying on one global threshold that letterboxed / low-contrast clips slip under.
   const cutIdx = [0];
   let lastCutT = 0;
+  const WIN       = Math.max(4, Math.round(1.5 / STEP));  // ~1.5s of context each side
+  const ABS_FLOOR = 14;    // ignore micro-shimmer below this
+  const RATIO     = 2.3;   // a real cut is ≥2.3× the local baseline
   for (let i = 1; i < diffs.length - 1; i++) {
-    if (diffs[i] > THRESHOLD && diffs[i] >= diffs[i-1] && diffs[i] >= diffs[i+1]
-        && (times[i] - lastCutT) >= MIN_SHOT) {
+    if (diffs[i] < diffs[i-1] || diffs[i] < diffs[i+1]) continue;   // must be a local max
+    if (diffs[i] < ABS_FLOOR) continue;
+    // MEDIAN baseline — robust when the window itself is full of cuts (fast-cut scenes).
+    // A mean would get inflated by the very spikes we're trying to detect, hiding cuts;
+    // the median tracks the calm in-shot level as long as cuts are the minority of frames.
+    const win = [];
+    for (let j = i - WIN; j <= i + WIN; j++) {
+      if (j < 0 || j >= diffs.length || Math.abs(j - i) <= 1) continue;  // skip the peak itself
+      win.push(diffs[j]);
+    }
+    win.sort((a, b) => a - b);
+    const baseline = win.length ? win[win.length >> 1] : 0;
+    if (diffs[i] > Math.max(ABS_FLOOR, baseline * RATIO) && (times[i] - lastCutT) >= MIN_SHOT) {
       cutIdx.push(i); lastCutT = times[i];
     }
   }
@@ -6204,6 +6830,7 @@ async function analyzeVideoForClips(srcURL, onProgress) {
 
 function renderShotGrid() {
   spStatus.hidden = true; spGrid.hidden = false;
+  if (spManualEmpty) spManualEmpty.hidden = true;
   spGrid.style.setProperty('--shot-aspect', String(_clipAspect || (9 / 16)));
   spGrid.innerHTML = '';
   const added = addedShotIndices();
@@ -6239,7 +6866,23 @@ function renderShotGrid() {
     tile.addEventListener('touchmove',  () => clearTimeout(lpTimer));
     spGrid.appendChild(tile);
   });
+  // A tile to open the trimmer and hand-pick more clips from the same video — available for
+  // both manual selection AND auto detection (so a poor auto result can be topped up).
+  if (_clipSrcURL) {
+    const addTile = document.createElement('button');
+    addTile.className = 'sp-add-tile'; addTile.setAttribute('aria-label', 'Add more clips');
+    addTile.innerHTML = '<span>+</span><small>Add clips</small>';
+    addTile.addEventListener('click', startManualTrim);
+    spGrid.appendChild(addTile);
+  }
   updateSpAddBtn();
+
+  // First time the user sees the detected-clips grid, explain select + gear-trim.
+  if (_coaches.shots && !_coaches.shots.shown && _clipShots.length && document.querySelector('.sp-shot-gear')) {
+    setTimeout(() => {
+      if (!shotPicker.hidden && _coaches.shots && !_coaches.shots.shown) showCoach('shots', 0);
+    }, 450);
+  }
 }
 
 function updateSpAddBtn() {
@@ -6262,6 +6905,13 @@ const ctEl = {
   hint:  document.querySelector('#clipTrimmer .ct-hint'),
   playhead: document.getElementById('ctPlayhead'),
   play:  document.getElementById('ctPlay'),
+  done:  document.getElementById('ctDone'),
+  transport: document.querySelector('#clipTrimmer .ct-transport-row'),
+  manualBar: document.getElementById('ctManualBar'),
+  inoutRow:  document.getElementById('ctInoutRow'),
+  clipStrip: document.getElementById('ctClipStrip'),
+  setInVal:  document.getElementById('ctSetInVal'),
+  setOutVal: document.getElementById('ctSetOutVal'),
 };
 let _ctIdx = -1, _ctWinA = 0, _ctWinB = 1, _ctIn = 0, _ctOut = 1, _ctVidDur = 1;
 let _ctRaf = null, _ctSeeking = false;
@@ -6286,7 +6936,10 @@ async function openClipTrimmer(i) {
   _ctWinB = Math.min(_ctVidDur, shot.end + PAD);
   _ctIn = shot.start; _ctOut = shot.end;
   if (ctEl.title) ctEl.title.textContent = 'Adjust Clip';
-  if (ctEl.hint)  ctEl.hint.textContent = 'Drag the handles to set the start and end (±1s)';
+  if (ctEl.hint)  ctEl.hint.hidden = true;
+  if (ctEl.inoutRow)  ctEl.inoutRow.hidden = false;
+  if (ctEl.manualBar) ctEl.manualBar.hidden = true;
+  if (ctEl.transport) ctEl.transport.classList.add('is-last');
   ctEl.root.hidden = false;
   ctEl.root.classList.add('opening');
   setTimeout(() => ctEl.root.classList.remove('opening'), 240);
@@ -6312,7 +6965,11 @@ async function openSingleTrimmer(srcURL, opts) {
   _ctWinA = 0; _ctWinB = _ctVidDur;                  // the whole video is the adjustable range
   _ctIn = 0; _ctOut = Math.min(_ctVidDur, 6);        // sensible default selection
   if (ctEl.title) ctEl.title.textContent = 'Trim Clip';
-  if (ctEl.hint)  ctEl.hint.textContent = 'Drag the handles to choose the part to use, then Done';
+  if (ctEl.hint)  ctEl.hint.hidden = true;
+  if (ctEl.inoutRow)  ctEl.inoutRow.hidden = false;
+  if (ctEl.manualBar) ctEl.manualBar.hidden = true;
+  if (ctEl.transport) ctEl.transport.classList.add('is-last');
+  ctRender();
   ctEl.root.hidden = false;
   ctEl.root.classList.add('opening');
   setTimeout(() => ctEl.root.classList.remove('opening'), 240);
@@ -6320,6 +6977,102 @@ async function openSingleTrimmer(srcURL, opts) {
   ctPlayheadTo(_ctIn);
   ctRender();
   ctSeek(_ctIn);
+}
+
+// Manual trimmer: pick segments from a WHOLE video, building a list of clips.
+async function openManualTrimmer() {
+  if (!_clipSrcURL) return;
+  _ctMode = 'manual';
+  _ctIdx = -1;
+  _manualClips = [];                 // this session's new clips (appended to _clipShots on Done)
+  ctEl.video.src = _clipSrcURL;
+  await new Promise(res => {
+    if (ctEl.video.readyState >= 1) return res();
+    ctEl.video.addEventListener('loadedmetadata', res, { once: true });
+    ctEl.video.addEventListener('error', res, { once: true });
+    setTimeout(res, 3000);
+  });
+  _ctVidDur = (isFinite(ctEl.video.duration) && ctEl.video.duration) || 5;
+  _ctWinA = 0; _ctWinB = _ctVidDur;                  // the whole video is the adjustable range
+  _ctIn = 0; _ctOut = Math.min(_ctVidDur, 4);        // sensible default first selection
+  const vw = ctEl.video.videoWidth || 9, vh = ctEl.video.videoHeight || 16;
+  _clipAspect = vw / Math.max(1, vh);                // tiles match the video's aspect
+  if (ctEl.title) ctEl.title.textContent = 'Select Clips';
+  if (ctEl.hint)  ctEl.hint.hidden = true;
+  if (ctEl.inoutRow)  ctEl.inoutRow.hidden = false;
+  if (ctEl.manualBar) ctEl.manualBar.hidden = false;
+  if (ctEl.transport) ctEl.transport.classList.remove('is-last');
+  spStatus.hidden = true;                            // the picker behind isn't "preparing" any more
+  manualRenderStrip();
+  ctEl.root.hidden = false;
+  ctEl.root.classList.add('opening');
+  setTimeout(() => ctEl.root.classList.remove('opening'), 240);
+  ctSetPlayIcon(false);
+  ctPlayheadTo(_ctIn);
+  ctRender();
+  ctSeek(_ctIn);
+}
+
+// Capture the current [in,out] as a clip and append it to the strip.
+async function manualAddClip() {
+  const inT = _ctIn, outT = _ctOut;
+  if (outT - inT < 0.2) return;
+  ctPausePlayback();
+  const v = ctEl.video;
+  await new Promise(res => {                          // midpoint frame → representative thumbnail
+    const done = () => { v.removeEventListener('seeked', done); res(); };
+    v.addEventListener('seeked', done, { once: true });
+    try { v.currentTime = (inT + outT) / 2; } catch (e) { res(); }
+    setTimeout(res, 1500);
+  });
+  const { thumb } = ctGrabThumb();
+  _manualClips.push({ start: inT, end: outT, dur: Math.max(0.1, outT - inT), thumb });
+  manualRenderStrip();
+  // Auto-advance the selection to just after this clip so the next pick is quick.
+  const len = outT - inT;
+  let na = Math.min(outT, Math.max(0, _ctVidDur - 0.3));
+  let nb = Math.min(_ctVidDur, na + len);
+  if (nb - na < 0.3) { na = Math.max(0, _ctVidDur - Math.min(len, _ctVidDur)); nb = _ctVidDur; }
+  _ctIn = na; _ctOut = nb;
+  ctRender(); ctPlayheadTo(_ctIn); ctSeek(_ctIn);
+}
+
+function manualRenderStrip() {
+  if (!ctEl.clipStrip) return;
+  ctEl.clipStrip.innerHTML = '';
+  _manualClips.forEach((c, idx) => {
+    const item = document.createElement('div'); item.className = 'ct-clip-item';
+    const img = document.createElement('img'); img.src = c.thumb; img.draggable = false;
+    const dur = document.createElement('div'); dur.className = 'ct-clip-dur'; dur.textContent = c.dur.toFixed(1) + 's';
+    const rm = document.createElement('button'); rm.className = 'ct-clip-remove'; rm.textContent = '×';
+    rm.setAttribute('aria-label', 'Remove clip');
+    rm.addEventListener('click', e => { e.stopPropagation(); _manualClips.splice(idx, 1); manualRenderStrip(); });
+    item.append(img, dur, rm);
+    ctEl.clipStrip.appendChild(item);
+  });
+  // Done is meaningful once there's at least one new clip (or some already committed).
+  if (ctEl.done) {
+    const enable = _manualClips.length > 0 || _clipShots.length > 0;
+    ctEl.done.style.opacity = enable ? '' : '0.4';
+    ctEl.done.style.pointerEvents = enable ? '' : 'none';
+  }
+}
+
+// Done in manual mode: commit the collected clips into the shot grid.
+function commitManualClips() {
+  if (_manualClips.length) {
+    if (!_clipDetId) _clipDetId = genId();
+    _clipShots = _clipShots.concat(_manualClips.map(c => ({ start: c.start, end: c.end, dur: c.dur, thumb: c.thumb })));
+    _manualClips = [];
+    captureClipSrcBlob();                              // grab source bytes for persistence (bg)
+  }
+  closeClipTrimmer();
+  // Keep the existing detect mode: a pure-manual session is already 'manual', and topping up
+  // an auto-detected video should stay 'auto' so its "Add more from video" button still works.
+  if (shotPicker.hidden) { shotPicker.hidden = false; }
+  _clipSelected = new Set();
+  refreshShotPicker();
+  updateClipAddBtnLabel();
 }
 
 function ctPct(t) { const w = (_ctWinB - _ctWinA) || 1; return ((t - _ctWinA) / w) * 100; }
@@ -6336,8 +7089,24 @@ function ctRender() {
   ctEl.inT.textContent  = _ctIn.toFixed(2) + 's';
   ctEl.outT.textContent = _ctOut.toFixed(2) + 's';
   ctEl.dur.textContent  = (_ctOut - _ctIn).toFixed(1) + 's';
+  if (ctEl.setInVal)  ctEl.setInVal.textContent  = _ctIn.toFixed(2) + 's';
+  if (ctEl.setOutVal) ctEl.setOutVal.textContent = _ctOut.toFixed(2) + 's';
 }
 function ctSeek(t) { try { ctEl.video.currentTime = Math.min(Math.max(t, 0), _ctVidDur); } catch (e) {} }
+
+// Set the in/out point to the current playhead (the user steps frames, then taps these).
+function ctSetInToPlayhead() {
+  const t = Math.max(_ctWinA, Math.min(ctEl.video.currentTime, _ctWinB - 0.05));
+  _ctIn = t;
+  if (_ctOut <= _ctIn) _ctOut = Math.min(_ctWinB, _ctIn + 0.1);
+  ctRender(); ctPlayheadTo(ctEl.video.currentTime);
+}
+function ctSetOutToPlayhead() {
+  const t = Math.min(_ctWinB, Math.max(ctEl.video.currentTime, _ctWinA + 0.05));
+  _ctOut = t;
+  if (_ctIn >= _ctOut) _ctIn = Math.max(_ctWinA, _ctOut - 0.1);
+  ctRender(); ctPlayheadTo(ctEl.video.currentTime);
+}
 
 function ctDragHandle(el, isIn) {
   const onMove = x => {
@@ -6361,6 +7130,33 @@ function ctDragHandle(el, isIn) {
 }
 ctDragHandle(ctEl.inH, true);
 ctDragHandle(ctEl.outH, false);
+
+// Tap / drag anywhere on the timeline (other than a handle) to move the playhead and scrub.
+function ctScrubTo(x) {
+  const t = Math.max(_ctWinA, Math.min(ctTimeFromX(x), _ctWinB));
+  ctSeek(t);
+  ctPlayheadTo(t);
+}
+ctEl.bar.addEventListener('mousedown', e => {
+  if (e.target.classList.contains('ct-handle')) return;   // handles have their own drag
+  e.preventDefault();
+  ctPausePlayback();
+  ctScrubTo(e.clientX);
+  const mm = ev => ctScrubTo(ev.clientX);
+  const mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); };
+  document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
+});
+ctEl.bar.addEventListener('touchstart', e => {
+  if (e.target.classList.contains('ct-handle')) return;
+  e.preventDefault();
+  ctPausePlayback();
+  if (e.touches[0]) ctScrubTo(e.touches[0].clientX);
+}, { passive: false });
+ctEl.bar.addEventListener('touchmove', e => {
+  if (e.target.classList.contains('ct-handle')) return;
+  e.preventDefault();
+  if (e.touches[0]) ctScrubTo(e.touches[0].clientX);
+}, { passive: false });
 
 // ── Trimmer transport: play/pause (loops the selected segment) + frame stepping ──
 function ctSetPlayIcon(playing) { if (ctEl.play) ctEl.play.innerHTML = playing ? CT_PAUSE_SVG : CT_PLAY_SVG; }
@@ -6411,9 +7207,16 @@ function closeClipTrimmer() {
   ctPausePlayback();
   try { ctEl.video.removeAttribute('src'); ctEl.video.load(); } catch (e) {}
   ctEl.root.hidden = true;
+  if (ctEl.manualBar) ctEl.manualBar.hidden = true;
+  if (ctEl.inoutRow)  ctEl.inoutRow.hidden = true;
+  if (ctEl.transport) ctEl.transport.classList.remove('is-last');
+  if (ctEl.done) { ctEl.done.style.opacity = ''; ctEl.done.style.pointerEvents = ''; }
   _ctIdx = -1;
   _ctMode = 'shot';
 }
+document.getElementById('ctAddClip').addEventListener('click', manualAddClip);
+document.getElementById('ctSetIn').addEventListener('click', ctSetInToPlayhead);
+document.getElementById('ctSetOut').addEventListener('click', ctSetOutToPlayhead);
 document.getElementById('ctCancel').addEventListener('click', () => {
   // Single-import: the picked source was created just for this trim — release it on cancel.
   if (_ctMode === 'single' && _siCtx) {
@@ -6421,9 +7224,18 @@ document.getElementById('ctCancel').addEventListener('click', () => {
     else if (_siCtx.isObjURL && _siCtx.srcURL) { try { URL.revokeObjectURL(_siCtx.srcURL); } catch (e) {} }
     _siCtx = null;
   }
+  // Manual: drop the in-progress (uncommitted) clips, return to the picker.
+  if (_ctMode === 'manual') {
+    _manualClips = [];
+    closeClipTrimmer();
+    if (shotPicker.hidden) shotPicker.hidden = false;
+    refreshShotPicker();
+    return;
+  }
   closeClipTrimmer();
 });
 document.getElementById('ctDone').addEventListener('click', async () => {
+  if (_ctMode === 'manual') { commitManualClips(); return; }
   if (_ctMode === 'single') { await importSingleClip(); return; }
   const i = _ctIdx;
   if (i >= 0 && _clipShots[i]) {
@@ -6805,6 +7617,7 @@ async function processVideoNative() {
     }
 
     const pct = Math.round((s / totalSteps) * 100);
+    setAnalyzeProgress(vaAnalyzeLoader, pct);
     videoAnalysisLabel.textContent = `Analysing video… ${pct}%`;
     nSetBar(Math.round((s / totalSteps) * 60), `Scanning… ${pct}%`);
   }
@@ -6858,7 +7671,8 @@ async function processVideoNative() {
         state.images.push({ id: Date.now() + Math.random(), name: `still_${i+1}.jpg`, img, transforms: {} });
         imgStripOuter.classList.remove('collapsed');
         photosToggle.classList.remove('closed');
-        videoAnalysisLabel.textContent = `Extracting ${i+1} / ${selectedMids.length}`;
+        setAnalyzeProgress(vaAnalyzeLoader, ((i + 1) / selectedMids.length) * 100);
+    videoAnalysisLabel.textContent = `Extracting ${i + 1} / ${selectedMids.length}`;
         nSetBar(60 + Math.round(((i+1) / selectedMids.length) * 38), `Extracting ${i+1} / ${selectedMids.length}`);
       } catch(e) {}
     }
@@ -7942,7 +8756,7 @@ function startExportBar() {
 let _exportFmt;
 
 exportBtn.addEventListener('click', () => {
-  if (state.boardType === 'video') { doVideoExport(); return; }   // looping-video export
+  if (hasClips()) { doVideoExport(); return; }   // any clip present → looping-video export
   if (_projectBoards.length > 1) {
     document.getElementById('exportChoiceModal').hidden = false;
   } else {

@@ -121,14 +121,31 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                                           preferredTrackID: kCMPersistentTrackID_Invalid)
                 else { continue }
 
-                let clipDur = asset.duration
+                let assetDur = asset.duration
+                if assetDur.seconds <= 0 { continue }
+
+                // Optional sub-range within the clip's file ("Edit length" on a board clip,
+                // or web-fallback clips that index into a shared source). 0/0 or a range
+                // covering the whole file → use the full asset, matching prior behaviour.
+                let selStart = (clip["start"] as? NSNumber)?.doubleValue ?? 0
+                let selEnd   = (clip["end"]   as? NSNumber)?.doubleValue ?? 0
+                var srcStart = CMTime.zero
+                var clipDur  = assetDur
+                if selEnd > selStart + 0.05 {
+                    let s = max(0, min(selStart, assetDur.seconds - 0.05))
+                    let e = max(s + 0.05, min(selEnd, assetDur.seconds))
+                    if e - s < assetDur.seconds - 0.02 || s > 0.01 {
+                        srcStart = CMTime(seconds: s, preferredTimescale: 600)
+                        clipDur  = CMTime(seconds: e - s, preferredTimescale: 600)
+                    }
+                }
                 if clipDur.seconds <= 0 { continue }
 
                 switch playMode {
                 case "freeze":
                     // Play once, then hold the very last frame for the remainder of the board.
                     let mainDur = min(clipDur, totalDur)
-                    try? compTrack.insertTimeRange(CMTimeRange(start: .zero, duration: mainDur),
+                    try? compTrack.insertTimeRange(CMTimeRange(start: srcStart, duration: mainDur),
                                                    of: srcTrack, at: .zero)
                     var cursor = mainDur
                     if cursor < totalDur {
@@ -136,7 +153,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                         // repeatedly — cheap, and avoids needing a still-image layer just
                         // for this one clip.
                         let frameDur = CMTime(value: 1, timescale: 30)
-                        let holdStart = max(.zero, clipDur - frameDur)
+                        let holdStart = max(srcStart, srcStart + clipDur - frameDur)
                         let holdRange = CMTimeRange(start: holdStart, duration: min(frameDur, clipDur))
                         while cursor < totalDur {
                             let insertDur = min(holdRange.duration, totalDur - cursor)
@@ -153,30 +170,34 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                     // fall back to a normal loop-fill rather than risking memory pressure.
                     let maxReversibleSeconds = 8.0
                     if clipDur.seconds <= maxReversibleSeconds,
-                       let revURL = self.reverseVideoTrack(asset: asset) {
+                       let revURL = self.reverseVideoTrack(asset: asset,
+                                                           range: CMTimeRange(start: srcStart, duration: clipDur)) {
                         temps.append(revURL)
                         let revAsset = AVURLAsset(url: revURL)
                         if let revTrack = revAsset.tracks(withMediaType: .video).first {
+                            let revDur = revAsset.duration
                             var cursor = CMTime.zero
                             var forward = true
                             while cursor < totalDur {
-                                let insertDur = min(clipDur, totalDur - cursor)
+                                let segDur = forward ? clipDur : revDur
+                                let insertDur = min(segDur, totalDur - cursor)
                                 if insertDur.seconds <= 0 { break }
                                 let track = forward ? srcTrack : revTrack
-                                try? compTrack.insertTimeRange(CMTimeRange(start: .zero, duration: insertDur),
+                                let segStart = forward ? srcStart : CMTime.zero
+                                try? compTrack.insertTimeRange(CMTimeRange(start: segStart, duration: insertDur),
                                                                of: track, at: cursor)
                                 cursor = cursor + insertDur
                                 forward.toggle()
                             }
                         } else {
-                            self.loopFill(compTrack, srcTrack, clipDur, totalDur)
+                            self.loopFill(compTrack, srcTrack, srcStart, clipDur, totalDur)
                         }
                     } else {
-                        self.loopFill(compTrack, srcTrack, clipDur, totalDur)
+                        self.loopFill(compTrack, srcTrack, srcStart, clipDur, totalDur)
                     }
 
                 default:   // "loop" — concatenate the clip end-to-end until it covers the duration.
-                    self.loopFill(compTrack, srcTrack, clipDur, totalDur)
+                    self.loopFill(compTrack, srcTrack, srcStart, clipDur, totalDur)
                 }
 
                 // Clips are re-encoded upright by the trim (identity preferredTransform),
@@ -230,16 +251,16 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         }
     }
 
-    // Loop-fill: concatenate the clip end-to-end until it covers `totalDur`. This is the
-    // "loop" playback mode, and also the safe fallback for "bounce" when a clip is too
-    // long to reverse in memory.
+    // Loop-fill: concatenate the clip's selected range end-to-end until it covers
+    // `totalDur`. This is the "loop" playback mode, and also the safe fallback for
+    // "bounce" when a clip is too long to reverse in memory.
     private func loopFill(_ compTrack: AVMutableCompositionTrack, _ srcTrack: AVAssetTrack,
-                          _ clipDur: CMTime, _ totalDur: CMTime) {
+                          _ srcStart: CMTime, _ clipDur: CMTime, _ totalDur: CMTime) {
         var cursor = CMTime.zero
         while cursor < totalDur {
             let insertDur = min(clipDur, totalDur - cursor)
             if insertDur.seconds <= 0 { break }
-            try? compTrack.insertTimeRange(CMTimeRange(start: .zero, duration: insertDur),
+            try? compTrack.insertTimeRange(CMTimeRange(start: srcStart, duration: insertDur),
                                            of: srcTrack, at: cursor)
             cursor = cursor + insertDur
         }
@@ -251,7 +272,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     // them in reverse order to a new temp file. Synchronous (blocks the calling background
     // thread via semaphores) so it drops cleanly into exportComposition's existing
     // synchronous per-clip loop without restructuring it to async/await.
-    private func reverseVideoTrack(asset: AVURLAsset) -> URL? {
+    private func reverseVideoTrack(asset: AVURLAsset, range: CMTimeRange? = nil) -> URL? {
         guard let track = asset.tracks(withMediaType: .video).first else { return nil }
         guard let reader = try? AVAssetReader(asset: asset) else { return nil }
         let pixelFormat = kCVPixelFormatType_32BGRA
@@ -260,6 +281,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         ])
         guard reader.canAdd(readerOutput) else { return nil }
         reader.add(readerOutput)
+        if let range { reader.timeRange = range }   // reverse only the selected sub-range
         guard reader.startReading() else { return nil }
 
         var frames: [CVPixelBuffer] = []

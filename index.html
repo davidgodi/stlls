@@ -1120,6 +1120,26 @@
   }
   .image-remove:hover { opacity: 1; }
 
+  /* Options menu for a media-strip item: Edit length (clips) / Delete */
+  #stripItemMenu {
+    position: fixed; z-index: 460; min-width: 148px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--radius); padding: 5px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    animation: popUpIn 0.35s cubic-bezier(0.16,1,0.3,1);
+  }
+  #stripItemMenu[hidden] { display: none !important; }
+  .sim-item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 9px 10px; background: none; border: none; border-radius: var(--rsm);
+    color: var(--text); font-family: inherit; font-size: 12.5px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sim-item:active { background: var(--surface2); }
+  .sim-item svg { flex-shrink: 0; color: var(--text-mid); }
+  .sim-item.danger { color: #ff6b5e; }
+  .sim-item.danger svg { color: #ff6b5e; }
+
   /* Controls */
   .ctrl { display: flex; flex-direction: column; gap: 8px; }
   .btn-row { display: flex; gap: 4px; }
@@ -3146,6 +3166,17 @@
       <input type="file" id="clipSingleFileInput" accept="video/*" hidden>
       <input type="file" id="clipManualFileInput" accept="video/*" hidden>
 
+      <!-- Options menu for a strip item (positioned fixed next to the tapped ⋯ badge) -->
+      <div id="stripItemMenu" hidden>
+        <button class="sim-item" id="simEditLen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+          Edit length
+        </button>
+        <button class="sim-item danger" id="simDelete">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          Delete
+        </button>
+      </div>
       <!-- Stills strip — always below import area -->
       <div class="img-strip-outer">
         <button class="m-add-btn" id="mAddBtn" title="Add images">+</button>
@@ -6584,13 +6615,11 @@ function renderList() {
     const name = document.createElement('span');
     name.className = 'image-name'; name.textContent = item.name;
     const rm = document.createElement('button');
-    rm.className = 'image-remove'; rm.textContent = '×';
+    rm.className = 'image-remove'; rm.textContent = '⋯';
+    rm.setAttribute('aria-label', 'Item options');
     rm.addEventListener('click', e => {
       e.stopPropagation();
-      pushHistory();
-      state.images.splice(i, 1);
-      renderList(); buildLayout();
-      applyBoardTypeUI();   // re-show the Photos/Video switch if the board is now empty
+      openStripItemMenu(rm, i);   // Delete / Edit length (clips)
     });
     div.appendChild(thumb); div.appendChild(name); div.appendChild(rm);
     div.addEventListener('dragstart', () => { listDragSrc = i; div.classList.add('dragging'); });
@@ -6607,6 +6636,52 @@ function renderList() {
     imageList.appendChild(div);
   });
 }
+
+// ── Strip item options menu: Delete / Edit length (clips) ───────────────────
+const stripItemMenu = document.getElementById('stripItemMenu');
+const simEditLen    = document.getElementById('simEditLen');
+const simDelete     = document.getElementById('simDelete');
+let _stripMenuIdx = -1;
+
+function openStripItemMenu(btn, i) {
+  const item = state.images[i];
+  if (!item) return;
+  _stripMenuIdx = i;
+  simEditLen.hidden = item.type !== 'clip';   // stills have no length to edit
+  stripItemMenu.hidden = false;
+  // Position beside the tapped badge, clamped to the viewport.
+  const r = btn.getBoundingClientRect();
+  const mw = stripItemMenu.offsetWidth, mh = stripItemMenu.offsetHeight;
+  let left = Math.min(r.left - 8, window.innerWidth - mw - 8);
+  let top  = r.bottom + 6;
+  if (top + mh > window.innerHeight - 8) top = r.top - mh - 6;
+  stripItemMenu.style.left = Math.max(8, left) + 'px';
+  stripItemMenu.style.top  = Math.max(8, top) + 'px';
+}
+function closeStripItemMenu() { stripItemMenu.hidden = true; _stripMenuIdx = -1; }
+
+document.addEventListener('pointerdown', e => {
+  if (stripItemMenu.hidden) return;
+  if (!stripItemMenu.contains(e.target) && !(e.target.closest && e.target.closest('.image-remove')))
+    closeStripItemMenu();
+});
+
+simDelete.addEventListener('click', () => {
+  const i = _stripMenuIdx;
+  closeStripItemMenu();
+  if (i < 0 || !state.images[i]) return;
+  pushHistory();
+  state.images.splice(i, 1);
+  renderList(); buildLayout();
+  applyBoardTypeUI();   // re-show the Photos/Video switch if the board is now empty
+});
+
+simEditLen.addEventListener('click', () => {
+  const i = _stripMenuIdx;
+  closeStripItemMenu();
+  if (i < 0 || !state.images[i] || state.images[i].type !== 'clip') return;
+  openBoardClipTrimmer(i);
+});
 
 // ── Mobile touch reorder ─────────────────────────────────────────────────
 let mDrag = null;
@@ -8174,6 +8249,65 @@ async function openManualTrimmer() {
   ctSeek(_ctIn);
 }
 
+// Edit the length of a clip ALREADY on the board (strip ⋯ → Edit length). The trimmer
+// opens on the clip's own media: full range for a natively-trimmed file, or the shared
+// source for web-fallback clips. Done updates the item's [start,end] in place.
+async function openBoardClipTrimmer(index) {
+  const item = state.images[index];
+  if (!item || item.type !== 'clip' || !item.src) return;
+  _ctMode = 'board';
+  _ctIdx = index;
+  ctEl.video.src = item.src;
+  await new Promise(res => {
+    if (ctEl.video.readyState >= 1) return res();
+    ctEl.video.addEventListener('loadedmetadata', res, { once: true });
+    ctEl.video.addEventListener('error', res, { once: true });
+    setTimeout(res, 3000);
+  });
+  _ctVidDur = (isFinite(ctEl.video.duration) && ctEl.video.duration) || (item.end || 5);
+  _ctWinA = 0; _ctWinB = _ctVidDur;
+  _ctIn  = Math.max(0, Math.min(item.start || 0, _ctVidDur - 0.1));
+  _ctOut = Math.max(_ctIn + 0.1, Math.min(item.end || _ctVidDur, _ctVidDur));
+  if (ctEl.title) ctEl.title.textContent = 'Edit Length';
+  if (ctEl.hint)  ctEl.hint.hidden = true;
+  if (ctEl.inoutRow)  { ctEl.inoutRow.hidden = false; }
+  if (ctEl.manualBar) ctEl.manualBar.hidden = true;
+  if (ctEl.transport) ctEl.transport.classList.add('is-last');
+  ctEl.root.hidden = false;
+  ctEl.root.classList.add('opening');
+  setTimeout(() => ctEl.root.classList.remove('opening'), 240);
+  ctSetPlayIcon(false);
+  ctPlayheadTo(_ctIn);
+  ctRender();
+  ctSeek(_ctIn);
+}
+
+// Done in board mode: write the new [in,out] onto the board clip and refresh.
+async function applyBoardTrim() {
+  const item = state.images[_ctIdx];
+  const inT = _ctIn, outT = _ctOut;
+  if (item && item.type === 'clip') {
+    pushHistory();
+    item.start = inT;
+    item.end   = outT;
+    // Full range → the seamless native <video loop> players can drive it; any sub-range
+    // needs the JS start/end-aware playback (sub-range loop / freeze / bounce all honour it).
+    item.nativeLoop = (inT <= 0.01 && outT >= _ctVidDur - 0.05);
+    // Refresh the thumbnail at the new midpoint (same pattern as the shot trimmer).
+    await new Promise(res => {
+      const v = ctEl.video; const done = () => { v.removeEventListener('seeked', done); res(); };
+      v.addEventListener('seeked', done, { once: true });
+      try { v.currentTime = (inT + outT) / 2; } catch (e) { res(); }
+      setTimeout(res, 1500);
+    });
+    try { item.thumb = ctGrabThumb().thumb; } catch (e) {}
+  }
+  closeClipTrimmer();
+  renderList();
+  buildLayout();
+  resetBoardClock();   // duration-cycle preview restarts with the new clip length
+}
+
 // Capture the current [in,out] as a clip and append it to the strip.
 async function manualAddClip() {
   const inT = _ctIn, outT = _ctOut;
@@ -8398,6 +8532,7 @@ document.getElementById('ctCancel').addEventListener('click', () => {
 document.getElementById('ctDone').addEventListener('click', async () => {
   if (_ctMode === 'manual') { commitManualClips(); return; }
   if (_ctMode === 'single') { await importSingleClip(); return; }
+  if (_ctMode === 'board')  { await applyBoardTrim(); return; }
   const i = _ctIdx;
   if (i >= 0 && _clipShots[i]) {
     const shot = _clipShots[i];
@@ -10252,6 +10387,10 @@ async function doVideoExportNative() {
       dest: [x, y, w, h],                                           // slot in canonical coords
       crop: [(-left / totalS) / dw, (-top / totalS) / dh,           // visible region, normalized
              (w / totalS) / dw, (h / totalS) / dh],
+      // Sub-range within the clip's own file (board "Edit length" / web-fallback clips).
+      // 0/0 or full-range → Swift uses the whole file, matching the old behaviour.
+      start: isClip ? (item.start || 0) : 0,
+      end:   isClip ? (item.end   || 0) : 0,
     });
   }
   // Need at least one actual clip to make a video (still-only boards export as an image).

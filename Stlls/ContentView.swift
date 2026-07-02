@@ -413,9 +413,11 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         guard let ctx = CGContext(data: base, width: Int(size.width), height: Int(size.height),
                                   bitsPerComponent: 8, bytesPerRow: bpr,
                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return }
-        // CG y=0 is the buffer's first (top) row; flip so the top-down overlay lands upright.
-        ctx.translateBy(x: 0, y: size.height)
-        ctx.scaleBy(x: 1, y: -1)
+        // NO flip here. The buffer's row 0 is the frame's top scanline, and a Quartz bitmap
+        // context puts user-space y=0 at the BOTTOM row — so CGContext.draw() already lands
+        // a CGImage upright. Flipping mirrors the overlay vertically; that stayed invisible
+        // on symmetric layouts (uniform slots / whole-board rounding) but misaligned every
+        // rounded frame the moment edge-edited (asymmetric) layouts shipped.
         ctx.draw(overlay, in: CGRect(origin: .zero, size: size))
     }
 

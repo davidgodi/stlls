@@ -499,6 +499,19 @@
     position: relative; display: flex; align-items: center; justify-content: center;
     width: 100%; height: 100%;
   }
+  /* Export-duration timeline under the board — subtle track, lighter fill that grows
+     as the duration cycle passes. Positioned by buildLayout to hug the board's width. */
+  #timelineBar {
+    position: absolute; height: 2px; border-radius: 1px;
+    background: rgba(255,255,255,0.10);
+    overflow: hidden; pointer-events: none; z-index: 5;
+  }
+  #timelineBar[hidden] { display: none; }
+  #timelineBar .tl-fill {
+    height: 100%; width: 0%;
+    background: rgba(255,255,255,0.45);
+    border-radius: 1px;
+  }
   #emptyState {
     color: var(--text-dim); font-size: 12px; text-align: center;
     letter-spacing: 0.03em; line-height: 2.2;
@@ -1340,9 +1353,47 @@
   .clip-btn-row .clip-add-slim span { overflow: hidden; text-overflow: ellipsis; }
   .clip-add-slim[hidden] { display: none; }   /* collapse to one button once a library exists */
   .clip-len-row {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 0;
   }
-  .clip-len-label { font-size: 11px; color: var(--text-dim); letter-spacing: 0.04em; white-space: nowrap; }
+  /* Total-length is now a button — tapping it folds open the 5–20s slider below */
+  .clip-len-btn {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
+    padding: 9px 10px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--rsm); color: var(--text-mid); font-family: inherit; font-size: 11.5px;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .clip-len-btn:active { border-color: var(--border2); color: var(--text); }
+  .clip-len-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: left; }
+  .clip-len-chevron { flex-shrink: 0; transition: transform 0.4s cubic-bezier(0.16,1,0.3,1); }
+  .clip-len-btn[aria-expanded="true"] .clip-len-chevron { transform: rotate(180deg); }
+  .clip-len-btn[aria-expanded="true"] { border-color: var(--border2); color: var(--text); }
+
+  /* Loop / Boomerang — small icon toggle buttons beside the length button */
+  .clip-mode-btn {
+    flex: 0 0 36px; height: 34px; display: flex; align-items: center; justify-content: center;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rsm);
+    color: var(--text-dim); cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: background 0.3s ease, color 0.2s, border-color 0.2s, box-shadow 0.3s ease;
+  }
+  .clip-mode-btn:active { color: var(--text); }
+  .clip-mode-btn.active {
+    background: linear-gradient(135deg, #9d6bff, #6c3ff0); border-color: transparent;
+    color: #fff; box-shadow: 0 2px 10px rgba(108,63,240,0.45);
+  }
+
+  /* Animated fold — same measured-height technique as the import area collapse */
+  .clip-len-expand {
+    max-height: 0; overflow: hidden; opacity: 0;
+    transition: max-height 0.42s cubic-bezier(0.16,1,0.3,1), opacity 0.32s ease, margin-top 0.42s cubic-bezier(0.16,1,0.3,1);
+  }
+  /* max-height:none once fully open, so the resting state isn't capped at whatever
+     scrollHeight happened to be when the JS-driven open animation finished (e.g. if
+     the slider row's content ever grows). The JS uses concrete px values only during
+     the transition window, then clears its inline override back to this rule. */
+  .clip-len-expand.open { max-height: none; opacity: 1; margin-top: 10px; }
+  .clip-len-slider-row { display: flex; align-items: center; gap: 10px; padding-bottom: 8px; }
+  .clip-len-edge { font-size: 10px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
   #clipLenSlider {
     flex: 1; -webkit-appearance: none; appearance: none;
     height: 3px; background: var(--border2); border-radius: 2px; outline: none; cursor: pointer;
@@ -1352,7 +1403,6 @@
     border-radius: 50%; background: var(--accent); cursor: pointer;
     box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
-  .clip-len-val { font-size: 11px; color: var(--text-mid); min-width: 28px; text-align: right; font-variant-numeric: tabular-nums; }
 
   .video-sub-row { display: flex; gap: 4px; margin-bottom: 8px; }
   .video-sub-btn {
@@ -2925,6 +2975,9 @@
         </span>
       </div>
       <div id="layoutPreview"></div>
+      <!-- Export-duration timeline: a thin line under the board that fills as the
+           duration cycle passes (video boards with clips only) -->
+      <div id="timelineBar" hidden><div class="tl-fill" id="timelineFill"></div></div>
       <!-- Neighbour-board canvases for smooth swipe animation -->
       <canvas id="swipePrevBoard" class="swipe-board"></canvas>
       <canvas id="swipeNextBoard" class="swipe-board"></canvas>
@@ -3068,9 +3121,24 @@
           </button>
         </div>
         <div class="clip-len-row">
-          <span class="clip-len-label">Total length</span>
-          <input type="range" id="clipLenSlider" min="10" max="20" step="1" value="15">
-          <span class="clip-len-val" id="clipLenVal">15s</span>
+          <button class="clip-len-btn" id="clipLenBtn" aria-expanded="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+            <span id="clipLenBtnLabel">Length · 15s</span>
+            <svg class="clip-len-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <button class="clip-mode-btn active" id="clipLoopBtn" aria-pressed="true" aria-label="Loop" title="Loop">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          </button>
+          <button class="clip-mode-btn" id="clipBounceBtn" aria-pressed="false" aria-label="Boomerang" title="Boomerang">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h9l-3-3M16 7l-3 3"/><path d="M17 17H8l3 3M8 17l3-3"/></svg>
+          </button>
+        </div>
+        <div class="clip-len-expand" id="clipLenExpand">
+          <div class="clip-len-slider-row">
+            <span class="clip-len-edge">5s</span>
+            <input type="range" id="clipLenSlider" min="5" max="20" step="1" value="15">
+            <span class="clip-len-edge">20s</span>
+          </div>
         </div>
       </div>
       <input type="file" id="clipFileInput" accept="video/*" hidden>
@@ -4112,7 +4180,8 @@ const state = {
   radius: 0,            // corner radius (canonical px): rounds the whole board when gap===0,
                         // or each frame when gap>0
   boardType: 'photo',   // 'photo' | 'video' — video boards hold looping clips
-  clipDuration: 15,     // seconds; video-board loop length (10–20), used at export (Phase 2)
+  clipDuration: 15,     // seconds; video-board export length (5–20)
+  clipPlayMode: 'loop', // 'loop' | 'freeze' | 'bounce' — board-wide clip playback behaviour
   // Custom frame sizes (frame-edit mode). Each is an array of fractions summing to 1,
   // or null for uniform. Arrays are only honoured when their length matches the current
   // slot count, so adding/removing images safely falls back to uniform.
@@ -4443,6 +4512,7 @@ function serializeBoards(boards) {
     radius:         board.radius || 0,
     boardType:      board.boardType || 'photo',
     clipDuration:   board.clipDuration ?? 15,
+    clipPlayMode:   board.clipPlayMode || 'loop',
     slotFracs:      cloneSlotFracs(board.slotFracs),
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
@@ -4530,6 +4600,7 @@ async function deserializeBoards(savedBoards) {
       radius:         board.radius         || 0,
       boardType:      board.boardType      || 'photo',
       clipDuration:   board.clipDuration   ?? 15,
+      clipPlayMode:   board.clipPlayMode   || 'loop',
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
       detection: (board.detection && board.detection.srcBlob && board.detection.shots?.length) ? {
@@ -4708,6 +4779,7 @@ function saveCurrentBoardSnapshot() {
     radius:         state.radius || 0,
     boardType:      state.boardType || 'photo',
     clipDuration:   state.clipDuration ?? 15,
+    clipPlayMode:   state.clipPlayMode || 'loop',
     slotFracs:      cloneSlotFracs(state.slotFracs),
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
@@ -4811,7 +4883,9 @@ function loadBoardState(board) {
   state.radius   = board.radius || 0;
   state.boardType    = board.boardType || 'photo';
   state.clipDuration = board.clipDuration ?? 15;
+  state.clipPlayMode = board.clipPlayMode || 'loop';
   state.slotFracs    = cloneSlotFracs(board.slotFracs);
+  if (typeof resetBoardClock === 'function') resetBoardClock();   // duration cycle restarts per board
   state.images         = board.images.slice();
   state.usedShotRanges = board.usedShotRanges ? [...board.usedShotRanges] : [];
   if (typeof setFrameEdit === 'function') setFrameEdit(false);   // leave frame-edit when switching boards
@@ -4981,7 +5055,7 @@ function addNewBoard() {
     return;
   }
   saveCurrentBoardSnapshot();
-  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, images: [] };
+  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, images: [] };
   _projectBoards.push(newBoard);
   switchToBoard(_projectBoards.length - 1, 'left');
 }
@@ -5130,10 +5204,15 @@ let previewW = 0, previewH = 0;
 
 let _previewAnimating = false;
 
+let _tlReserved = false;   // whether the current preview size reserves timeline-bar room
 function computePreviewSize() {
   const [rw, rh] = state.ratio === 'custom' ? (state.customRatio || [9, 16]) : (RATIOS[state.ratio] || [9, 16]);
+  // Boards with clips show the export-duration timeline under the board — reserve a
+  // sliver of height so the line gets clear, symmetric breathing room.
+  _tlReserved = typeof hasClips === 'function' && hasClips();
+  const tlReserve = _tlReserved ? 18 : 0;
   const avW = previewOuter.clientWidth  - 8;
-  const avH = previewOuter.clientHeight - 8;
+  const avH = previewOuter.clientHeight - 8 - tlReserve;
   if (avW < 10 || avH < 10) return;
   let w = avW, h = w * rh / rw;
   if (h > avH) { h = avH; w = h * rw / rh; }
@@ -5599,8 +5678,13 @@ function createSingleLoopVideo(item) {
 //  • clip (web fallback) → a single <video> that JS sub-range loops
 //  • still              → an <img>
 function createSlotMedia(item) {
-  if (item.type === 'clip' && item.nativeLoop) {
-    return clipsUseDoubleBuffer() ? createClipLoop(item) : createSingleLoopVideo(item);
+  if (item.type === 'clip') {
+    const mode = state.clipPlayMode || 'loop';
+    // Freeze / bounce replace the looping playback entirely (both native-trimmed and
+    // shared-source clips), so they're checked before the nativeLoop double-buffer path.
+    if (mode === 'freeze') return createFreezeVideo(item);
+    if (mode === 'bounce') return createBounceVideo(item);
+    if (item.nativeLoop) return clipsUseDoubleBuffer() ? createClipLoop(item) : createSingleLoopVideo(item);
   }
 
   let mediaEl;
@@ -5681,6 +5765,81 @@ function _tickClipLoop(c) {
   }
 }
 
+// ── Loop OFF ("freeze") — play the clip's [start,end] range once, then hold the
+// final frame (no reset, no loop) for the rest of the board's life. ──
+function createFreezeVideo(item) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true;
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.preload = 'auto'; v.className = 'slot-img clip-freeze'; v.src = item.src; v.loop = false; v.draggable = false;
+  if (item.thumb) v.poster = item.thumb;
+  item._videoEl = v;
+  const ctl = { el: v, start: item.start || 0, end: item.end || 0, done: false };
+  v._freezeCtl = ctl;
+  v.addEventListener('loadedmetadata', () => {
+    try { v.currentTime = ctl.start; } catch (e) {}
+    const p = v.play(); if (p && p.catch) p.catch(() => {});
+  }, { once: true });
+  return v;
+}
+
+// One tick: once the freeze-video reaches its out-point, pause it there for good.
+function _tickFreeze(c) {
+  if (c.done) return;
+  const v = c.el;
+  if (!v || v.readyState < 2) return;
+  if (v.currentTime >= c.end - 0.03) {
+    try { v.currentTime = c.end; } catch (e) {}
+    v.pause();
+    c.done = true;
+  }
+}
+
+// ── Boomerang ("bounce") — play forward to the out-point, then play backward to the
+// in-point, repeating. WebKit doesn't support negative playbackRate, so the reverse
+// half is driven by manually stepping currentTime backward each frame. ──
+function createBounceVideo(item) {
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true;
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.preload = 'auto'; v.className = 'slot-img clip-bounce'; v.src = item.src; v.loop = false; v.draggable = false;
+  if (item.thumb) v.poster = item.thumb;
+  item._videoEl = v;
+  const ctl = { el: v, start: item.start || 0, end: item.end || 0, dir: 1, lastT: 0 };
+  v._bounceCtl = ctl;
+  v.addEventListener('loadedmetadata', () => {
+    try { v.currentTime = ctl.start; } catch (e) {}
+    const p = v.play(); if (p && p.catch) p.catch(() => {});
+  }, { once: true });
+  return v;
+}
+
+function _tickBounce(c) {
+  const v = c.el;
+  if (!v || v.readyState < 2) return;
+  if (c.dir === 1) {
+    // Forward half plays natively; just watch for the out-point.
+    if (v.currentTime >= c.end - 0.04) {
+      c.dir = -1;
+      v.pause();
+      c.lastT = 0;   // reset the manual-step clock for the reverse half
+    }
+  } else {
+    const now = performance.now();
+    if (!c.lastT) { c.lastT = now; return; }   // first tick after pausing — just record time
+    const dt = (now - c.lastT) / 1000;
+    c.lastT = now;
+    const nt = v.currentTime - dt;
+    if (nt <= c.start + 0.04) {
+      c.dir = 1;
+      try { v.currentTime = c.start; } catch (e) {}
+      const p = v.play(); if (p && p.catch) p.catch(() => {});
+    } else {
+      try { v.currentTime = nt; } catch (e) {}
+    }
+  }
+}
+
 // A loading placeholder that fills its slot while a clip's proxy is being prepared.
 function createLoadingEl() {
   const d = document.createElement('div');
@@ -5703,12 +5862,17 @@ function buildLayout() {
     emptyState.style.display = '';
     exportBtn.disabled = true;
     updateFrameEditBtn();
+    if (timelineBarEl) timelineBarEl.hidden = true;
     return;
   }
 
   emptyState.style.display = 'none';
   layoutPreview.style.display = 'block';
   layoutPreview.style.background = state.bg;
+
+  // First clip added / last clip removed → the timeline-bar height reservation flips,
+  // so refit the board before computing slots.
+  if (hasClips() !== _tlReserved && !_previewAnimating) computePreviewSize();
 
   // A grid must always hold every still/clip — if items outgrow the cells (e.g. more
   // media added while in grid), refit the dimensions instead of hiding the overflow.
@@ -5735,13 +5899,16 @@ function buildLayout() {
   // Rebuild the JS sub-range loop list (web fallback) without touching the videos.
   _clipPlayers = [];
 
+  const _clipMode = state.clipPlayMode || 'loop';
   slots.forEach(({ item, x, y, w, h }) => {
     const id = String(item.id);
-    // Render kind — also encodes clip buffer mode so crossing the decoder threshold
-    // (double-buffer ↔ single video) rebuilds those slots.
+    // Render kind — also encodes clip buffer mode + play mode, so crossing the decoder
+    // threshold (double-buffer ↔ single video) OR toggling loop/freeze/bounce rebuilds slots.
     const kind = item.placeholder ? 'load'
-               : (item.type === 'clip' && item.nativeLoop) ? (clipsUseDoubleBuffer() ? 'clip2' : 'clip1')
-               : 'media';
+               : item.type !== 'clip' ? 'media'
+               : _clipMode === 'freeze' ? 'freeze'
+               : _clipMode === 'bounce' ? 'bounce'
+               : item.nativeLoop ? (clipsUseDoubleBuffer() ? 'clip2' : 'clip1') : 'clip1w';
     let slotDiv = existing.get(id);
     // Render kind changed (a loading placeholder just became a real clip) → rebuild the slot.
     if (slotDiv && slotDiv.dataset.kind !== kind) { slotDiv.remove(); slotDiv = null; }
@@ -5753,7 +5920,13 @@ function buildLayout() {
       if (item.type === 'clip' && !item.placeholder) {
         const ctl = mediaEl && mediaEl._clipCtl;
         if (ctl) { ctl.item = item; item._videoEl = ctl.cur; }  // native double-buffer
-        else item._videoEl = mediaEl;                           // web-fallback single video
+        else {
+          item._videoEl = mediaEl;                              // web-fallback / freeze / bounce
+          const fCtl = mediaEl && mediaEl._freezeCtl;
+          if (fCtl) { fCtl.start = item.start || 0; fCtl.end = item.end || 0; }
+          const bCtl = mediaEl && mediaEl._bounceCtl;
+          if (bCtl) { bCtl.start = item.start || 0; bCtl.end = item.end || 0; }
+        }
       }
     } else {
       slotDiv = document.createElement('div');
@@ -5772,15 +5945,35 @@ function buildLayout() {
       layoutPreview.appendChild(slotDiv);
     }
     if (item.placeholder) return;       // loading box fills the slot via CSS
-    if (item.type === 'clip' && !item.nativeLoop && mediaEl && mediaEl.tagName === 'VIDEO') {
+    // Loop mode's shared-source clips need JS-driven sub-range looping. Freeze/bounce
+    // clips carry their own controller (gathered below) and must NOT also land here.
+    if (_clipMode === 'loop' && item.type === 'clip' && !item.nativeLoop && mediaEl && mediaEl.tagName === 'VIDEO') {
       _clipPlayers.push({ el: mediaEl, start: item.start, end: item.end });
     }
     positionSlotImage(mediaEl, item, w, h);
   });
 
-  // Native double-buffered clips: gather their controllers (they persist across reconcile)
-  _clipLoops = [...layoutPreview.querySelectorAll('.clip-loop')].map(w => w._clipCtl).filter(Boolean);
+  // Native double-buffered clips + freeze/bounce controllers: gather (they persist across reconcile)
+  _clipLoops   = [...layoutPreview.querySelectorAll('.clip-loop')].map(w => w._clipCtl).filter(Boolean);
+  _clipFreezes = [...layoutPreview.querySelectorAll('.clip-freeze')].map(el => el._freezeCtl).filter(Boolean);
+  _clipBounces = [...layoutPreview.querySelectorAll('.clip-bounce')].map(el => el._bounceCtl).filter(Boolean);
   _ensureClipRaf();
+
+  // Export-duration timeline (video boards with clips only): centred in the gap between
+  // the board's bottom edge and the tools panel below, so it reads as its own element —
+  // symmetric spacing above and below.
+  if (timelineBarEl) {
+    const showTl = hasClips();
+    timelineBarEl.hidden = !showTl;
+    if (showTl) {
+      const wrapH = layoutPreview.offsetParent ? layoutPreview.offsetParent.clientHeight : previewH;
+      const boardBottom = layoutPreview.offsetTop + previewH;
+      const mid = boardBottom + (wrapH - boardBottom) / 2;
+      timelineBarEl.style.left  = layoutPreview.offsetLeft + 'px';
+      timelineBarEl.style.width = previewW + 'px';
+      timelineBarEl.style.top   = Math.max(boardBottom + 2, mid - 1) + 'px';
+    }
+  }
 
   exportBtn.disabled = false;
   updateFrameEditBtn();
@@ -6961,7 +7154,11 @@ const importSection    = document.getElementById('importSection');
 const clipImportArea   = document.getElementById('clipImportArea');
 const clipFileInput    = document.getElementById('clipFileInput');
 const clipLenSlider    = document.getElementById('clipLenSlider');
-const clipLenVal       = document.getElementById('clipLenVal');
+const clipLenBtn       = document.getElementById('clipLenBtn');
+const clipLenBtnLabel  = document.getElementById('clipLenBtnLabel');
+const clipLenExpand    = document.getElementById('clipLenExpand');
+const clipLoopBtn      = document.getElementById('clipLoopBtn');
+const clipBounceBtn    = document.getElementById('clipBounceBtn');
 const boardIndicatorEl = document.getElementById('boardIndicator');
 const stillExportOpts  = document.getElementById('stillExportOpts');
 const videoExportOpts  = document.getElementById('videoExportOpts');
@@ -7020,7 +7217,8 @@ function applyBoardTypeUI() {
 
   updateClipAddBtnLabel();
   clipLenSlider.value = state.clipDuration;
-  clipLenVal.textContent = state.clipDuration + 's';
+  updateClipLenBtn();
+  updateClipModeBtns();
 
   // When the Photo/Video mode actually changes, slide the swapped controls in (no hard cut).
   const modeChanged = applyBoardTypeUI._prev !== undefined && applyBoardTypeUI._prev !== state.boardType;
@@ -7054,9 +7252,59 @@ boardTypeChip.querySelectorAll('.btc-seg').forEach(btn => {
   });
 });
 
+function updateClipLenBtn() {
+  if (clipLenBtnLabel) clipLenBtnLabel.textContent = 'Length · ' + state.clipDuration + 's';
+}
 clipLenSlider.addEventListener('input', () => {
   state.clipDuration = +clipLenSlider.value;
-  clipLenVal.textContent = state.clipDuration + 's';
+  updateClipLenBtn();
+});
+
+// Total-length button: folds the 5–20s slider open/closed with an animated height glide
+// (same measured-height technique as the import-area collapse elsewhere in the panel).
+let _clipLenOpen = false;
+function setClipLenOpen(open) {
+  _clipLenOpen = open;
+  clipLenBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    clipLenExpand.style.overflow = 'hidden';
+    clipLenExpand.style.maxHeight = '0px';
+    clipLenExpand.classList.add('open');
+    void clipLenExpand.offsetHeight;
+    clipLenExpand.style.maxHeight = clipLenExpand.scrollHeight + 'px';
+  } else {
+    clipLenExpand.style.overflow = 'hidden';
+    clipLenExpand.style.maxHeight = clipLenExpand.scrollHeight + 'px';
+    void clipLenExpand.offsetHeight;
+    clipLenExpand.style.maxHeight = '0px';
+    clipLenExpand.classList.remove('open');
+  }
+  setTimeout(() => { clipLenExpand.style.maxHeight = ''; clipLenExpand.style.overflow = ''; }, 460);
+}
+clipLenBtn.addEventListener('click', () => setClipLenOpen(!_clipLenOpen));
+
+// Loop / Boomerang toggles — board-wide clip playback mode, mutually exclusive with
+// "freeze" (Loop turned off). See createFreezeVideo / createBounceVideo for playback.
+function updateClipModeBtns() {
+  const mode = state.clipPlayMode || 'loop';
+  clipLoopBtn.classList.toggle('active', mode === 'loop');
+  clipLoopBtn.setAttribute('aria-pressed', mode === 'loop' ? 'true' : 'false');
+  clipLoopBtn.title = mode === 'loop' ? 'Loop (on) — tap to freeze on last frame' : 'Loop (off) — tap to loop';
+  clipBounceBtn.classList.toggle('active', mode === 'bounce');
+  clipBounceBtn.setAttribute('aria-pressed', mode === 'bounce' ? 'true' : 'false');
+}
+function setClipPlayMode(mode) {
+  if (state.clipPlayMode === mode) return;
+  state.clipPlayMode = mode;
+  updateClipModeBtns();
+  buildLayout();      // rebuilds each clip's media element to match the new playback mode
+  resetBoardClock();  // start the duration cycle (timeline + freeze replay) from zero
+}
+clipLoopBtn.addEventListener('click', () => {
+  setClipPlayMode(state.clipPlayMode === 'loop' ? 'freeze' : 'loop');
+});
+clipBounceBtn.addEventListener('click', () => {
+  setClipPlayMode(state.clipPlayMode === 'bounce' ? 'loop' : 'bounce');
 });
 
 // Auto clip detection — analyse one video and pick its shots. Slim button only.
@@ -7349,6 +7597,8 @@ const ANALYZE_TIPS = [
   'Did you know you can <b>set the duration</b> for your video?',
   'Tip: tap the <b>gear</b> on a clip to fine-tune its in and out points.',
   'Tip: use <b>Add clips</b> to hand-pick anything the auto detection missed.',
+  'Did you know you can create <b>custom layouts</b>? Press the edges button in the lower left corner and drag the frames where you want.',
+  'Now you can <b>enable and disable loop</b> on videos, or have them <b>boomerang</b> back and forth.',
 ];
 const TIP_START_MS = 5000;    // wait this long before the first tip appears
 const TIP_HOLD_MS  = 10000;   // each tip stays fully visible this long
@@ -8356,16 +8606,58 @@ async function addSelectedClips() {
 // Each clip slot is a <video> that loops a sub-range [start,end] of the proxy.
 let _clipPlayers = [];   // web-fallback single videos: { el, start, end } sub-range loop
 let _clipLoops   = [];   // native clips: double-buffer ping-pong controllers
+let _clipFreezes = [];   // loop-off clips: play once, hold the final frame
+let _clipBounces = [];   // boomerang clips: forward/reverse ping-pong
 let _clipRaf = null;
+
+// Board clock — one shared timer that cycles every `clipDuration` seconds, mirroring the
+// export. It drives the timeline bar under the board, and in freeze mode it restarts the
+// clips at each wrap so the preview plays exactly like the final export, on repeat.
+let _boardClockT0 = 0;
+const timelineBarEl  = document.getElementById('timelineBar');
+const timelineFillEl = document.getElementById('timelineFill');
+
+function resetBoardClock() {
+  _boardClockT0 = performance.now();
+  if (timelineFillEl) timelineFillEl.style.width = '0%';
+  for (const c of _clipFreezes) _restartFreeze(c);
+}
+
+// Replay a freeze clip from its in-point (used at each duration-cycle wrap).
+function _restartFreeze(c) {
+  c.done = false;
+  const v = c.el;
+  if (!v) return;
+  try { v.currentTime = c.start; } catch (e) {}
+  const p = v.play(); if (p && p.catch) p.catch(() => {});
+}
+
+// Advance the shared clock: fill the timeline bar, and wrap at the export duration.
+function _tickBoardClock() {
+  if (!_boardClockT0) _boardClockT0 = performance.now();
+  const durMs = Math.max(1, state.clipDuration || 15) * 1000;
+  const elapsed = performance.now() - _boardClockT0;
+  if (elapsed >= durMs) {
+    _boardClockT0 = performance.now();
+    for (const c of _clipFreezes) _restartFreeze(c);   // freeze preview replays like the export
+    if (timelineFillEl) timelineFillEl.style.width = '0%';
+    return;
+  }
+  if (timelineFillEl && !timelineBarEl.hidden) {
+    timelineFillEl.style.width = ((elapsed / durMs) * 100).toFixed(2) + '%';
+  }
+}
 
 function _resetClipPlayers() {
   _clipPlayers = [];
   _clipLoops   = [];
+  _clipFreezes = [];
+  _clipBounces = [];
   if (_clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
 }
 
 function _ensureClipRaf() {
-  const active = _clipPlayers.length || _clipLoops.length;
+  const active = _clipPlayers.length || _clipLoops.length || _clipFreezes.length || _clipBounces.length;
   if (active && !_clipRaf) _clipRaf = requestAnimationFrame(_clipTick);
   else if (!active && _clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
 }
@@ -8380,7 +8672,11 @@ function _clipTick() {
     }
   }
   for (const c of _clipLoops) _tickClipLoop(c);
-  _clipRaf = (_clipPlayers.length || _clipLoops.length) ? requestAnimationFrame(_clipTick) : null;
+  for (const c of _clipFreezes) _tickFreeze(c);
+  for (const c of _clipBounces) _tickBounce(c);
+  _tickBoardClock();   // duration cycle: timeline bar + freeze-mode replay
+  _clipRaf = (_clipPlayers.length || _clipLoops.length || _clipFreezes.length || _clipBounces.length)
+    ? requestAnimationFrame(_clipTick) : null;
 }
 
 // ── Native video bridge (iOS WKWebView / AVAssetImageGenerator) ────────────
@@ -8944,6 +9240,7 @@ function resetCurrentBoard() {
   state.radius = 0;
   state.boardType = 'photo';
   state.clipDuration = 15;
+  state.clipPlayMode = 'loop';
   state.slotFracs = { vertical: null, horizontal: null, gridCols: null, gridRows: null };
   setFrameEdit(false);
   // Reset UI controls
@@ -9965,6 +10262,7 @@ async function doVideoExportNative() {
     width: W, height: H, duration, bg: state.bg || '#000000',
     bitrate: BITRATE_LEVELS[_exportBitrate] || BITRATE_LEVELS.high,
     radius: state.radius || 0, gap: state.gap || 0,
+    playMode: state.clipPlayMode || 'loop',   // 'loop' | 'freeze' | 'bounce' — applies to every clip
     clips,
   });
   // Swift drives window.exportProgress(...) then window.exportComplete(success).

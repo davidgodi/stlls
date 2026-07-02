@@ -467,9 +467,20 @@ class VideoSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 }
 
+// MARK: - Import source preference (Photos library vs. the Files app)
+// Set from the web Settings toggle via the "setImportSource" message; read at pick time
+// by every import surface (stills open-panel + all video handlers).
+enum ImportPrefs {
+    static let key = "stlls.importFromFiles"
+    static var fromFiles: Bool {
+        get { UserDefaults.standard.bool(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
 // MARK: - JS → Swift bridge for native video frame extraction
 
-class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControllerDelegate {
+class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControllerDelegate, UIDocumentPickerDelegate {
 
     weak var viewController: UIViewController?
     weak var webView: WKWebView?
@@ -512,6 +523,8 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         case "clearCache":
             let body = (message.body as? [String: Any]) ?? [:]
             DispatchQueue.main.async { [weak self] in self?.clearCache(body) }
+        case "setImportSource":
+            if let on = message.body as? Bool { ImportPrefs.fromFiles = on }
         default: break
         }
     }
@@ -566,6 +579,26 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     // MARK: Video picker
 
     private func presentVideoPicker() {
+        // Files off → straight to the Photo Library (unchanged default).
+        guard ImportPrefs.fromFiles else { presentVideoPhotoPicker(); return }
+        // Files on → let the user choose the source each time.
+        let sheet = UIAlertController(title: "Add video from", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Photo Library", style: .default) { [weak self] _ in self?.presentVideoPhotoPicker() })
+        sheet.addAction(UIAlertAction(title: "Files", style: .default) { [weak self] _ in self?.presentVideoDocumentPicker() })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            guard let self else { return }
+            self.sendToJS(self.videoDocPickerFailJS())   // chooser dismissed → tell web nothing was picked
+            self.proxyMode = false; self.fullClipsMode = false
+        })
+        if let pop = sheet.popoverPresentationController, let v = viewController?.view {
+            pop.sourceView = v
+            pop.sourceRect = CGRect(x: v.bounds.midX, y: v.bounds.maxY - 40, width: 0, height: 0)
+            pop.permittedArrowDirections = []
+        }
+        viewController?.present(sheet, animated: true)
+    }
+
+    private func presentVideoPhotoPicker() {
         var cfg = PHPickerConfiguration(photoLibrary: .shared())
         cfg.selectionLimit = fullClipsMode ? 10 : 1   // full-clips mode allows multiple
         cfg.filter = .videos
@@ -575,6 +608,13 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         // need that — .current skips the transcode and loads near-instantly.
         cfg.preferredAssetRepresentationMode = .current
         let picker = PHPickerViewController(configuration: cfg)
+        picker.delegate = self
+        viewController?.present(picker, animated: true)
+    }
+
+    private func presentVideoDocumentPicker() {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.movie], asCopy: true)
+        picker.allowsMultipleSelection = fullClipsMode
         picker.delegate = self
         viewController?.present(picker, animated: true)
     }
@@ -610,6 +650,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
             catch { do    { try FileManager.default.copyItem(at: url, to: dest) }
                     catch { self?.sendToJS(failJS); return } }
 
+            self?.processMovie(dest: dest, fileName: url.lastPathComponent, doProxy: doProxy)
+        }
+    }
+
+    // Shared movie processing: metadata probe + route to proxy / detect / grab-stills.
+    // Used by both the Photos picker and the Files document picker (they only differ
+    // in how the temp `dest` file is produced).
+    private func processMovie(dest: URL, fileName providedName: String, doProxy: Bool) {
             let asset = AVURLAsset(url: dest)
 
             // Use modern async/await AVFoundation APIs (no deprecation warnings)
@@ -663,7 +711,7 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                 let key           = UUID().uuidString
 
                 await MainActor.run {
-                    let fileName = url.lastPathComponent
+                    let fileName = providedName
 
                     // Video-board path. Detection runs on the ORIGINAL (no whole-video
                     // transcode → fast); individual shots are trimmed on demand when the
@@ -728,6 +776,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                 }
             }
         }
+
+    // MARK: Files-app import (document picker) for videos
+    // Mirrors the PHPicker delegate routing: single video → proxy/detect/grab-stills,
+    // multiple → whole-video clips. asCopy:true hands us temp files we already own.
+    private func videoDocPickerFailJS() -> String {
+        if fullClipsMode { return "if (typeof window.nativeFullClipsDone === 'function') window.nativeFullClipsDone()" }
+        if proxyMode      { return "if (window.nativeVideoProxyReady) window.nativeVideoProxyReady(null)" }
+        return "window.nativeVideoReady(null)"
     }
 
     // MARK: Low-res proxy export (ProRes fallback only)
@@ -825,6 +881,60 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                 "if (typeof window.nativeFullClipReady === 'function') window.nativeFullClipReady(payload)",
                 arguments: ["payload": payload], in: nil, in: .page, completionHandler: nil)
         }
+    }
+
+    // Whole-video clips from Files-picked URLs (the document-picker equivalent of makeFullClips).
+    private func makeFullClips(fromURLs urls: [URL]) {
+        webView?.callAsyncJavaScript(
+            "if (typeof window.nativeFullClipsStart === 'function') window.nativeFullClipsStart(n)",
+            arguments: ["n": urls.count], in: nil, in: .page, completionHandler: nil)
+        guard !urls.isEmpty else { return }
+        processFullClipURLs(urls, index: 0)
+    }
+
+    private func processFullClipURLs(_ urls: [URL], index: Int) {
+        if index >= urls.count {
+            webView?.callAsyncJavaScript(
+                "if (typeof window.nativeFullClipsDone === 'function') window.nativeFullClipsDone()",
+                arguments: [:], in: nil, in: .page, completionHandler: nil)
+            return
+        }
+        let next: () -> Void = { [weak self] in self?.processFullClipURLs(urls, index: index + 1) }
+        let src = urls[index]
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + "." + src.pathExtension)
+        do { try FileManager.default.copyItem(at: src, to: dest) }
+        catch { sendFullClip(index, nil); next(); return }
+        let fileName = src.deletingPathExtension().lastPathComponent
+        exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName) { [weak self] info in
+            self?.sendFullClip(index, info)
+            next()
+        }
+    }
+
+    // MARK: UIDocumentPickerDelegate (Files-app video import)
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        if fullClipsMode {
+            fullClipsMode = false
+            makeFullClips(fromURLs: urls); return
+        }
+        let doProxy = proxyMode; proxyMode = false
+        let failJS = doProxy
+            ? "if (window.nativeVideoProxyReady) window.nativeVideoProxyReady(null)"
+            : "window.nativeVideoReady(null)"
+        guard let src = urls.first else { sendToJS(failJS); return }
+        let dest = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + "." + src.pathExtension)
+        do { try FileManager.default.copyItem(at: src, to: dest) }
+        catch { sendToJS(failJS); return }
+        processMovie(dest: dest, fileName: src.lastPathComponent, doProxy: doProxy)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        let js = videoDocPickerFailJS()
+        proxyMode = false; fullClipsMode = false
+        sendToJS(js)
     }
 
     private func exportFullProxy(asset: AVURLAsset, source: URL, fileName: String,
@@ -1203,7 +1313,7 @@ class RemindersMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - UIViewController that hosts WKWebView
 
-class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerDelegate {
+class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerDelegate, UIDocumentPickerDelegate {
 
     private var webView: WKWebView!
     private let exportHandler    = ExportMessageHandler()
@@ -1233,6 +1343,7 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         userContent.add(videoHandler,     name: "extractVideoFrame")
         userContent.add(videoHandler,     name: "releaseVideoAsset")
         userContent.add(videoHandler,     name: "clearCache")
+        userContent.add(videoHandler,     name: "setImportSource")
         userContent.add(remindersHandler, name: "scheduleReminders")
 
         let config = WKWebViewConfiguration()
@@ -1280,12 +1391,62 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         completionHandler: @escaping ([URL]?) -> Void
     ) {
         filePickerCompletionHandler = completionHandler
+        // Files off → straight to the Photo Library (unchanged default).
+        guard ImportPrefs.fromFiles else { presentImagePhotoPicker(); return }
+        // Files on → let the user choose the source each time.
+        let sheet = UIAlertController(title: "Add photos from", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Photo Library", style: .default) { [weak self] _ in self?.presentImagePhotoPicker() })
+        sheet.addAction(UIAlertAction(title: "Files", style: .default) { [weak self] _ in self?.presentImageDocumentPicker() })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.filePickerCompletionHandler?(nil); self?.filePickerCompletionHandler = nil
+        })
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 40, width: 0, height: 0)
+            pop.permittedArrowDirections = []
+        }
+        present(sheet, animated: true)
+    }
+
+    private func presentImagePhotoPicker() {
         var config = PHPickerConfiguration(photoLibrary: .shared())
         config.selectionLimit = 0
         config.filter = .images
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
         present(picker, animated: true)
+    }
+
+    private func presentImageDocumentPicker() {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.image], asCopy: true)
+        picker.allowsMultipleSelection = true
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+
+    // MARK: UIDocumentPickerDelegate (Files-app image import for the <input type=file>)
+
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard !urls.isEmpty else {
+            filePickerCompletionHandler?(nil); filePickerCompletionHandler = nil; return
+        }
+        // Re-encode to JPEG in our own temp (matches the PHPicker path), so the web side
+        // always receives normalised images regardless of the source container.
+        let tempDir = FileManager.default.temporaryDirectory
+        var out: [URL] = []
+        for src in urls {
+            guard let data = try? Data(contentsOf: src),
+                  let uiImage = UIImage(data: data),
+                  let jpeg = uiImage.jpegData(compressionQuality: 0.9) else { continue }
+            let dest = tempDir.appendingPathComponent(UUID().uuidString + ".jpg")
+            if (try? jpeg.write(to: dest)) != nil { out.append(dest) }
+        }
+        filePickerCompletionHandler?(out.isEmpty ? nil : out)
+        filePickerCompletionHandler = nil
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        filePickerCompletionHandler?(nil); filePickerCompletionHandler = nil
     }
 
     // target="_blank" links (e.g. the Privacy Policy) open in the system

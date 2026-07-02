@@ -787,13 +787,19 @@
   #previewExpandBtn:hover { background: rgba(0,0,0,0.7); color: var(--text); opacity: 1; }
   body.preview-expanded #previewExpandBtn { opacity: 1; }
 
-  /* On desktop/iPad, lift the button above the fixed export bar when expanded */
+  /* On desktop/iPad, lift the buttons above the fixed export bar when expanded */
   @media (min-width: 640px) {
     body.preview-expanded #previewExpandBtn {
       position: fixed;
       bottom: 72px;   /* clears the ~62px export bar */
       right: 20px;
       z-index: 201;   /* above export bar (z-index: 200) */
+    }
+    body.preview-expanded #frameEditBtn {
+      position: fixed;
+      bottom: 72px;
+      left: 20px;
+      z-index: 201;
     }
   }
 
@@ -802,6 +808,170 @@
     opacity: 0;
     pointer-events: none;
   }
+
+  /* ── Frame-edit mode: resize the frames around stills/clips ── */
+  #frameEditBtn {
+    position: absolute; bottom: 10px; left: 10px;
+    width: 32px; height: 32px;
+    background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--rsm); color: var(--text-mid);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s, opacity 0.2s, box-shadow 0.2s;
+    z-index: 10; -webkit-tap-highlight-color: transparent;
+    opacity: 0.55;
+  }
+  #frameEditBtn[hidden] { display: none; }
+  #frameEditBtn:hover { background: rgba(0,0,0,0.7); color: var(--text); opacity: 1; }
+  #frameEditBtn.active {
+    background: linear-gradient(135deg, #3ae8cf, #0ea5a0); border-color: transparent;
+    color: #fff; opacity: 1; box-shadow: 0 2px 10px rgba(20,184,166,0.5);
+  }
+  /* While editing frames: images can't be panned/zoomed, and the settings around the
+     board grey out so nothing gets nudged by accident. Fullscreen (expand) and the
+     Adjust sliders stay usable — both help while placing the dividers. */
+  body.frame-edit-on .slot { pointer-events: none; }
+  body.frame-edit-on #boardTypeChip,
+  body.frame-edit-on #boardActionsBtn,
+  body.frame-edit-on #boardIndicator,
+  body.frame-edit-on #psCanvas {
+    opacity: 0.35; pointer-events: none; transition: opacity 0.25s;
+  }
+  /* Drag handles on the boundaries between frames */
+  /* The handle spans the boundary only to draw the line; it isn't grabbable. */
+  .frame-handle {
+    position: absolute; z-index: 6; pointer-events: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .frame-handle.fh-h { height: 30px; }
+  .frame-handle.fh-v { width: 30px; }
+  .frame-handle::before {   /* boundary line, so the divider reads across the whole board */
+    content: ''; position: absolute; background: rgba(48,213,200,0.5);
+  }
+  .frame-handle.fh-h::before { left: 0; right: 0; top: 50%; height: 1.5px; transform: translateY(-50%); }
+  .frame-handle.fh-v::before { top: 0; bottom: 0; left: 50%; width: 1.5px; transform: translateX(-50%); }
+  /* Grip — the ONLY draggable spot (comfortable hit area, smaller visible pill inside). */
+  .fh-grip {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    pointer-events: auto; touch-action: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fh-grip::after {
+    content: ''; background: #30d5c8; border-radius: 4px; box-shadow: 0 1px 5px rgba(0,0,0,0.55);
+  }
+  .fh-h .fh-grip { width: 64px; height: 26px; cursor: row-resize; }
+  .fh-h .fh-grip::after { width: 42px; height: 6px; }
+  .fh-v .fh-grip { width: 26px; height: 64px; cursor: col-resize; }
+  .fh-v .fh-grip::after { width: 6px; height: 42px; }
+  .frame-handle.dragging .fh-grip::after { background: #7dede2; }
+
+  /* ── Popover libraries (saved layouts + ratio list) ──
+     Float above their section like the grid options popover, so the panel
+     never reflows however many entries they hold. */
+  #psCanvas, #psLayout { position: relative; }
+  .lib-pop {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0; right: 0;
+    z-index: 35;
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    animation: popUpIn 0.5s cubic-bezier(0.16,1,0.3,1);
+  }
+  .lib-pop[hidden] { display: none !important; }
+  /* Big libraries scroll inside the popover instead of growing past the panel edge */
+  .lib-pop { overscroll-behavior: contain; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+  /* keep row-1 delete badges inside the scroll container */
+  .lib-pop .layout-lib-grid { padding-top: 6px; }
+  /* When the import area is folded, the sections sit at the panel's top edge and the
+     panel's overflow:hidden would clip an upward popover — open downward instead. */
+  .lib-pop.drop-down, #gridOptsWrap.drop-down {
+    bottom: auto;
+    top: calc(100% + 8px);
+  }
+  /* Long, smooth entrances: popovers glide in from their anchored side. */
+  @keyframes popUpIn {
+    from { opacity: 0; transform: translateY(14px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes popDownIn {
+    from { opacity: 0; transform: translateY(-14px) scale(0.96); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .lib-pop.drop-down, #gridOptsWrap.drop-down { animation: popDownIn 0.5s cubic-bezier(0.16,1,0.3,1); }
+  /* …and glide back out the way they came when closing. */
+  @keyframes popUpOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(14px) scale(0.96); }
+  }
+  @keyframes popDownOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(-14px) scale(0.96); }
+  }
+  .lib-pop.pop-leaving, #gridOptsWrap.pop-leaving {
+    animation: popUpOut 0.4s cubic-bezier(0.4,0,0.2,1) forwards;
+    pointer-events: none;
+  }
+  .lib-pop.drop-down.pop-leaving, #gridOptsWrap.drop-down.pop-leaving {
+    animation: popDownOut 0.4s cubic-bezier(0.4,0,0.2,1) forwards;
+  }
+
+  /* The grid popover's chevron matches where the popover will fold away to:
+     above the buttons → points down; flipped below them → points up. */
+  .grid-hide-btn svg { transition: transform 0.45s cubic-bezier(0.16,1,0.3,1); }
+  #gridOptsWrap.drop-down .grid-hide-btn svg { transform: rotate(180deg); }
+
+  /* Corner flag on the ratio button — hints that it opens the ratio library. */
+  #customRatioBtn { position: relative; }
+  #customRatioBtn::after {
+    content: ''; position: absolute; right: 3px; bottom: 3px;
+    border-style: solid; border-width: 0 0 6px 6px;
+    border-color: transparent transparent var(--text-dim) transparent;
+    opacity: 0.75; transition: border-color 0.3s, opacity 0.3s;
+  }
+  #customRatioBtn.active::after { border-bottom-color: var(--accent-fg); opacity: 0.9; }
+
+  /* Gentle press feedback on the library controls */
+  .rl-btn, .ll-tile, .btn-icon { transition: transform 0.25s ease, border-color 0.15s, color 0.15s; }
+  .rl-btn:active, .ll-tile:active { transform: scale(0.94); }
+
+  /* Ratio library — popular ratios + custom */
+  .ratio-lib-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .rl-btn {
+    padding: 8px 0; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--rsm); color: var(--text-mid); font-family: inherit; font-size: 10.5px;
+    font-variant-numeric: tabular-nums; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .rl-btn:active { border-color: var(--accent); }
+  .rl-btn.active { border-color: var(--accent); color: var(--text); font-weight: 600; }
+
+  /* Saved-layouts library — line-art previews of each saved shape */
+  .layout-lib-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .ll-tile {
+    position: relative; aspect-ratio: 3 / 4;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent;
+    transition: border-color 0.15s;
+  }
+  .ll-tile:active { border-color: var(--accent); }
+  .ll-tile svg { width: 68%; height: 78%; color: var(--text-mid); display: block; }
+  .ll-tile.ll-save { border-style: dashed; color: var(--text-dim); flex-direction: column; gap: 3px; }
+  .ll-tile.ll-save span { font-size: 18px; line-height: 1; font-weight: 300; }
+  .ll-tile.ll-save small { font-size: 8px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .ll-del {
+    position: absolute; top: -6px; right: -6px; width: 17px; height: 17px;
+    background: #1c1c1c; border: 1px solid var(--border2); border-radius: 50%;
+    color: var(--text); font-size: 10px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .ll-empty { grid-column: 2 / -1; align-self: center; font-size: 10px; color: var(--text-dim); padding: 4px; }
+  /* Library trigger: compact icon button that sits in the layout button row */
+  .btn-icon { flex: 0 0 32px !important; padding: 8px 0 !important; display: flex; align-items: center; justify-content: center; }
 
   /* ── PANEL ── */
   .panel {
@@ -966,13 +1136,9 @@
     border-radius: var(--radius);
     padding: 10px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-    animation: gridPop 0.22s cubic-bezier(0.22,1,0.36,1);
+    animation: popUpIn 0.5s cubic-bezier(0.16,1,0.3,1);
   }
   #gridOptsWrap[hidden] { display: none !important; }
-  @keyframes gridPop {
-    from { opacity: 0; transform: translateY(5px) scale(0.97); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
-  }
   /* Maximise the width: both steppers stretch, value stays centred */
   #gridOptsWrap .grid-steppers { gap: 8px; }
   #gridOptsWrap .stepper { flex: 1; display: flex; align-items: stretch; }
@@ -2210,6 +2376,7 @@
       text-transform: uppercase;
       cursor: pointer;
       padding: 0;
+      margin-bottom: 10px;   /* sits above the import area now */
       -webkit-tap-highlight-color: transparent;
     }
     .photos-chevron {
@@ -2235,16 +2402,21 @@
       -webkit-overflow-scrolling: touch;
       margin-top: 10px;
       max-height: 80px;
-      opacity: 1;
-      transition: max-height 0.25s ease, opacity 0.2s ease, margin-top 0.25s ease;
-    }
-    .img-strip-outer.collapsed {
-      max-height: 0;
-      opacity: 0;
-      margin-top: 0;
-      pointer-events: none;
     }
     .img-strip-outer::-webkit-scrollbar { display: none; }
+
+    /* The whole import area (From Photos/Video, clip buttons, strip) folds behind the
+       chevron — frees the panel once everything is picked; toggle again to add more. */
+    #importCollapse {
+      transition: max-height 0.28s ease, opacity 0.22s ease, margin-top 0.28s ease;
+    }
+    #importCollapse.collapsed {
+      max-height: 0 !important;
+      opacity: 0;
+      margin-top: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
 
     /* Mobile add button */
     .m-add-btn {
@@ -2756,6 +2928,16 @@
       <!-- Neighbour-board canvases for smooth swipe animation -->
       <canvas id="swipePrevBoard" class="swipe-board"></canvas>
       <canvas id="swipeNextBoard" class="swipe-board"></canvas>
+      <!-- Frame-edit toggle (lower-left): drag the boundaries between frames to resize them.
+           Gated behind this button so you can't nudge a frame while panning an image. -->
+      <button id="frameEditBtn" aria-label="Adjust frames" hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <line x1="12" y1="3" x2="12" y2="21"/>
+          <polyline points="8.5 9.5 6 12 8.5 14.5"/>
+          <polyline points="15.5 9.5 18 12 15.5 14.5"/>
+        </svg>
+      </button>
       <!-- Expand button -->
       <button id="previewExpandBtn" aria-label="Expand preview">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -2823,6 +3005,14 @@
         <button id="videoCancelBtn" aria-label="Cancel video analysis">✕</button>
       </div>
 
+      <!-- Fold toggle — collapses the WHOLE import area (import buttons + strip) to free
+           up space once the stills/clips are picked; tap again to add more. -->
+      <button class="photos-toggle" id="photosToggle">
+        <span>Stills</span>
+        <span class="photos-chevron">›</span>
+      </button>
+
+      <div id="importCollapse">
       <!-- Import mode picker -->
       <div class="import-mode-row" id="importModeRow">
         <button class="import-mode-btn active" data-imode="stills">
@@ -2889,10 +3079,6 @@
       <input type="file" id="clipManualFileInput" accept="video/*" hidden>
 
       <!-- Stills strip — always below import area -->
-      <button class="photos-toggle" id="photosToggle">
-        <span>Stills</span>
-        <span class="photos-chevron">›</span>
-      </button>
       <div class="img-strip-outer">
         <button class="m-add-btn" id="mAddBtn" title="Add images">+</button>
         <div class="image-list" id="imageList"></div>
@@ -2901,6 +3087,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         </button>
       </div>
+      </div><!-- /importCollapse -->
     </div>
 
     <!-- CANVAS + LAYOUT side-by-side -->
@@ -2914,6 +3101,19 @@
           <button class="btn" data-ratio="4:5">4:5</button>
           <button class="btn" id="customRatioBtn" data-ratio="custom">Custom</button>
         </div>
+        <!-- RATIO LIBRARY — popular ratios + custom; floats above, never reflows -->
+        <div id="ratioLibWrap" class="lib-pop" hidden>
+          <div class="ratio-lib-grid">
+            <button class="rl-btn" data-rlib="16:9">16:9</button>
+            <button class="rl-btn" data-rlib="17:9">17:9</button>
+            <button class="rl-btn" data-rlib="2.4:1">2.4:1</button>
+            <button class="rl-btn" data-rlib="2.39:1">2.39:1</button>
+            <button class="rl-btn" data-rlib="4:3">4:3</button>
+            <button class="rl-btn" data-rlib="3:2">3:2</button>
+            <button class="rl-btn" data-rlib="5:4">5:4</button>
+            <button class="rl-btn" id="rlCustom">Custom…</button>
+          </div>
+        </div>
       </div>
 
       <div class="ps ps-half" id="psLayout">
@@ -2922,6 +3122,13 @@
           <button class="btn active" data-layout="vertical">Vert</button>
           <button class="btn" data-layout="horizontal">Horiz</button>
           <button class="btn" data-layout="grid">Grid</button>
+          <button class="btn btn-icon" id="layoutLibBtn" aria-label="Saved layouts" title="Saved layouts">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </button>
+        </div>
+        <!-- SAVED LAYOUTS LIBRARY — line-art previews; floats above, never reflows -->
+        <div id="layoutLibWrap" class="lib-pop" hidden>
+          <div class="layout-lib-grid" id="layoutLibGrid"></div>
         </div>
         <!-- GRID OPTIONS — floating popover above the layout buttons; never reflows -->
         <div id="gridOptsWrap" hidden>
@@ -3377,6 +3584,19 @@
       </div>
     </div>
     <div class="sp-section">
+      <div class="sp-section-label">Import</div>
+      <div class="sp-row" style="border-bottom:none;">
+        <span class="sp-row-stack">
+          <span class="sp-row-label">Import from Files</span>
+          <span class="sp-row-sub">When on, importing lets you choose Photo Library or Files each time — everywhere you import.</span>
+        </span>
+        <label class="toggle-sw">
+          <input type="checkbox" id="filesImportToggle">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+    </div>
+    <div class="sp-section">
       <div class="sp-section-label">Storage</div>
       <div class="sp-row" style="border-bottom:none;">
         <span class="sp-row-stack">
@@ -3727,12 +3947,12 @@ function whenEditorIdle(cb, startedAt) {
   setTimeout(() => whenEditorIdle(cb, startedAt), 500);
 }
 
-// Expand the Media/Stills bar so a tip that points at the + button can anchor to it,
-// even if the user had collapsed the bar with its chevron.
+// Expand the import area (import buttons + Media/Stills strip) so a tip that points at
+// the + button can anchor to it, even if the user had folded it with the chevron.
 function ensureMediaBarOpen() {
-  const strip = document.querySelector('.img-strip-outer');
+  const wrap = document.getElementById('importCollapse');
   const toggle = document.getElementById('photosToggle');
-  if (strip)  strip.classList.remove('collapsed');
+  if (wrap)   { wrap.classList.remove('collapsed'); wrap.style.maxHeight = ''; wrap.style.overflow = ''; }
   if (toggle) toggle.classList.remove('closed');
 }
 
@@ -3893,7 +4113,16 @@ const state = {
                         // or each frame when gap>0
   boardType: 'photo',   // 'photo' | 'video' — video boards hold looping clips
   clipDuration: 15,     // seconds; video-board loop length (10–20), used at export (Phase 2)
+  // Custom frame sizes (frame-edit mode). Each is an array of fractions summing to 1,
+  // or null for uniform. Arrays are only honoured when their length matches the current
+  // slot count, so adding/removing images safely falls back to uniform.
+  slotFracs: { vertical: null, horizontal: null, gridCols: null, gridRows: null },
 };
+
+// Valid fraction array for `count` slots, else null (uniform).
+function _fr(arr, count) {
+  return (Array.isArray(arr) && arr.length === count) ? arr : null;
+}
 
 // Returns (and lazily creates) the transform for the current layout
 function itemT(item) {
@@ -4006,13 +4235,41 @@ const rowsVal        = document.getElementById('rowsVal');
 let gridOptsHidden = false;
 function updateGridOpts() {
   const isGrid = state.layout === 'grid';
+  gridOptsWrap.classList.remove('pop-leaving');   // context switch — no exit animation in flight
   gridOptsWrap.hidden = !isGrid || gridOptsHidden;
   gridShowBtn.hidden  = !isGrid || !gridOptsHidden;
+  orientLibPop(gridOptsWrap);   // flip downward when the folded panel leaves no headroom
   // If the layout coach is on screen, re-place its bubble around the popover
   const lc = _coaches.layout;
   if (lc && !lc.el.hidden) positionCoach(lc);
 }
-gridHideBtn.addEventListener('click', () => { gridOptsHidden = true;  updateGridOpts(); });
+
+// Best cols×rows for n items: no hidden items, no empty cells if an exact split exists,
+// as close to square as possible, and portrait-friendly (rows ≥ cols on ties) —
+// 6 photos → 2×3, 4 → 2×2, 8 → 2×4.
+function bestGridDims(n) {
+  n = Math.max(1, n);
+  let best = null;
+  for (let c = 1; c <= n; c++) {
+    const r = Math.ceil(n / c);
+    const score = (c * r - n) * 10          // empty cells are ugly holes — avoid hard
+                + Math.abs(c - r)            // near-square beats skinny
+                + (c > r ? 0.5 : 0);         // ties → more rows than columns
+    if (!best || score < best.score) best = { c, r, score };
+  }
+  return [best.c, best.r];
+}
+
+// Sync the stepper readouts after a programmatic grid-dimension change.
+function syncGridSteppers() {
+  colsVal.textContent = state.gridCols;
+  rowsVal.textContent = state.gridRows;
+}
+gridHideBtn.addEventListener('click', () => {
+  gridOptsHidden = true;
+  hideLibPop(gridOptsWrap);                       // glide out instead of vanishing
+  gridShowBtn.hidden = state.layout !== 'grid';   // re-show affordance appears right away
+});
 gridShowBtn.addEventListener('click', () => { gridOptsHidden = false; updateGridOpts(); });
 const undoBtn        = document.getElementById('undoBtn');
 const undoDropdown   = document.getElementById('undoDropdown');
@@ -4186,6 +4443,7 @@ function serializeBoards(boards) {
     radius:         board.radius || 0,
     boardType:      board.boardType || 'photo',
     clipDuration:   board.clipDuration ?? 15,
+    slotFracs:      cloneSlotFracs(board.slotFracs),
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
       .map(item => {
@@ -4272,6 +4530,7 @@ async function deserializeBoards(savedBoards) {
       radius:         board.radius         || 0,
       boardType:      board.boardType      || 'photo',
       clipDuration:   board.clipDuration   ?? 15,
+      slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
       detection: (board.detection && board.detection.srcBlob && board.detection.shots?.length) ? {
         id:     board.detection.id || null,
@@ -4424,6 +4683,17 @@ function generateThumbnail() {
 
 // ── Multi-board helpers ───────────────────────────────────────────────────
 
+// Deep-copy a slotFracs bag (small arrays; null-safe).
+function cloneSlotFracs(sf) {
+  if (!sf) return { vertical: null, horizontal: null, gridCols: null, gridRows: null };
+  return {
+    vertical:   Array.isArray(sf.vertical)   ? sf.vertical.slice()   : null,
+    horizontal: Array.isArray(sf.horizontal) ? sf.horizontal.slice() : null,
+    gridCols:   Array.isArray(sf.gridCols)   ? sf.gridCols.slice()   : null,
+    gridRows:   Array.isArray(sf.gridRows)   ? sf.gridRows.slice()   : null,
+  };
+}
+
 function saveCurrentBoardSnapshot() {
   _projectBoards[_activeBoardIdx] = {
     id:             _projectBoards[_activeBoardIdx]?.id || genId(),
@@ -4438,6 +4708,7 @@ function saveCurrentBoardSnapshot() {
     radius:         state.radius || 0,
     boardType:      state.boardType || 'photo',
     clipDuration:   state.clipDuration ?? 15,
+    slotFracs:      cloneSlotFracs(state.slotFracs),
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
     // Persist the analysed-video context (source bytes + shots) so the picker reopens.
@@ -4480,6 +4751,7 @@ function renderBoardSnapshot(canvas, boardData, bw, bh) {
     images: state.images, ratio: state.ratio, layout: state.layout,
     gridCols: state.gridCols, gridRows: state.gridRows,
     gap: state.gap, padding: state.padding, bg: state.bg,
+    slotFracs: state.slotFracs,
   };
   state.images  = boardData.images;
   state.ratio   = boardData.ratio;
@@ -4489,6 +4761,7 @@ function renderBoardSnapshot(canvas, boardData, bw, bh) {
   state.gap     = boardData.gap;
   state.padding = boardData.padding;
   state.bg      = boardData.bg;
+  state.slotFracs = boardData.slotFracs || { vertical: null, horizontal: null, gridCols: null, gridRows: null };
 
   getSlots(W, H).forEach(({ item, x, y, w, h }) => {
     if (!item?.img) return;
@@ -4515,6 +4788,7 @@ function renderBoardSnapshot(canvas, boardData, bw, bh) {
   state.gap     = saved.gap;
   state.padding = saved.padding;
   state.bg      = saved.bg;
+  state.slotFracs = saved.slotFracs;
 }
 
 // ── Photo-album swipe state ───────────────────────────────────────────────
@@ -4537,8 +4811,10 @@ function loadBoardState(board) {
   state.radius   = board.radius || 0;
   state.boardType    = board.boardType || 'photo';
   state.clipDuration = board.clipDuration ?? 15;
+  state.slotFracs    = cloneSlotFracs(board.slotFracs);
   state.images         = board.images.slice();
   state.usedShotRanges = board.usedShotRanges ? [...board.usedShotRanges] : [];
+  if (typeof setFrameEdit === 'function') setFrameEdit(false);   // leave frame-edit when switching boards
   // Restore analysed-video context so "Add more from video" reopens the shot picker
   // without re-picking. The native source key is gone after a restart, so we play/trim
   // from the saved bytes via the web path (object URL).
@@ -5037,38 +5313,59 @@ function getSlots(totalW, totalH) {
   const iH = totalH - pad * 2;
 
   if (state.layout === 'vertical') {
-    const slotH = (iH - gap * (n - 1)) / n;
-    return state.images.map((item, i) => ({
-      item, x: pad, y: pad + i * (slotH + gap), w: iW, h: slotH,
-    }));
+    const avail = iH - gap * (n - 1);
+    const fr = _fr(state.slotFracs?.vertical, n);
+    let y = pad;
+    return state.images.map((item, i) => {
+      const h = avail * (fr ? fr[i] : 1 / n);
+      const s = { item, x: pad, y, w: iW, h };
+      y += h + gap;
+      return s;
+    });
   }
 
   if (state.layout === 'horizontal') {
-    const slotW = (iW - gap * (n - 1)) / n;
-    return state.images.map((item, i) => ({
-      item, x: pad + i * (slotW + gap), y: pad, w: slotW, h: iH,
-    }));
+    const avail = iW - gap * (n - 1);
+    const fr = _fr(state.slotFracs?.horizontal, n);
+    let x = pad;
+    return state.images.map((item, i) => {
+      const w = avail * (fr ? fr[i] : 1 / n);
+      const s = { item, x, y: pad, w, h: iH };
+      x += w + gap;
+      return s;
+    });
   }
 
-  // Grid
-  const cols = Math.max(1, state.gridCols);
-  const rows = Math.max(1, state.gridRows);
-  const slotW = (iW - gap * (cols - 1)) / cols;
-  const slotH = (iH - gap * (rows - 1)) / rows;
+  // Grid — column/row tracks can each have custom fractions
+  const { cols, rows, xs, ws, ys, hs } = _gridTracks(totalW, totalH);
   const slots = [];
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const idx = r * cols + c;
       if (idx >= n) break;
-      slots.push({
-        item: state.images[idx],
-        x: pad + c * (slotW + gap),
-        y: pad + r * (slotH + gap),
-        w: slotW, h: slotH,
-      });
+      slots.push({ item: state.images[idx], x: xs[c], y: ys[r], w: ws[c], h: hs[r] });
     }
   }
   return slots;
+}
+
+// Grid track geometry (positions + sizes per column/row) — shared by getSlots and
+// the frame-edit handles so their math can't drift apart.
+function _gridTracks(totalW, totalH) {
+  const [cW] = canonicalDims();
+  const sc  = totalW / cW;
+  const pad = state.padding * sc;
+  const gap = state.gap * sc;
+  const cols = Math.max(1, state.gridCols);
+  const rows = Math.max(1, state.gridRows);
+  const availW = (totalW - pad * 2) - gap * (cols - 1);
+  const availH = (totalH - pad * 2) - gap * (rows - 1);
+  const cFr = _fr(state.slotFracs?.gridCols, cols);
+  const rFr = _fr(state.slotFracs?.gridRows, rows);
+  const xs = [pad], ws = [], ys = [pad], hs = [];
+  for (let c = 0; c < cols; c++) { ws[c] = availW * (cFr ? cFr[c] : 1 / cols); xs[c + 1] = xs[c] + ws[c] + gap; }
+  for (let r = 0; r < rows; r++) { hs[r] = availH * (rFr ? rFr[r] : 1 / rows); ys[r + 1] = ys[r] + hs[r] + gap; }
+  return { pad, gap, cols, rows, xs, ws, ys, hs, availW, availH };
 }
 
 // ── Transform math ─────────────────────────────────────────────────────────
@@ -5405,12 +5702,20 @@ function buildLayout() {
     layoutPreview.style.display = 'none';
     emptyState.style.display = '';
     exportBtn.disabled = true;
+    updateFrameEditBtn();
     return;
   }
 
   emptyState.style.display = 'none';
   layoutPreview.style.display = 'block';
   layoutPreview.style.background = state.bg;
+
+  // A grid must always hold every still/clip — if items outgrow the cells (e.g. more
+  // media added while in grid), refit the dimensions instead of hiding the overflow.
+  if (state.layout === 'grid' && state.images.length > state.gridCols * state.gridRows) {
+    [state.gridCols, state.gridRows] = bestGridDims(state.images.length);
+    syncGridSteppers();
+  }
 
   // Corner rounding: gap 0 → round the whole board; gap > 0 → round each frame.
   const _radPx = (state.radius || 0) * (previewW / CANONICAL_W);
@@ -5478,6 +5783,156 @@ function buildLayout() {
   _ensureClipRaf();
 
   exportBtn.disabled = false;
+  updateFrameEditBtn();
+  renderFrameHandles();
+}
+
+// ── Frame-edit mode ─────────────────────────────────────────────────────────
+// Drag the boundaries between frames to give one frame more room than another
+// (one large clip + smaller ones, etc.). Gated behind the lower-left button so
+// normal panning/zooming can't accidentally move a boundary — and vice versa.
+let _frameEdit = false, _frameDragging = false;
+const frameEditBtn = document.getElementById('frameEditBtn');
+
+function setFrameEdit(on) {
+  _frameEdit = !!on;
+  document.body.classList.toggle('frame-edit-on', _frameEdit);
+  frameEditBtn.classList.toggle('active', _frameEdit);
+  renderFrameHandles();
+}
+frameEditBtn.addEventListener('click', () => setFrameEdit(!_frameEdit));
+
+// The button only shows when there's at least one boundary to drag.
+function updateFrameEditBtn() {
+  const n = state.images.length;
+  const boundaries = state.layout === 'grid'
+    ? (Math.max(1, state.gridCols) - 1) + (Math.max(1, state.gridRows) - 1)
+    : n - 1;
+  const usable = n >= 2 && boundaries >= 1;
+  frameEditBtn.hidden = !usable;
+  if (!usable && _frameEdit) setFrameEdit(false);
+}
+
+function renderFrameHandles() {
+  if (_frameDragging) return;   // mid-drag the dragged handle repositions itself
+  layoutPreview.querySelectorAll('.frame-handle').forEach(el => el.remove());
+  if (!_frameEdit || state.images.length < 2) return;
+
+  const slots = getSlots(previewW, previewH);
+  if (slots.length < 2 && state.layout !== 'grid') return;
+
+  const mk = (cls, cfg) => {
+    const d = document.createElement('div');
+    d.className = 'frame-handle ' + cls;
+    const grip = document.createElement('div');   // the only draggable spot
+    grip.className = 'fh-grip';
+    d.appendChild(grip);
+    layoutPreview.appendChild(d);
+    attachFrameDrag(d, cfg);
+    return d;
+  };
+
+  if (state.layout === 'vertical') {
+    for (let i = 0; i < slots.length - 1; i++) {
+      const by = (slots[i].y + slots[i].h + slots[i + 1].y) / 2;   // centre of the gap
+      const h = mk('fh-h', { kind: 'vertical', index: i });
+      h.style.left = slots[i].x + 'px';
+      h.style.width = slots[i].w + 'px';
+      h.style.top = (by - 15) + 'px';
+    }
+  } else if (state.layout === 'horizontal') {
+    for (let i = 0; i < slots.length - 1; i++) {
+      const bx = (slots[i].x + slots[i].w + slots[i + 1].x) / 2;
+      const v = mk('fh-v', { kind: 'horizontal', index: i });
+      v.style.top = slots[i].y + 'px';
+      v.style.height = slots[i].h + 'px';
+      v.style.left = (bx - 15) + 'px';
+    }
+  } else {
+    const t = _gridTracks(previewW, previewH);
+    const innerH = previewH - t.pad, innerW = previewW - t.pad;
+    for (let c = 0; c < t.cols - 1; c++) {           // column boundaries
+      const bx = t.xs[c] + t.ws[c] + t.gap / 2;
+      const v = mk('fh-v', { kind: 'gridCols', index: c });
+      v.style.top = t.pad + 'px';
+      v.style.height = (innerH - t.pad) + 'px';
+      v.style.left = (bx - 15) + 'px';
+    }
+    for (let r = 0; r < t.rows - 1; r++) {           // row boundaries
+      const by = t.ys[r] + t.hs[r] + t.gap / 2;
+      const h = mk('fh-h', { kind: 'gridRows', index: r });
+      h.style.left = t.pad + 'px';
+      h.style.width = (innerW - t.pad) + 'px';
+      h.style.top = (by - 15) + 'px';
+    }
+  }
+}
+
+// Shared drag: moving boundary `index` re-splits the two adjacent fractions only.
+// Only the grip (thick pill) starts a drag — the line across the board is not grabbable.
+function attachFrameDrag(el, cfg) {
+  const grip = el.querySelector('.fh-grip');
+  grip.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    try { grip.setPointerCapture(e.pointerId); } catch (err) {}   // capture is best-effort
+    _frameDragging = true;
+    el.classList.add('dragging');
+
+    // Geometry captured at drag start (only the dragged boundary moves).
+    const rect = layoutPreview.getBoundingClientRect();
+    const [cW] = canonicalDims();
+    const sc  = previewW / cW;
+    const gap = state.gap * sc;
+    let count, avail, startEdge, pairSpan, fr, horizontalDrag;
+
+    if (cfg.kind === 'vertical' || cfg.kind === 'horizontal') {
+      const slots = getSlots(previewW, previewH);
+      count = state.images.length;
+      horizontalDrag = (cfg.kind === 'horizontal');
+      const pad = state.padding * sc;
+      avail = (horizontalDrag ? previewW : previewH) - pad * 2 - gap * (count - 1);
+      startEdge = horizontalDrag ? slots[cfg.index].x : slots[cfg.index].y;
+      pairSpan  = horizontalDrag
+        ? slots[cfg.index].w + slots[cfg.index + 1].w
+        : slots[cfg.index].h + slots[cfg.index + 1].h;
+      fr = (_fr(state.slotFracs[cfg.kind], count) || Array(count).fill(1 / count)).slice();
+    } else {
+      const t = _gridTracks(previewW, previewH);
+      horizontalDrag = (cfg.kind === 'gridCols');
+      count = horizontalDrag ? t.cols : t.rows;
+      avail = horizontalDrag ? t.availW : t.availH;
+      startEdge = horizontalDrag ? t.xs[cfg.index] : t.ys[cfg.index];
+      pairSpan  = horizontalDrag
+        ? t.ws[cfg.index] + t.ws[cfg.index + 1]
+        : t.hs[cfg.index] + t.hs[cfg.index + 1];
+      fr = (_fr(state.slotFracs[cfg.kind], count) || Array(count).fill(1 / count)).slice();
+    }
+    const minSpan = Math.max(24, avail * 0.05);   // a frame can't collapse below this
+
+    const onMove = ev => {
+      const p = horizontalDrag ? (ev.clientX - rect.left) : (ev.clientY - rect.top);
+      const first = Math.max(minSpan, Math.min(pairSpan - minSpan, p - gap / 2 - startEdge));
+      fr[cfg.index]     = first / avail;
+      fr[cfg.index + 1] = (pairSpan - first) / avail;
+      state.slotFracs[cfg.kind] = fr.slice();
+      buildLayout();                       // reconciles in place — clips keep playing
+      // Keep the dragged handle under the finger (other boundaries don't move).
+      const bp = startEdge + first + gap / 2;
+      if (horizontalDrag) el.style.left = (bp - 15) + 'px';
+      else el.style.top = (bp - 15) + 'px';
+    };
+    const onUp = () => {
+      grip.removeEventListener('pointermove', onMove);
+      grip.removeEventListener('pointerup', onUp);
+      grip.removeEventListener('pointercancel', onUp);
+      el.classList.remove('dragging');
+      _frameDragging = false;
+      renderFrameHandles();                // fresh, exact positions
+    };
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', onUp);
+    grip.addEventListener('pointercancel', onUp);
+  });
 }
 
 // ── Image optimization ──────────────────────────────────────────────────────
@@ -5575,8 +6030,7 @@ function loadFiles(files) {
       try {
         const item = await makeStillItem({ name: file.name, src: e.target.result, mime: file.type });
         state.images.push(item);
-        imgStripOuter.classList.remove('collapsed');
-        photosToggle.classList.remove('closed');
+        ensureMediaBarOpen();
         renderList(); buildLayout();
       } catch (err) { console.warn('Image import failed:', err); }
     };
@@ -5753,8 +6207,7 @@ async function processVideo(fileOrURL) {
       im.src = capCvs.toDataURL('image/jpeg', 0.92);
     });
     state.images.push({ id: Date.now() + Math.random(), name: `${baseName}_${i+1}.jpg`, img, transforms: {} });
-    imgStripOuter.classList.remove('collapsed');
-    photosToggle.classList.remove('closed');
+    ensureMediaBarOpen();
     setAnalyzeProgress(vaAnalyzeLoader, ((i + 1) / selectedMids.length) * 100);
     videoAnalysisLabel.textContent = `Extracting ${i + 1} / ${selectedMids.length}`;
     setBar(60 + Math.round(((i + 1) / selectedMids.length) * 38), `Extracting ${i+1} / ${selectedMids.length}`);
@@ -5845,25 +6298,23 @@ if (!!(window.webkit?.messageHandlers?.requestVideoSelection) && window.innerWid
 }
 
 // ── Photos toggle ───────────────────────────────────────────────────────────
+// Folds the WHOLE import area (From Photos/Video buttons, clip controls, stills strip)
+// behind the chevron, so the board gets the space back once everything's picked.
 const photosToggle = document.getElementById('photosToggle');
 const imgStripOuter = document.querySelector('.img-strip-outer');
+const importCollapse = document.getElementById('importCollapse');
 
 photosToggle.addEventListener('click', () => {
-  const isOpen = !imgStripOuter.classList.contains('collapsed');
+  const isOpen = !importCollapse.classList.contains('collapsed');
 
   if (window.innerWidth < 640) {
     const previewEl = document.getElementById('previewOuter');
     const previewH  = previewEl.offsetHeight;
-    const dur = 260;
+    const dur = 280;
 
-    const cs = window.getComputedStyle(imgStripOuter);
-    const delta = isOpen
-      ? imgStripOuter.offsetHeight + parseFloat(cs.marginTop || 0)
-      : Math.min(imgStripOuter.scrollHeight + 10, 80);
-
-    const targetH = isOpen
-      ? previewH + delta
-      : Math.max(80, previewH - delta);
+    // The preview grows/shrinks by however tall the import area actually is.
+    const delta = isOpen ? importCollapse.offsetHeight : importCollapse.scrollHeight;
+    const targetH = isOpen ? previewH + delta : Math.max(120, previewH - delta);
 
     previewEl.style.flex       = 'none';
     previewEl.style.height     = previewH + 'px';
@@ -5879,7 +6330,31 @@ photosToggle.addEventListener('click', () => {
     }, dur + 20);
   }
 
-  imgStripOuter.classList.toggle('collapsed', isOpen);
+  // Measured max-height so the fold animates smoothly whatever the content size.
+  if (isOpen) {
+    importCollapse.style.overflow  = 'hidden';
+    importCollapse.style.maxHeight = importCollapse.scrollHeight + 'px';
+    void importCollapse.offsetHeight;
+    importCollapse.classList.add('collapsed');       // → max-height 0 (!important)
+  } else {
+    importCollapse.style.overflow  = 'hidden';
+    importCollapse.style.maxHeight = '0px';
+    importCollapse.classList.remove('collapsed');
+    void importCollapse.offsetHeight;
+    importCollapse.style.maxHeight = importCollapse.scrollHeight + 'px';
+  }
+  setTimeout(() => {
+    importCollapse.style.maxHeight = '';
+    importCollapse.style.overflow  = '';
+    // The sections' headroom changed — re-orient any open popover (grid opts / libraries)
+    orientLibPop(gridOptsWrap);
+    orientLibPop(ratioLibWrap);
+    orientLibPop(layoutLibWrap);
+  }, 320);
+  orientLibPop(gridOptsWrap);   // also flip immediately so it never sits clipped mid-fold
+  orientLibPop(ratioLibWrap);
+  orientLibPop(layoutLibWrap);
+
   photosToggle.classList.toggle('closed', isOpen);
 });
 dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
@@ -6086,11 +6561,85 @@ function onMobileEnd() {
 // ── Controls ───────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-ratio]').forEach(btn => {
   btn.addEventListener('click', () => {
-    if (btn.dataset.ratio === 'custom') { openCustomRatioDialog(); return; }
+    if (btn.dataset.ratio === 'custom') { toggleRatioLibrary(); return; }
     document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     setRatioAnimated(btn.dataset.ratio);
   });
+});
+
+// ── Ratio library — popular ratios + custom entry ───────────────────────────
+const ratioLibWrap = document.getElementById('ratioLibWrap');
+
+// Popovers open upward by default. With the import area folded, their section sits at
+// the panel's top edge and the panel's overflow:hidden clips an upward popover — flip
+// it downward whenever there isn't enough headroom inside the panel.
+function orientLibPop(pop) {
+  if (!pop || pop.hidden) return;
+  pop.classList.remove('drop-down');
+  pop.style.maxHeight = ''; pop.style.overflowY = '';
+  const panel = document.querySelector('.panel');
+  const host  = pop.parentElement;
+  if (!panel || !host) return;
+  const pr = panel.getBoundingClientRect(), hr = host.getBoundingClientRect();
+  const above = hr.top - pr.top;          // room over the section, inside the panel
+  const below = pr.bottom - hr.bottom;    // room under it
+  const need  = pop.offsetHeight + 12;
+  // Open on the side that fits; if neither fits fully, take the roomier side…
+  const useDown = above < need && (below >= need || below > above);
+  if (useDown) pop.classList.add('drop-down');
+  // …and cap the popover to that space with internal scrolling, so a big library
+  // never grows past the panel's clipped edge and out of reach.
+  const space = (useDown ? below : above) - 16;
+  if (pop.offsetHeight > space) {
+    pop.style.maxHeight = Math.max(120, space) + 'px';
+    pop.style.overflowY = 'auto';
+  }
+}
+
+// Close a popover with the exit glide (reverse of its entrance), then hide it.
+function hideLibPop(pop) {
+  if (!pop || pop.hidden || pop.classList.contains('pop-leaving')) return;
+  pop.classList.add('pop-leaving');
+  const done = () => {
+    if (!pop.classList.contains('pop-leaving')) return;   // reopened mid-leave
+    pop.classList.remove('pop-leaving');
+    pop.hidden = true;
+  };
+  pop.addEventListener('animationend', done, { once: true });
+  setTimeout(done, 450);   // fallback if animationend never fires
+}
+
+function toggleRatioLibrary() {
+  if (!ratioLibWrap.hidden && !ratioLibWrap.classList.contains('pop-leaving')) {
+    hideLibPop(ratioLibWrap);
+    return;
+  }
+  ratioLibWrap.classList.remove('pop-leaving');   // cancel a leave in flight
+  // Highlight the option matching the current custom ratio (if any)
+  const cur = (state.ratio === 'custom' && state.customRatio) ? state.customRatio : null;
+  ratioLibWrap.querySelectorAll('.rl-btn[data-rlib]').forEach(b => {
+    const r = parseRatio(b.dataset.rlib);
+    b.classList.toggle('active', !!(cur && r && Math.abs(r[0] / r[1] - cur[0] / cur[1]) < 0.001));
+  });
+  ratioLibWrap.hidden = false;
+  orientLibPop(ratioLibWrap);
+}
+
+ratioLibWrap.querySelectorAll('.rl-btn[data-rlib]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const r = parseRatio(btn.dataset.rlib);
+    if (!r) return;
+    hideLibPop(ratioLibWrap);
+    state.customRatio = r;
+    document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
+    setRatioAnimated('custom');
+    updateCustomRatioBtn();
+  });
+});
+document.getElementById('rlCustom').addEventListener('click', () => {
+  hideLibPop(ratioLibWrap);
+  openCustomRatioDialog();
 });
 
 // ── Custom ratio ────────────────────────────────────────────────────────────
@@ -6152,10 +6701,152 @@ document.querySelectorAll('[data-layout]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-layout]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active'); state.layout = btn.dataset.layout;
+    // Picking Grid sizes it to hold every still/clip on the board (6 → 2×3).
+    if (state.layout === 'grid' && state.images.length) {
+      [state.gridCols, state.gridRows] = bestGridDims(state.images.length);
+      syncGridSteppers();
+    }
     gridOptsHidden = false;   // picking Grid always reveals the options first
     updateGridOpts();
     buildLayout();
   });
+});
+
+// ── Saved-layouts library: custom layouts live in a closed popover, each drawn ──
+// as a line-art preview of its shape. The panel never reflows as presets grow.
+const LP_KEY = 'stlls-layout-presets';
+const layoutLibWrap = document.getElementById('layoutLibWrap');
+const layoutLibGrid = document.getElementById('layoutLibGrid');
+const layoutLibBtn  = document.getElementById('layoutLibBtn');
+
+function loadLayoutPresets() {
+  try { return JSON.parse(localStorage.getItem(LP_KEY)) || []; } catch (e) { return []; }
+}
+function persistLayoutPresets(list) {
+  try { localStorage.setItem(LP_KEY, JSON.stringify(list)); } catch (e) {}
+}
+
+// Line-art preview: stroked frames laid out exactly like the saved shape.
+function presetPreviewSVG(p) {
+  const W = 44, H = 60, G = 3;
+  const rects = [];
+  if (p.layout === 'grid') {
+    const cols = Math.max(1, p.gridCols || 2), rows = Math.max(1, p.gridRows || 2);
+    const cFr = _fr(p.slotFracs?.gridCols, cols), rFr = _fr(p.slotFracs?.gridRows, rows);
+    const availW = W - G * (cols - 1), availH = H - G * (rows - 1);
+    let y = 0;
+    for (let r = 0; r < rows; r++) {
+      const h = availH * (rFr ? rFr[r] : 1 / rows);
+      let x = 0;
+      for (let c = 0; c < cols; c++) {
+        const w = availW * (cFr ? cFr[c] : 1 / cols);
+        rects.push([x, y, w, h]); x += w + G;
+      }
+      y += h + G;
+    }
+  } else {
+    const vert = p.layout === 'vertical';
+    const n = Math.max(2, p.count || (p.slotFracs?.[p.layout]?.length || 3));
+    const fr = _fr(p.slotFracs?.[p.layout], n) || Array(n).fill(1 / n);
+    const avail = (vert ? H : W) - G * (n - 1);
+    let pos = 0;
+    fr.forEach(f => {
+      const s = avail * f;
+      rects.push(vert ? [0, pos, W, s] : [pos, 0, s, H]);
+      pos += s + G;
+    });
+  }
+  return `<svg viewBox="-1.5 -1.5 ${W + 3} ${H + 3}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">` +
+    rects.map(r => `<rect x="${r[0].toFixed(1)}" y="${r[1].toFixed(1)}" width="${Math.max(1, r[2]).toFixed(1)}" height="${Math.max(1, r[3]).toFixed(1)}" rx="2.5"/>`).join('') +
+    '</svg>';
+}
+
+function renderLayoutLibrary() {
+  if (!layoutLibGrid) return;
+  layoutLibGrid.innerHTML = '';
+  // Save tile first — captures the current layout (incl. custom frame sizes)
+  const save = document.createElement('button');
+  save.className = 'll-tile ll-save';
+  save.title = 'Save the current layout';
+  save.innerHTML = '<span>+</span><small>Save</small>';
+  save.addEventListener('click', saveCurrentLayoutPreset);
+  layoutLibGrid.appendChild(save);
+  const list = loadLayoutPresets();
+  if (!list.length) {
+    const empty = document.createElement('div');
+    empty.className = 'll-empty';
+    empty.textContent = 'Saved layouts appear here';
+    layoutLibGrid.appendChild(empty);
+    return;
+  }
+  list.forEach(p => {
+    const tile = document.createElement('button');
+    tile.className = 'll-tile';
+    tile.title = p.name;
+    tile.innerHTML = presetPreviewSVG(p);
+    const del = document.createElement('span');
+    del.className = 'll-del'; del.textContent = '×';
+    del.setAttribute('aria-label', 'Delete saved layout');
+    del.addEventListener('click', e => {
+      e.stopPropagation();
+      persistLayoutPresets(loadLayoutPresets().filter(q => q.id !== p.id));
+      renderLayoutLibrary();
+    });
+    tile.appendChild(del);
+    tile.addEventListener('click', () => {
+      applyLayoutPreset(p);
+      hideLibPop(layoutLibWrap);
+    });
+    layoutLibGrid.appendChild(tile);
+  });
+  orientLibPop(layoutLibWrap);   // height changed (save/delete) — keep it un-clipped
+}
+
+function saveCurrentLayoutPreset() {
+  const list = loadLayoutPresets();
+  if (list.length >= 24) list.shift();      // sanity cap — the library scrolls, so keep plenty
+  // Name presets by shape so they're recognisable: "3 frames · Vert", "2×3 Grid"
+  const base = state.layout === 'grid'
+    ? `${state.gridCols}×${state.gridRows} Grid`
+    : `${state.images.length || 2} frames · ${state.layout === 'vertical' ? 'Vert' : 'Horiz'}`;
+  let name = base, k = 2;
+  while (list.some(p => p.name === name)) name = `${base} ${k++}`;
+  list.push({
+    id: genId(), name,
+    layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows,
+    count: state.images.length || 2,        // frames in non-grid previews
+    slotFracs: cloneSlotFracs(state.slotFracs),
+  });
+  persistLayoutPresets(list);
+  renderLayoutLibrary();                    // stays open so the new tile is visible
+}
+
+function applyLayoutPreset(p) {
+  state.layout   = p.layout || 'vertical';
+  state.gridCols = p.gridCols || 2;
+  state.gridRows = p.gridRows || 2;
+  state.slotFracs = cloneSlotFracs(p.slotFracs);
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === state.layout));
+  updateGridOpts();
+  buildLayout();
+}
+
+layoutLibBtn.addEventListener('click', () => {
+  if (layoutLibWrap.hidden || layoutLibWrap.classList.contains('pop-leaving')) {
+    layoutLibWrap.classList.remove('pop-leaving');   // cancel a leave in flight
+    renderLayoutLibrary();
+    layoutLibWrap.hidden = false;
+    orientLibPop(layoutLibWrap);
+  } else hideLibPop(layoutLibWrap);
+});
+
+// Tap anywhere outside a library popover to close it (with the exit glide)
+document.addEventListener('pointerdown', e => {
+  const t = e.target;
+  if (!ratioLibWrap.hidden && !ratioLibWrap.contains(t) && !customRatioBtn.contains(t) && t !== customRatioBtn)
+    hideLibPop(ratioLibWrap);
+  if (!layoutLibWrap.hidden && !layoutLibWrap.contains(t) && !layoutLibBtn.contains(t) && t !== layoutLibBtn)
+    hideLibPop(layoutLibWrap);
 });
 
 gapSlider.addEventListener('input', () => {
@@ -6537,8 +7228,7 @@ function beginFullImport(count) {
     _fullImportIds.push(id);
     state.images.push({ id, placeholder: true, transforms: {} });
   }
-  imgStripOuter.classList.remove('collapsed');
-  photosToggle.classList.remove('closed');
+  ensureMediaBarOpen();
   renderList(); applyBoardTypeUI(); buildLayout();
 }
 
@@ -7527,8 +8217,7 @@ async function importSingleClip() {
   const phId = Date.now() + Math.random();
   pushHistory();
   state.images.push({ id: phId, placeholder: true, transforms: {} });
-  imgStripOuter.classList.remove('collapsed');
-  photosToggle.classList.remove('closed');
+  ensureMediaBarOpen();
   renderList(); applyBoardTypeUI(); buildLayout();
 
   let clip = null;
@@ -7652,8 +8341,7 @@ async function addSelectedClips() {
       transforms: {},
     });
   }
-  imgStripOuter.classList.remove('collapsed');
-  photosToggle.classList.remove('closed');
+  ensureMediaBarOpen();
   // KEEP the analysed video + source alive so "Add more from video" can reopen the
   // picker and trim further shots. (Which shots are "added" is derived from the clips.)
   closeShotPicker();
@@ -7890,8 +8578,7 @@ async function processVideoNative() {
       try {
         const img = await imgFromDataURL(url);
         state.images.push({ id: Date.now() + Math.random(), name: `still_${i+1}.jpg`, img, transforms: {} });
-        imgStripOuter.classList.remove('collapsed');
-        photosToggle.classList.remove('closed');
+        ensureMediaBarOpen();
         setAnalyzeProgress(vaAnalyzeLoader, ((i + 1) / selectedMids.length) * 100);
     videoAnalysisLabel.textContent = `Extracting ${i + 1} / ${selectedMids.length}`;
         nSetBar(60 + Math.round(((i+1) / selectedMids.length) * 38), `Extracting ${i+1} / ${selectedMids.length}`);
@@ -8066,8 +8753,7 @@ msDoneBtn.addEventListener('click', () => {
   msFrames.forEach(img => {
     state.images.push({ id: Date.now() + Math.random(), name: `still_${Date.now()}.jpg`, img, transforms: {} });
   });
-  imgStripOuter.classList.remove('collapsed');
-  photosToggle.classList.remove('closed');
+  ensureMediaBarOpen();
   renderList(); buildLayout();
   if (state.images.length) exportBtn.disabled = false;
   closeManualScrubber();
@@ -8258,6 +8944,8 @@ function resetCurrentBoard() {
   state.radius = 0;
   state.boardType = 'photo';
   state.clipDuration = 15;
+  state.slotFracs = { vertical: null, horizontal: null, gridCols: null, gridRows: null };
+  setFrameEdit(false);
   // Reset UI controls
   document.querySelectorAll('[data-ratio]').forEach(b => b.classList.toggle('active', b.dataset.ratio === '9:16'));
   updateCustomRatioBtn();
@@ -8367,6 +9055,23 @@ emailUpdatesToggle.addEventListener('change', () => {
     submitToMailingList(localStorage.getItem('stlls-user-name') || '', email);
   }
 });
+
+// ── Import source: Photo Library vs. the Files app ──────────────────────────
+// Persisted on the web, mirrored to native (which switches every picker — stills
+// open-panel + all video handlers — between PHPicker and the document browser).
+const filesImportToggle = document.getElementById('filesImportToggle');
+function importFromFiles() { return localStorage.getItem('stlls-import-files') === 'true'; }
+function pushImportSource() {
+  try { window.webkit?.messageHandlers?.setImportSource?.postMessage(importFromFiles()); } catch (e) {}
+}
+if (filesImportToggle) {
+  filesImportToggle.checked = importFromFiles();
+  filesImportToggle.addEventListener('change', () => {
+    localStorage.setItem('stlls-import-files', filesImportToggle.checked ? 'true' : 'false');
+    pushImportSource();
+  });
+}
+pushImportSource();   // sync native to the saved preference on launch
 
 settingsBtn.addEventListener('click', openSettings);
 settingsClose.addEventListener('click', closeSettings);
@@ -8722,6 +9427,9 @@ previewExpandBtn.addEventListener('click', () => {
          <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
   // Refit the board to the animating preview area every frame.
+  // Frame-edit handles would sit at stale positions during the morph — drop them now;
+  // the clean buildLayout() at the end re-renders them at the new size.
+  layoutPreview.querySelectorAll('.frame-handle').forEach(el => el.remove());
   const slots = [...layoutPreview.querySelectorAll('.slot')];
   if (_ecRaf) cancelAnimationFrame(_ecRaf);
   _previewAnimating = true;                       // neutralise the ResizeObserver

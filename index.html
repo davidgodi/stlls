@@ -6596,7 +6596,11 @@ function renderList() {
       imageList.appendChild(div);
       return;
     }
-    div.draggable = true;
+    // Native HTML5 drag is desktop-only. On iOS a long-press starts BOTH the native drag
+    // (draggable=true) and the custom touch reorder below — the two interleave (the native
+    // drop splices state + re-renders the strip mid-touch-drag) and corrupt the order with
+    // duplicated/lost items. Touch devices use only the touch path.
+    div.draggable = !('ontouchstart' in window);
     const thumb = document.createElement('img');
     thumb.className = 'image-thumb'; thumb.src = item.thumb || item.img.src;
     const name = document.createElement('span');
@@ -6765,6 +6769,15 @@ function shufflePlaceholder(touchX) {
 
 function onMobileMove(e) {
   if (!mDrag) return;
+  // Strip re-rendered mid-drag (external rebuild): our lifted div is orphaned. Re-inserting
+  // it would plant a stale dataset.index among fresh ones — abort the drag instead.
+  if (!mDrag.div.isConnected) {
+    if (mScrollRaf) { cancelAnimationFrame(mScrollRaf); mScrollRaf = null; }
+    document.removeEventListener('touchmove', onMobileMove);
+    mDrag.ghost.remove();
+    mDrag = null;
+    return;
+  }
   e.preventDefault();
   const touch = e.touches[0];
   const { ghost, ox, fixedTop } = mDrag;
@@ -6799,10 +6812,16 @@ function onMobileEnd() {
 
   if (mScrollRaf) { cancelAnimationFrame(mScrollRaf); mScrollRaf = null; }
 
-  // Commit new visual order → state.images
-  pushHistory();
-  const newImages = [...imageList.children].map(el => state.images[+el.dataset.index]);
-  state.images = newImages;
+  // Commit new visual order → state.images. Defensive: if anything re-rendered the strip
+  // mid-drag, the children can carry stale dataset.index values — mapping those naively
+  // duplicates one item and loses another (a clip showing 1.5 times over a photo). Only
+  // commit when the mapping is a clean permutation of the current items.
+  const mapped = [...imageList.children].map(el => state.images[+el.dataset.index]).filter(Boolean);
+  const unique = [...new Set(mapped)];   // drops stale-div duplicates, keeps visual order
+  if (unique.length === state.images.length) {
+    pushHistory();
+    state.images = unique;
+  }
 
   document.removeEventListener('touchmove', onMobileMove);
   ghost.remove();

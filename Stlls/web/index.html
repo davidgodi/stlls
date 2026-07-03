@@ -4528,6 +4528,22 @@ async function dbDelete(id) {
   });
 }
 
+// Collect the distinct full-source proxies a board's clips came from (one blob per
+// source video, deduped by srcKey), so "Edit length" can still lengthen clips toward the
+// whole video after the board is saved and reopened. Only sources we actually hold bytes
+// for are persisted; a clip whose source is missing simply can't be lengthened later.
+function collectClipSources(images) {
+  const seen = new Set(); const out = [];
+  for (const it of (images || [])) {
+    if (!it || it.type !== 'clip' || !it.srcKey || seen.has(it.srcKey)) continue;
+    const e = _clipSources.get(it.srcKey);
+    if (!e || !e.blob) continue;
+    seen.add(it.srcKey);
+    out.push({ key: it.srcKey, blob: e.blob, dur: e.dur || 0, w: e.w || 0, h: e.h || 0 });
+  }
+  return out;
+}
+
 // Convert live board objects (with HTMLImageElement) → plain JSON for IDB
 function serializeBoards(boards) {
   return boards.map(board => ({
@@ -4565,6 +4581,9 @@ function serializeBoards(boards) {
             videoH:     item.videoH,
             shotIdx:    item._shotIdx ?? null,    // keeps "Added" state after reopen
             shotDetId:  item._shotDetId || null,
+            srcKey:     item.srcKey || null,      // which full source this clip came from
+            srcStart:   item.srcStart ?? item.start ?? 0,   // its window within that source
+            srcEnd:     item.srcEnd   ?? item.end   ?? 0,
             transforms: item.transforms || {},
           };
         }
@@ -4574,6 +4593,8 @@ function serializeBoards(boards) {
         return { id: item.id, name: item.name, src, transforms: item.transforms || {} };
       })
       .filter(Boolean),
+    // Full-source proxies for "Edit length" (deduped, one blob per source video).
+    sources: collectClipSources(board.images),
     // Analysed-video context: lets the shot picker reopen after the app is closed
     // (the source bytes + detected shots) without re-picking a video.
     detection: (board.detection && board.detection.blob && board.detection.shots?.length) ? {
@@ -4606,6 +4627,9 @@ async function deserializeBoards(savedBoards) {
               videoH: item.videoH || poster.naturalHeight,
               _shotIdx: item.shotIdx ?? null,
               _shotDetId: item.shotDetId || null,
+              srcKey: item.srcKey || null,
+              srcStart: item.srcStart ?? item.start ?? 0,
+              srcEnd:   item.srcEnd   ?? item.end   ?? 0,
               transforms: item.transforms || {},
             };
           } catch (e) { return null; }
@@ -4618,6 +4642,10 @@ async function deserializeBoards(savedBoards) {
         } catch (e) { return null; } // skip corrupt entries
       })
     )).filter(Boolean);
+    // Restore the full-source proxies so clips can be lengthened again after reopen.
+    for (const s of (board.sources || [])) {
+      if (s && s.key && s.blob) registerClipSource(s.key, { blob: s.blob, dur: s.dur, w: s.w, h: s.h });
+    }
     return {
       id:             board.id             || genId(),
       ratio:          board.ratio          || '9:16',
@@ -4933,6 +4961,9 @@ function loadBoardState(board) {
     _clipAspect      = board.detection.aspect || (9 / 16);
     _clipDetId       = board.detection.id || null;
     _detectMode      = board.detection.mode || 'auto';
+    // Fallback for boards saved with a detection blob but no explicit sources[] entry —
+    // make that source available to the length editor too (metadata filled in lazily).
+    if (_clipDetId && !_clipSources.has(_clipDetId)) registerClipSource(_clipDetId, { blob: board.detection.blob });
     updateClipAddBtnLabel();
   } else {
     _detectMode = 'auto';
@@ -7605,11 +7636,16 @@ window.nativeFullClipsDone = function() { endFullImport(); };
 // Build a clip item from native-supplied metadata — no video element opened.
 async function buildClipFromMeta(it) {
   const poster = await _loadImg(it.poster);
+  const dur = it.duration || 5;
+  const key = genId();
+  const vw = it.width || poster.naturalWidth, vh = it.height || poster.naturalHeight;
+  registerClipSource(key, { url: it.src, blob: it.blob || null, dur, w: vw, h: vh });   // the clip's own file IS the full source
   return {
     id: Date.now() + Math.random(), name: it.name || 'clip', type: 'clip',
     img: poster, thumb: it.poster, src: it.src, _blob: it.blob || null,
-    start: 0, end: it.duration || 5, nativeLoop: true,
-    videoW: it.width || poster.naturalWidth, videoH: it.height || poster.naturalHeight,
+    start: 0, end: dur, nativeLoop: true,
+    srcKey: key, srcStart: 0, srcEnd: dur,   // whole video → "Edit length" can shorten it
+    videoW: vw, videoH: vh,
     transforms: {},
   };
 }
@@ -7633,10 +7669,13 @@ async function makeFullClipItem(srcURL, blob, name) {
   const thumb = c.toDataURL('image/jpeg', 0.72);
   const poster = await _loadImg(thumb);
   video.removeAttribute('src'); video.load();
+  const key = genId();
+  registerClipSource(key, { url: srcURL, blob: blob || null, dur, w: poster.naturalWidth, h: poster.naturalHeight });
   return {
     id: Date.now() + Math.random(), name: name || 'clip', type: 'clip',
     img: poster, thumb, src: srcURL, _blob: blob || null,
     start: 0, end: dur, nativeLoop: true,
+    srcKey: key, srcStart: 0, srcEnd: dur,   // whole video → "Edit length" can shorten it
     videoW: poster.naturalWidth, videoH: poster.naturalHeight, transforms: {},
   };
 }
@@ -7708,12 +7747,61 @@ let _clipShots         = [];     // [{ start, end, dur, thumb }] — retained so
 let _clipSelected      = new Set();
 let _clipDetId         = null;   // stable id for the analysed video (survives save/reopen)
 let _clipSrcBlob       = null;   // analysed-video bytes — persisted so the picker reopens after restart
+let _clipSrcDur        = 0;      // analysed-video duration (full-source length for "Edit length")
+let _clipSrcW          = 0;      // analysed-video pixel width
+let _clipSrcH          = 0;      // analysed-video pixel height
 let _pendingClips      = null;   // resolve() awaiting native trim results
 let _clipImportMode    = 'auto'; // 'auto' = shot detection, 'single' = pick one video + trim it, 'manual' = pick segments
 let _detectMode        = 'auto'; // how the current picker was populated: 'auto' (detection) | 'manual' (hand-picked)
 let _manualClips       = [];     // clips collected in the manual trimmer this session (committed on Done)
-let _siCtx             = null;   // single-import source { srcURL, key, native, isObjURL, blob }
+let _siCtx             = null;   // single-import source { srcURL, key, native, isObjURL, blob, detId }
 let _ctMode            = 'shot'; // trimmer mode: 'shot' (adjust a detected shot) | 'single' (trim a whole video) | 'manual' (build a clip list)
+let _ctUsingSource     = false;  // board edit: true = trimming the full source (can lengthen), false = the clip's own file (shorten only)
+
+// ── Full-source store for "Edit length" ─────────────────────────────────────
+// A clip is trimmed to its own small file, so on its own it can only be shortened.
+// To let the user LENGTHEN a clip back toward the whole video it came from, we keep
+// the full low-res source available, keyed by a stable srcKey. Every clip trimmed
+// from one video shares ONE source entry (deduped: N shots → 1 proxy in memory/on
+// disk). Each clip stores its window [srcStart, srcEnd] within that source.
+const _clipSources = new Map();   // srcKey → { liveURL, blobURL, blob, dur, w, h }
+
+// A source keeps TWO URLs on purpose:
+//  • liveURL — the exact URL the app already plays this session (the native stlls-video://
+//    scheme URL). iOS WKWebView reliably paints a PAUSED, seeked frame from this, so it's
+//    what the length editor must DISPLAY. Available immediately — no fetch, no race.
+//  • blobURL — an object URL over the fetched bytes. Durable (survives the native source
+//    being discarded) and needed for export/persistence, but a paused seeked <video> on a
+//    blob URL renders BLACK on iOS — so it is NOT used for the editor when a liveURL exists.
+// The blob itself is fetched lazily in the background; the editor never awaits it.
+function registerClipSource(key, { url, blob, dur, w, h } = {}) {
+  if (!key) return null;
+  let e = _clipSources.get(key);
+  if (!e) { e = { liveURL: null, blobURL: null, blob: null, dur: 0, w: 0, h: 0 }; _clipSources.set(key, e); }
+  if (url && !e.liveURL) e.liveURL = url;                                    // proven-displayable live URL
+  if (blob && !e.blob) { e.blob = blob; if (!e.blobURL) e.blobURL = URL.createObjectURL(blob); }
+  if (dur && !e.dur) e.dur = dur;
+  if (w && !e.w) e.w = w;
+  if (h && !e.h) e.h = h;
+  return e;
+}
+
+// Register the source as immediately editable (liveURL) and pull its bytes in the background
+// so the extend can be exported/persisted. The editor does NOT await this.
+async function ensureClipSource(key, srcURL, dur, w, h) {
+  const e = registerClipSource(key, { url: srcURL, dur, w, h });
+  if (e && !e.blob && srcURL) {
+    try {
+      const r = await fetch(srcURL);
+      if (r.ok) { e.blob = await r.blob(); if (!e.blobURL) e.blobURL = URL.createObjectURL(e.blob); }
+    } catch (err) {}
+  }
+  return e;
+}
+
+function clipSourceFor(item) {
+  return item && item.srcKey ? (_clipSources.get(item.srcKey) || null) : null;
+}
 
 // Pull the analysed source fully into memory (background) so it can be saved to IDB and
 // the shot picker can reopen after the app is closed without re-picking a video.
@@ -7721,6 +7809,9 @@ async function captureClipSrcBlob() {
   if (_clipSrcBlob || !_clipSrcURL) return;
   const url = _clipSrcURL;
   try { const r = await fetch(url); if (r.ok && url === _clipSrcURL) _clipSrcBlob = await r.blob(); } catch (e) {}
+  // Same bytes double as the "Edit length" full source — durable even after the native
+  // side releases the live stlls-video:// URL (leaving the board unregisters it).
+  if (_clipSrcBlob && _clipDetId) registerClipSource(_clipDetId, { blob: _clipSrcBlob });
 }
 
 // Which shots of the current video are CURRENTLY on the board — derived from the
@@ -7848,10 +7939,15 @@ async function startClipAnalysis(srcURL, opts) {
     _clipShots = result.shots;
     _clipAspect = result.aspect || (9 / 16);
     _clipDetId  = genId();                       // stable id for this analysed video
+    _clipSrcDur = result.duration || 0;          // full-source duration (for "Edit length")
+    _clipSrcW   = result.width || 0;
+    _clipSrcH   = result.height || 0;
     _clipSelected = new Set();                    // default: none selected — user picks
     updateClipAddBtnLabel();
     renderShotGrid();
     captureClipSrcBlob();                          // grab source bytes for persistence (bg)
+    // Make the whole source available to the length editor, keyed by the detection id.
+    ensureClipSource(_clipDetId, _clipSrcURL, _clipSrcDur, _clipSrcW, _clipSrcH);
   } catch (e) {
     console.warn('Clip analysis failed:', e);
     stopAnalyzeTips();
@@ -8014,7 +8110,7 @@ async function analyzeVideoForClips(srcURL, onProgress) {
     if (onProgress) onProgress(90 + Math.round(((i + 1) / ranges.length) * 10));
   }
   video.removeAttribute('src'); video.load();
-  return { shots, aspect };
+  return { shots, aspect, duration, width: vidW, height: vidH };
 }
 
 // Remove a shot from the library. Only non-added shots show a delete button, so nothing on
@@ -8189,7 +8285,7 @@ async function openClipTrimmer(i) {
 async function openSingleTrimmer(srcURL, opts) {
   _ctMode = 'single';
   _ctIdx = -1;
-  _siCtx = { srcURL, key: opts.key || null, native: !!opts.native, isObjURL: !!opts.isObjURL, blob: opts.blob || null };
+  _siCtx = { srcURL, key: opts.key || null, native: !!opts.native, isObjURL: !!opts.isObjURL, blob: opts.blob || null, detId: genId() };
   ctEl.video.src = srcURL;
   await new Promise(res => {
     if (ctEl.video.readyState >= 1) return res();
@@ -8249,37 +8345,110 @@ async function openManualTrimmer() {
   ctSeek(_ctIn);
 }
 
-// Edit the length of a clip ALREADY on the board (strip ⋯ → Edit length). The trimmer
-// opens on the clip's own media: full range for a natively-trimmed file, or the shared
-// source for web-fallback clips. Done updates the item's [start,end] in place.
+// Edit the length of a clip ALREADY on the board (strip ⋯ → Edit length). When the whole
+// source video is still available (kept in _clipSources), the trimmer opens on THAT so the
+// user can lengthen the clip back out toward the full video — not just shorten within its
+// own trimmed file. Falls back to the clip's own file when the source isn't available
+// (e.g. an old board saved before this feature). Done writes the new window in place.
 async function openBoardClipTrimmer(index) {
   const item = state.images[index];
   if (!item || item.type !== 'clip' || !item.src) return;
   _ctMode = 'board';
   _ctIdx = index;
-  ctEl.video.src = item.src;
-  await new Promise(res => {
-    if (ctEl.video.readyState >= 1) return res();
-    ctEl.video.addEventListener('loadedmetadata', res, { once: true });
-    ctEl.video.addEventListener('error', res, { once: true });
-    setTimeout(res, 3000);
-  });
-  _ctVidDur = (isFinite(ctEl.video.duration) && ctEl.video.duration) || (item.end || 5);
-  _ctWinA = 0; _ctWinB = _ctVidDur;
-  _ctIn  = Math.max(0, Math.min(item.start || 0, _ctVidDur - 0.1));
-  _ctOut = Math.max(_ctIn + 0.1, Math.min(item.end || _ctVidDur, _ctVidDur));
+  releaseBoardClipDecoders();     // free the board's clip decoders so the editor's <video> isn't starved (black) on iOS
+
+  // Self-heal the source linkage from the board's analysed-video context ("Add more from
+  // video" keeps the full source + shot list around, and both persist with the board).
+  // This rescues clips whose store entry is dead or missing — earlier builds released the
+  // native source before capturing its bytes — and even legacy clips saved before source
+  // tracking existed, whose window in the source is recovered from their detected shot.
+  if (item._shotDetId && item._shotDetId === _clipDetId && (_clipSrcBlob || _clipSrcURL)) {
+    if (!item.srcKey) {
+      const shot = _clipShots[item._shotIdx ?? -1];
+      item.srcKey   = _clipDetId;
+      item.srcStart = shot ? shot.start : (item.srcStart ?? item.start ?? 0);
+      item.srcEnd   = shot ? shot.end   : (item.srcEnd   ?? item.end   ?? 0);
+    }
+    registerClipSource(item.srcKey, _clipSrcBlob ? { blob: _clipSrcBlob } : { url: _clipSrcURL });
+  }
+
+  const source = clipSourceFor(item);
+  ctEl.video.muted = true; ctEl.video.playsInline = true;
+
+  // Candidate display sources, most durable first. The live stlls-video:// URL can be
+  // SILENTLY DEAD — the native side unregisters it when the board/project is left — while
+  // its stored duration still makes the window look right (black picture, correct length).
+  // So never trust a URL: try each candidate and require metadata to actually load. The
+  // clip's own file is last — it always loads (its blob is what the slots play right now),
+  // so the editor can end up shorten-only but never black.
+  const candidates = [];
+  if (source) {
+    if (source.blobURL) candidates.push({ url: source.blobURL, usingSource: true });
+    if (source.liveURL && source.liveURL !== source.blobURL)
+      candidates.push({ url: source.liveURL, usingSource: true });
+  }
+  candidates.push({ url: item.src, usingSource: false });
+
+  let loaded = null;
+  for (const cand of candidates) {
+    const v = ctEl.video;
+    try { v.pause(); } catch (e) {}
+    v.src = cand.url;
+    v.load();
+    const ok = await new Promise(res => {
+      let settled = false;
+      const finish = val => { if (settled) return; settled = true;
+        v.removeEventListener('loadedmetadata', good); v.removeEventListener('error', bad); res(val); };
+      const good = () => finish(true), bad = () => finish(false);
+      if (v.readyState >= 1) return good();
+      v.addEventListener('loadedmetadata', good, { once: true });
+      v.addEventListener('error', bad, { once: true });
+      setTimeout(bad, 2500);
+    });
+    if (ok && isFinite(ctEl.video.duration) && ctEl.video.duration > 0) { loaded = cand; break; }
+  }
+  if (!loaded) {           // nothing loadable at all — restore the board and bail out
+    _ctMode = 'shot'; _ctIdx = -1; _ctUsingSource = false;
+    buildLayout();
+    return;
+  }
+  _ctUsingSource = loaded.usingSource;
+  const winStart  = _ctUsingSource ? (item.srcStart ?? item.start ?? 0) : (item.start ?? 0);
+  const winEnd    = _ctUsingSource ? (item.srcEnd   ?? item.end   ?? 0) : (item.end   ?? 0);
+  // Duration comes from the VERIFIED loaded media — no stored-metadata fallback, so the
+  // window can never claim footage the editor can't actually show.
+  _ctVidDur = ctEl.video.duration;
+  _ctWinA = 0; _ctWinB = _ctVidDur;              // full source (or full file) is the draggable range
+  _ctIn  = Math.max(0, Math.min(winStart || 0, _ctVidDur - 0.1));
+  _ctOut = Math.max(_ctIn + 0.1, Math.min(winEnd || _ctVidDur, _ctVidDur));
   if (ctEl.title) ctEl.title.textContent = 'Edit Length';
-  if (ctEl.hint)  ctEl.hint.hidden = true;
+  if (ctEl.hint) {
+    // Tell the user WHY lengthening is unavailable when the original is gone,
+    // instead of silently pinning the handles to the clip's edges.
+    if (!_ctUsingSource && item.srcKey) {
+      ctEl.hint.textContent = 'Original video unavailable — this clip can only be shortened.';
+      ctEl.hint.hidden = false;
+    } else ctEl.hint.hidden = true;
+  }
   if (ctEl.inoutRow)  { ctEl.inoutRow.hidden = false; }
   if (ctEl.manualBar) ctEl.manualBar.hidden = true;
   if (ctEl.transport) ctEl.transport.classList.add('is-last');
   ctEl.root.hidden = false;
   ctEl.root.classList.add('opening');
   setTimeout(() => ctEl.root.classList.remove('opening'), 240);
-  ctSetPlayIcon(false);
   ctPlayheadTo(_ctIn);
   ctRender();
   ctSeek(_ctIn);
+  // AUTO-PLAY the selection instead of showing a paused frame. iOS WKWebView routinely
+  // refuses to composite a paused, freshly-seeked <video> (black frame) — but a PLAYING
+  // muted inline video is the one path this app renders reliably everywhere (the board
+  // slots loop several at once). ctTogglePlay clamps into [in,out], starts playback, and
+  // runs the rAF loop that keeps it cycling the selection; the user can tap to pause.
+  if (ctEl.video.paused) ctTogglePlay();
+  // If play() raced the just-released board decoders (device-only timing), retry once.
+  setTimeout(() => {
+    if (_ctMode === 'board' && !ctEl.root.hidden && ctEl.video.paused) ctTogglePlay();
+  }, 650);
 }
 
 // Done in board mode: write the new [in,out] onto the board clip and refresh.
@@ -8288,11 +8457,44 @@ async function applyBoardTrim() {
   const inT = _ctIn, outT = _ctOut;
   if (item && item.type === 'clip') {
     pushHistory();
-    item.start = inT;
-    item.end   = outT;
-    // Full range → the seamless native <video loop> players can drive it; any sub-range
-    // needs the JS start/end-aware playback (sub-range loop / freeze / bounce all honour it).
-    item.nativeLoop = (inT <= 0.01 && outT >= _ctVidDur - 0.05);
+    const source = _ctUsingSource ? clipSourceFor(item) : null;
+    if (source) {
+      // Make sure we have the source bytes for export/persist (fetch now if the background
+      // grab hasn't finished). Editing/preview never needed them — only export does.
+      if (!source.blob) { try { await ensureClipSource(item.srcKey, source.liveURL, source.dur, source.w, source.h); } catch (e) {} }
+    }
+    if (source && source.blob) {
+      // We trimmed the FULL source, so the clip now plays a sub-range of that source
+      // (this is how lengthening works — the extra footage lives in the source, not the
+      // clip's old trimmed file). Point playback + export + persistence at the source.
+      // Only rewire once we HOLD the source bytes — otherwise playback, export, and
+      // persistence would disagree about what file [start,end] indexes into.
+      item.srcStart = inT;
+      item.srcEnd   = outT;
+      item.src      = source.blobURL;
+      item._blob    = source.blob;                 // export/persist bytes = the full source
+      if (source.w) item.videoW = source.w;
+      if (source.h) item.videoH = source.h;
+      item.start = inT;
+      item.end   = outT;
+      // Whole source selected → the seamless native <video loop> can drive it; any
+      // sub-range uses the JS start/end-aware playback (loop / freeze / bounce honour it).
+      item.nativeLoop = (inT <= 0.01 && outT >= (source.dur || _ctVidDur) - 0.05);
+    } else if (_ctUsingSource) {
+      // Edited against the source but its bytes couldn't be captured — map the chosen
+      // range back into the clip's own file so nothing desyncs. Coverage clamps to
+      // whatever the old file holds (extension is impossible without the source bytes).
+      const offs = (item.srcStart ?? 0) - (item.start ?? 0);   // source time → file time
+      item.start = Math.max(0, inT - offs);
+      item.end   = Math.max(item.start + 0.1, outT - offs);
+      item.srcStart = inT; item.srcEnd = outT;
+      item.nativeLoop = false;                     // sub-range playback clamps within the file
+    } else {
+      // No source available (legacy clip) — trim within the clip's own file only.
+      item.start = inT;
+      item.end   = outT;
+      item.nativeLoop = (inT <= 0.01 && outT >= _ctVidDur - 0.05);
+    }
     // Refresh the thumbnail at the new midpoint (same pattern as the shot trimmer).
     await new Promise(res => {
       const v = ctEl.video; const done = () => { v.removeEventListener('seeked', done); res(); };
@@ -8300,8 +8502,9 @@ async function applyBoardTrim() {
       try { v.currentTime = (inT + outT) / 2; } catch (e) { res(); }
       setTimeout(res, 1500);
     });
-    try { item.thumb = ctGrabThumb().thumb; } catch (e) {}
+    try { const g = ctGrabThumb(); item.thumb = g.thumb; item.img = await _loadImg(g.thumb).catch(() => item.img); } catch (e) {}
   }
+  _ctUsingSource = false;
   closeClipTrimmer();
   renderList();
   buildLayout();
@@ -8527,7 +8730,9 @@ document.getElementById('ctCancel').addEventListener('click', () => {
     refreshShotPicker();
     return;
   }
+  const wasBoard = (_ctMode === 'board');
   closeClipTrimmer();
+  if (wasBoard) buildLayout();   // restart the board clip videos we released while editing
 });
 document.getElementById('ctDone').addEventListener('click', async () => {
   if (_ctMode === 'manual') { commitManualClips(); return; }
@@ -8584,6 +8789,8 @@ function makeSingleClipItem({ src, blob, thumb, poster, start, end, nativeLoop, 
 async function importSingleClip() {
   const inT = _ctIn, outT = _ctOut;
   const v = ctEl.video;
+  const srcDur = (isFinite(v.duration) && v.duration) || outT;   // whole-video length (for "Edit length")
+  const srcVW = v.videoWidth || 0, srcVH = v.videoHeight || 0;
   // Seek to the midpoint of the selection for the poster frame.
   await new Promise(res => {
     const done = () => { v.removeEventListener('seeked', done); res(); };
@@ -8597,6 +8804,12 @@ async function importSingleClip() {
 
   const ctx = _siCtx; _siCtx = null;   // take ownership so Cancel can't double-release
   closeClipTrimmer();
+
+  // Start capturing the FULL source bytes now (concurrent with the native trim below).
+  // This MUST complete before nativeRelease deletes the source file — otherwise "Edit
+  // length" is left with a dead URL and can never lengthen this clip. (That release/fetch
+  // race is exactly what produced black or shorten-only editors on device.)
+  const srcCapture = ctx ? ensureClipSource(ctx.detId, ctx.srcURL, srcDur, srcVW, srcVH) : null;
 
   // Drop a loading slot on the board immediately so the user sees it's working.
   const phId = Date.now() + Math.random();
@@ -8612,7 +8825,8 @@ async function importSingleClip() {
       _pendingClips = resolve;
       window.webkit.messageHandlers.requestVideoClips.postMessage({ key: ctx.key, ranges: [[inT, outT]] });
     });
-    nativeRelease(ctx.key);
+    try { await srcCapture; } catch (e) {}   // source bytes safely in memory…
+    nativeRelease(ctx.key);                  // …now the native file may be deleted
     if (clips && clips[0] && clips[0].webURL && poster) {
       const { url, blob } = await toBlobObj(clips[0].webURL);
       clip = makeSingleClipItem({ src: url, blob, thumb, poster, start: 0, end: clips[0].dur || (outT - inT), nativeLoop: true, vw, vh });
@@ -8622,6 +8836,14 @@ async function importSingleClip() {
     let blob = ctx.blob || null;
     if (!blob) { try { const r = await fetch(ctx.srcURL); if (r.ok) blob = await r.blob(); } catch (e) {} }
     clip = makeSingleClipItem({ src: ctx.srcURL, blob, thumb, poster, start: inT, end: outT, nativeLoop: false, vw, vh });
+  }
+
+  if (clip && ctx) {
+    // Remember which whole video this clip was cut from and where, so "Edit length"
+    // can lengthen it back out to the full source (not just within its trimmed file).
+    clip.srcKey = ctx.detId;
+    clip.srcStart = inT;
+    clip.srcEnd = outT;
   }
 
   // Swap the loading slot for the finished clip — unless the user undid it meanwhile.
@@ -8721,11 +8943,17 @@ async function addSelectedClips() {
       _shotIdx: i,               // which detected shot this is (frees it again on delete)
       _shotSrc: _clipSrcURL,     // of which analysed video (this session)
       _shotDetId: _clipDetId,    // stable detection id — matches the shot after reopen
+      srcKey: _clipDetId,        // full-source key for "Edit length" (lengthen toward whole video)
+      srcStart: shot.start,      // this clip's window within the full source
+      srcEnd: shot.end,
       videoW: poster.naturalWidth,
       videoH: poster.naturalHeight,
       transforms: {},
     });
   }
+  // Keep the full source in memory so its clips can be lengthened later this session,
+  // and its bytes are ready to persist with the board.
+  ensureClipSource(_clipDetId, _clipSrcURL, _clipSrcDur, _clipSrcW, _clipSrcH);
   ensureMediaBarOpen();
   // KEEP the analysed video + source alive so "Add more from video" can reopen the
   // picker and trim further shots. (Which shots are "added" is derived from the clips.)
@@ -8789,6 +9017,21 @@ function _resetClipPlayers() {
   _clipFreezes = [];
   _clipBounces = [];
   if (_clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
+}
+
+// iOS WKWebView caps how many <video> elements can hold a hardware decoder at once. A video
+// board's looping clips each hold one, so when the length editor opens as ONE MORE <video>
+// it can be denied a decoder and render black (metadata/duration still load — that's why the
+// length looks right while the picture is black). Free the board's clip decoders while the
+// editor is open; buildLayout() recreates and restarts them when it closes.
+function releaseBoardClipDecoders() {
+  _resetClipPlayers();
+  layoutPreview.querySelectorAll('video').forEach(v => {
+    try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
+  });
+  // Remove the slot elements too — buildLayout() reconciles by reuse, so the freed videos
+  // must be gone for it to recreate fresh, decoder-backed ones when the editor closes.
+  layoutPreview.innerHTML = '';
 }
 
 function _ensureClipRaf() {

@@ -5396,6 +5396,11 @@ function setRatioAnimated(newRatio) {
     const curH = startH + (targetH - startH) * e;
     layoutPreview.style.width  = curW + 'px';
     layoutPreview.style.height = curH + 'px';
+    // Corner radius scales with the board width — recompute it every frame so rounding
+    // morphs in sync with the ratio instead of popping when the final rebuild lands.
+    const radPx = (state.radius || 0) * (curW / CANONICAL_W);
+    const slotR = state.gap > 0 ? radPx : 0;
+    layoutPreview.style.borderRadius = (state.gap === 0 && radPx > 0) ? radPx + 'px' : '';
     const ns = getSlots(curW, curH);
     // Map by item id — the DOM slot order can differ from state.images order after a
     // strip reorder, so a by-index match would animate items to the wrong slots.
@@ -5404,6 +5409,7 @@ function setRatioAnimated(newRatio) {
       const s = byId.get(sd.dataset.itemId); if (!s) return;
       sd.style.left = s.x + 'px'; sd.style.top = s.y + 'px';
       sd.style.width = s.w + 'px'; sd.style.height = s.h + 'px';
+      sd.style.borderRadius = slotR + 'px';
       const im = sd.querySelector('.slot-img');
       if (im) {
         const oldT = _oldTs.get(sd.dataset.itemId);

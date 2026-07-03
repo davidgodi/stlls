@@ -8,6 +8,7 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
+    --board-frame: rgba(255,255,255,0.30); /* subtle export-bounds frame around the board preview */
     --bg: #0a0a0a;
     --surface: #111;
     --surface2: #161616;
@@ -24,6 +25,7 @@
   }
 
   [data-theme="light"] {
+    --board-frame: rgba(0,0,0,0.20);
     --bg: #f2f2f2;
     --surface: #ffffff;
     --surface2: #f7f7f7;
@@ -746,6 +748,7 @@
   #layoutPreview {
     position: relative; overflow: hidden; border-radius: 5px;
     box-shadow: 0 12px 60px rgba(0,0,0,0.75);
+    outline: 1px solid var(--board-frame);   /* export bounds — visible over dark media, padding & gaps */
     flex-shrink: 0; display: none; touch-action: none;
     will-change: transform;
   }
@@ -754,6 +757,7 @@
     position: absolute;
     border-radius: 5px;
     box-shadow: 0 12px 60px rgba(0,0,0,0.75);
+    outline: 1px solid var(--board-frame);
     pointer-events: none;
     display: none;
     will-change: transform;

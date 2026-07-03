@@ -5970,7 +5970,6 @@ function buildLayout() {
   // Native double-buffered clips + freeze controllers: gather (they persist across reconcile)
   _clipLoops   = [...layoutPreview.querySelectorAll('.clip-loop')].map(w => w._clipCtl).filter(Boolean);
   _clipFreezes = [...layoutPreview.querySelectorAll('.clip-freeze')].map(el => el._freezeCtl).filter(Boolean);
-  _ensureClipRaf();
 
   // Export-duration timeline (video boards with clips only): centred in the gap between
   // the board's bottom edge and the tools panel below, so it reads as its own element —
@@ -5987,6 +5986,7 @@ function buildLayout() {
       timelineBarEl.style.top   = Math.max(boardBottom + 2, mid - 1) + 'px';
     }
   }
+  _ensureClipRaf();   // after the timeline visibility update — a visible bar keeps the clock running
 
   exportBtn.disabled = false;
   updateFrameEditBtn();
@@ -8977,8 +8977,16 @@ function releaseBoardClipDecoders() {
   layoutPreview.innerHTML = '';
 }
 
+// The shared rAF drives JS clip playback AND the board clock (duration timeline). A board
+// where every clip self-loops natively (3+ clips → single <video loop>) has no playback
+// controllers, so a visible timeline bar must keep the loop alive on its own.
+function _clipRafNeeded() {
+  return !!(_clipPlayers.length || _clipLoops.length || _clipFreezes.length
+            || (timelineBarEl && !timelineBarEl.hidden));
+}
+
 function _ensureClipRaf() {
-  const active = _clipPlayers.length || _clipLoops.length || _clipFreezes.length;
+  const active = _clipRafNeeded();
   if (active && !_clipRaf) _clipRaf = requestAnimationFrame(_clipTick);
   else if (!active && _clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
 }
@@ -8995,8 +9003,7 @@ function _clipTick() {
   for (const c of _clipLoops) _tickClipLoop(c);
   for (const c of _clipFreezes) _tickFreeze(c);
   _tickBoardClock();   // duration cycle: timeline bar + freeze-mode replay
-  _clipRaf = (_clipPlayers.length || _clipLoops.length || _clipFreezes.length)
-    ? requestAnimationFrame(_clipTick) : null;
+  _clipRaf = _clipRafNeeded() ? requestAnimationFrame(_clipTick) : null;
 }
 
 // ── Native video bridge (iOS WKWebView / AVAssetImageGenerator) ────────────

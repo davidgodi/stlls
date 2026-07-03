@@ -505,8 +505,11 @@
      as the duration cycle passes. Positioned by buildLayout to hug the board's width. */
   #timelineBar {
     position: absolute; height: 2px; border-radius: 1px;
+    width: 120px;   /* compact fixed width — identical across every canvas ratio */
     background: rgba(255,255,255,0.10);
     overflow: hidden; pointer-events: none; z-index: 5;
+    /* glide with the UI when the board moves/resizes (ratio, layout, panel changes) */
+    transition: left 0.35s cubic-bezier(0.16,1,0.3,1), top 0.35s cubic-bezier(0.16,1,0.3,1);
   }
   #timelineBar[hidden] { display: none; }
   #timelineBar .tl-fill {
@@ -5978,12 +5981,13 @@ function buildLayout() {
     const showTl = hasClips();
     timelineBarEl.hidden = !showTl;
     if (showTl) {
-      const wrapH = layoutPreview.offsetParent ? layoutPreview.offsetParent.clientHeight : previewH;
       const boardBottom = layoutPreview.offsetTop + previewH;
-      const mid = boardBottom + (wrapH - boardBottom) / 2;
-      timelineBarEl.style.left  = layoutPreview.offsetLeft + 'px';
-      timelineBarEl.style.width = previewW + 'px';
-      timelineBarEl.style.top   = Math.max(boardBottom + 2, mid - 1) + 'px';
+      // Fixed compact width (set in CSS) centred under the board at a CONSTANT small
+      // offset — the bar never resizes or drifts with the canvas ratio, it only glides
+      // (CSS transition) as the board itself moves.
+      const tlW = timelineBarEl.offsetWidth || 120;
+      timelineBarEl.style.left = (layoutPreview.offsetLeft + (previewW - tlW) / 2) + 'px';
+      timelineBarEl.style.top  = (boardBottom + 12) + 'px';
     }
   }
   _ensureClipRaf();   // after the timeline visibility update — a visible bar keeps the clock running

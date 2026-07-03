@@ -1389,7 +1389,7 @@
   .clip-len-btn[aria-expanded="true"] .clip-len-chevron { transform: rotate(180deg); }
   .clip-len-btn[aria-expanded="true"] { border-color: var(--border2); color: var(--text); }
 
-  /* Loop / Boomerang — small icon toggle buttons beside the length button */
+  /* Loop — small icon toggle button beside the length button */
   .clip-mode-btn {
     flex: 0 0 36px; height: 34px; display: flex; align-items: center; justify-content: center;
     background: var(--surface2); border: 1px solid var(--border); border-radius: var(--rsm);
@@ -3149,9 +3149,6 @@
           <button class="clip-mode-btn active" id="clipLoopBtn" aria-pressed="true" aria-label="Loop" title="Loop">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
           </button>
-          <button class="clip-mode-btn" id="clipBounceBtn" aria-pressed="false" aria-label="Boomerang" title="Boomerang">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h9l-3-3M16 7l-3 3"/><path d="M17 17H8l3 3M8 17l3-3"/></svg>
-          </button>
         </div>
         <div class="clip-len-expand" id="clipLenExpand">
           <div class="clip-len-slider-row">
@@ -4212,7 +4209,7 @@ const state = {
                         // or each frame when gap>0
   boardType: 'photo',   // 'photo' | 'video' — video boards hold looping clips
   clipDuration: 15,     // seconds; video-board export length (5–20)
-  clipPlayMode: 'loop', // 'loop' | 'freeze' | 'bounce' — board-wide clip playback behaviour
+  clipPlayMode: 'loop', // 'loop' | 'freeze' — board-wide clip playback behaviour
   // Custom frame sizes (frame-edit mode). Each is an array of fractions summing to 1,
   // or null for uniform. Arrays are only honoured when their length matches the current
   // slot count, so adding/removing images safely falls back to uniform.
@@ -4559,7 +4556,7 @@ function serializeBoards(boards) {
     radius:         board.radius || 0,
     boardType:      board.boardType || 'photo',
     clipDuration:   board.clipDuration ?? 15,
-    clipPlayMode:   board.clipPlayMode || 'loop',
+    clipPlayMode:   board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop'),   // boomerang removed — old boards fall back to loop
     slotFracs:      cloneSlotFracs(board.slotFracs),
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
@@ -4659,7 +4656,7 @@ async function deserializeBoards(savedBoards) {
       radius:         board.radius         || 0,
       boardType:      board.boardType      || 'photo',
       clipDuration:   board.clipDuration   ?? 15,
-      clipPlayMode:   board.clipPlayMode   || 'loop',
+      clipPlayMode:   board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop'),
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
       detection: (board.detection && board.detection.srcBlob && board.detection.shots?.length) ? {
@@ -4942,7 +4939,7 @@ function loadBoardState(board) {
   state.radius   = board.radius || 0;
   state.boardType    = board.boardType || 'photo';
   state.clipDuration = board.clipDuration ?? 15;
-  state.clipPlayMode = board.clipPlayMode || 'loop';
+  state.clipPlayMode = board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop');
   state.slotFracs    = cloneSlotFracs(board.slotFracs);
   if (typeof resetBoardClock === 'function') resetBoardClock();   // duration cycle restarts per board
   state.images         = board.images.slice();
@@ -5742,10 +5739,9 @@ function createSingleLoopVideo(item) {
 function createSlotMedia(item) {
   if (item.type === 'clip') {
     const mode = state.clipPlayMode || 'loop';
-    // Freeze / bounce replace the looping playback entirely (both native-trimmed and
-    // shared-source clips), so they're checked before the nativeLoop double-buffer path.
+    // Freeze replaces the looping playback entirely (both native-trimmed and
+    // shared-source clips), so it's checked before the nativeLoop double-buffer path.
     if (mode === 'freeze') return createFreezeVideo(item);
-    if (mode === 'bounce') return createBounceVideo(item);
     if (item.nativeLoop) return clipsUseDoubleBuffer() ? createClipLoop(item) : createSingleLoopVideo(item);
   }
 
@@ -5857,51 +5853,6 @@ function _tickFreeze(c) {
   }
 }
 
-// ── Boomerang ("bounce") — play forward to the out-point, then play backward to the
-// in-point, repeating. WebKit doesn't support negative playbackRate, so the reverse
-// half is driven by manually stepping currentTime backward each frame. ──
-function createBounceVideo(item) {
-  const v = document.createElement('video');
-  v.muted = true; v.playsInline = true;
-  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
-  v.preload = 'auto'; v.className = 'slot-img clip-bounce'; v.src = item.src; v.loop = false; v.draggable = false;
-  if (item.thumb) v.poster = item.thumb;
-  item._videoEl = v;
-  const ctl = { el: v, start: item.start || 0, end: item.end || 0, dir: 1, lastT: 0 };
-  v._bounceCtl = ctl;
-  v.addEventListener('loadedmetadata', () => {
-    try { v.currentTime = ctl.start; } catch (e) {}
-    const p = v.play(); if (p && p.catch) p.catch(() => {});
-  }, { once: true });
-  return v;
-}
-
-function _tickBounce(c) {
-  const v = c.el;
-  if (!v || v.readyState < 2) return;
-  if (c.dir === 1) {
-    // Forward half plays natively; just watch for the out-point.
-    if (v.currentTime >= c.end - 0.04) {
-      c.dir = -1;
-      v.pause();
-      c.lastT = 0;   // reset the manual-step clock for the reverse half
-    }
-  } else {
-    const now = performance.now();
-    if (!c.lastT) { c.lastT = now; return; }   // first tick after pausing — just record time
-    const dt = (now - c.lastT) / 1000;
-    c.lastT = now;
-    const nt = v.currentTime - dt;
-    if (nt <= c.start + 0.04) {
-      c.dir = 1;
-      try { v.currentTime = c.start; } catch (e) {}
-      const p = v.play(); if (p && p.catch) p.catch(() => {});
-    } else {
-      try { v.currentTime = nt; } catch (e) {}
-    }
-  }
-}
-
 // A loading placeholder that fills its slot while a clip's proxy is being prepared.
 function createLoadingEl() {
   const d = document.createElement('div');
@@ -5965,11 +5916,10 @@ function buildLayout() {
   slots.forEach(({ item, x, y, w, h }) => {
     const id = String(item.id);
     // Render kind — also encodes clip buffer mode + play mode, so crossing the decoder
-    // threshold (double-buffer ↔ single video) OR toggling loop/freeze/bounce rebuilds slots.
+    // threshold (double-buffer ↔ single video) OR toggling loop/freeze rebuilds slots.
     const kind = item.placeholder ? 'load'
                : item.type !== 'clip' ? 'media'
                : _clipMode === 'freeze' ? 'freeze'
-               : _clipMode === 'bounce' ? 'bounce'
                : item.nativeLoop ? (clipsUseDoubleBuffer() ? 'clip2' : 'clip1') : 'clip1w';
     let slotDiv = existing.get(id);
     // Render kind changed (a loading placeholder just became a real clip) → rebuild the slot.
@@ -5983,11 +5933,9 @@ function buildLayout() {
         const ctl = mediaEl && mediaEl._clipCtl;
         if (ctl) { ctl.item = item; item._videoEl = ctl.cur; }  // native double-buffer
         else {
-          item._videoEl = mediaEl;                              // web-fallback / freeze / bounce
+          item._videoEl = mediaEl;                              // web-fallback / freeze
           const fCtl = mediaEl && mediaEl._freezeCtl;
           if (fCtl) { fCtl.start = item.start || 0; fCtl.end = item.end || 0; }
-          const bCtl = mediaEl && mediaEl._bounceCtl;
-          if (bCtl) { bCtl.start = item.start || 0; bCtl.end = item.end || 0; }
         }
       }
     } else {
@@ -6007,7 +5955,7 @@ function buildLayout() {
       layoutPreview.appendChild(slotDiv);
     }
     if (item.placeholder) return;       // loading box fills the slot via CSS
-    // Loop mode's shared-source clips need JS-driven sub-range looping. Freeze/bounce
+    // Loop mode's shared-source clips need JS-driven sub-range looping. Freeze
     // clips carry their own controller (gathered below) and must NOT also land here.
     if (_clipMode === 'loop' && item.type === 'clip' && !item.nativeLoop && mediaEl && mediaEl.tagName === 'VIDEO') {
       _clipPlayers.push({ el: mediaEl, start: item.start, end: item.end });
@@ -6015,10 +5963,9 @@ function buildLayout() {
     positionSlotImage(mediaEl, item, w, h);
   });
 
-  // Native double-buffered clips + freeze/bounce controllers: gather (they persist across reconcile)
+  // Native double-buffered clips + freeze controllers: gather (they persist across reconcile)
   _clipLoops   = [...layoutPreview.querySelectorAll('.clip-loop')].map(w => w._clipCtl).filter(Boolean);
   _clipFreezes = [...layoutPreview.querySelectorAll('.clip-freeze')].map(el => el._freezeCtl).filter(Boolean);
-  _clipBounces = [...layoutPreview.querySelectorAll('.clip-bounce')].map(el => el._bounceCtl).filter(Boolean);
   _ensureClipRaf();
 
   // Export-duration timeline (video boards with clips only): centred in the gap between
@@ -7264,7 +7211,6 @@ const clipLenBtn       = document.getElementById('clipLenBtn');
 const clipLenBtnLabel  = document.getElementById('clipLenBtnLabel');
 const clipLenExpand    = document.getElementById('clipLenExpand');
 const clipLoopBtn      = document.getElementById('clipLoopBtn');
-const clipBounceBtn    = document.getElementById('clipBounceBtn');
 const boardIndicatorEl = document.getElementById('boardIndicator');
 const stillExportOpts  = document.getElementById('stillExportOpts');
 const videoExportOpts  = document.getElementById('videoExportOpts');
@@ -7389,15 +7335,13 @@ function setClipLenOpen(open) {
 }
 clipLenBtn.addEventListener('click', () => setClipLenOpen(!_clipLenOpen));
 
-// Loop / Boomerang toggles — board-wide clip playback mode, mutually exclusive with
-// "freeze" (Loop turned off). See createFreezeVideo / createBounceVideo for playback.
+// Loop toggle — board-wide clip playback mode: 'loop' or 'freeze' (Loop turned off).
+// See createFreezeVideo for freeze playback.
 function updateClipModeBtns() {
   const mode = state.clipPlayMode || 'loop';
   clipLoopBtn.classList.toggle('active', mode === 'loop');
   clipLoopBtn.setAttribute('aria-pressed', mode === 'loop' ? 'true' : 'false');
   clipLoopBtn.title = mode === 'loop' ? 'Loop (on) — tap to freeze on last frame' : 'Loop (off) — tap to loop';
-  clipBounceBtn.classList.toggle('active', mode === 'bounce');
-  clipBounceBtn.setAttribute('aria-pressed', mode === 'bounce' ? 'true' : 'false');
 }
 function setClipPlayMode(mode) {
   if (state.clipPlayMode === mode) return;
@@ -7408,9 +7352,6 @@ function setClipPlayMode(mode) {
 }
 clipLoopBtn.addEventListener('click', () => {
   setClipPlayMode(state.clipPlayMode === 'loop' ? 'freeze' : 'loop');
-});
-clipBounceBtn.addEventListener('click', () => {
-  setClipPlayMode(state.clipPlayMode === 'bounce' ? 'loop' : 'bounce');
 });
 
 // Auto clip detection — analyse one video and pick its shots. Slim button only.
@@ -7712,7 +7653,7 @@ const ANALYZE_TIPS = [
   'Tip: tap the <b>gear</b> on a clip to fine-tune its in and out points.',
   'Tip: use <b>Add clips</b> to hand-pick anything the auto detection missed.',
   'Did you know you can create <b>custom layouts</b>? Press the edges button in the lower left corner and drag the frames where you want.',
-  'Now you can <b>enable and disable loop</b> on videos, or have them <b>boomerang</b> back and forth.',
+  'Now you can <b>enable and disable loop</b> on videos — loop off freezes on the last frame.',
 ];
 const TIP_START_MS = 5000;    // wait this long before the first tip appears
 const TIP_HOLD_MS  = 10000;   // each tip stays fully visible this long
@@ -8478,7 +8419,7 @@ async function applyBoardTrim() {
       item.start = inT;
       item.end   = outT;
       // Whole source selected → the seamless native <video loop> can drive it; any
-      // sub-range uses the JS start/end-aware playback (loop / freeze / bounce honour it).
+      // sub-range uses the JS start/end-aware playback (loop and freeze honour it).
       item.nativeLoop = (inT <= 0.01 && outT >= (source.dur || _ctVidDur) - 0.05);
     } else if (_ctUsingSource) {
       // Edited against the source but its bytes couldn't be captured — map the chosen
@@ -8970,7 +8911,6 @@ async function addSelectedClips() {
 let _clipPlayers = [];   // web-fallback single videos: { el, start, end } sub-range loop
 let _clipLoops   = [];   // native clips: double-buffer ping-pong controllers
 let _clipFreezes = [];   // loop-off clips: play once, hold the final frame
-let _clipBounces = [];   // boomerang clips: forward/reverse ping-pong
 let _clipRaf = null;
 
 // Board clock — one shared timer that cycles every `clipDuration` seconds, mirroring the
@@ -9015,7 +8955,6 @@ function _resetClipPlayers() {
   _clipPlayers = [];
   _clipLoops   = [];
   _clipFreezes = [];
-  _clipBounces = [];
   if (_clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
 }
 
@@ -9035,7 +8974,7 @@ function releaseBoardClipDecoders() {
 }
 
 function _ensureClipRaf() {
-  const active = _clipPlayers.length || _clipLoops.length || _clipFreezes.length || _clipBounces.length;
+  const active = _clipPlayers.length || _clipLoops.length || _clipFreezes.length;
   if (active && !_clipRaf) _clipRaf = requestAnimationFrame(_clipTick);
   else if (!active && _clipRaf) { cancelAnimationFrame(_clipRaf); _clipRaf = null; }
 }
@@ -9051,9 +8990,8 @@ function _clipTick() {
   }
   for (const c of _clipLoops) _tickClipLoop(c);
   for (const c of _clipFreezes) _tickFreeze(c);
-  for (const c of _clipBounces) _tickBounce(c);
   _tickBoardClock();   // duration cycle: timeline bar + freeze-mode replay
-  _clipRaf = (_clipPlayers.length || _clipLoops.length || _clipFreezes.length || _clipBounces.length)
+  _clipRaf = (_clipPlayers.length || _clipLoops.length || _clipFreezes.length)
     ? requestAnimationFrame(_clipTick) : null;
 }
 
@@ -10644,7 +10582,7 @@ async function doVideoExportNative() {
     width: W, height: H, duration, bg: state.bg || '#000000',
     bitrate: BITRATE_LEVELS[_exportBitrate] || BITRATE_LEVELS.high,
     radius: state.radius || 0, gap: state.gap || 0,
-    playMode: state.clipPlayMode || 'loop',   // 'loop' | 'freeze' | 'bounce' — applies to every clip
+    playMode: state.clipPlayMode || 'loop',   // 'loop' | 'freeze' — applies to every clip
     clips,
   });
   // Swift drives window.exportProgress(...) then window.exportComplete(success).

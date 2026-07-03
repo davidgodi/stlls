@@ -83,7 +83,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         let gap     = (body["gap"] as? NSNumber)?.doubleValue ?? 0
         let bgColor = UIColor(hexString: (body["bg"] as? String) ?? "#000000")
         // Board-wide clip playback mode: 'loop' (default, unchanged) | 'freeze' (play once,
-        // hold the last frame) | 'bounce' (forward then reverse, repeating — boomerang).
+        // hold the last frame).
         let playMode = (body["playMode"] as? String) ?? "loop"
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -164,38 +164,6 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                         }
                     }
 
-                case "bounce":
-                    // Reversing needs the clip's frames buffered in memory (see
-                    // reverseVideoTrack), so only attempt it for short clips; longer ones
-                    // fall back to a normal loop-fill rather than risking memory pressure.
-                    let maxReversibleSeconds = 8.0
-                    if clipDur.seconds <= maxReversibleSeconds,
-                       let revURL = self.reverseVideoTrack(asset: asset,
-                                                           range: CMTimeRange(start: srcStart, duration: clipDur)) {
-                        temps.append(revURL)
-                        let revAsset = AVURLAsset(url: revURL)
-                        if let revTrack = revAsset.tracks(withMediaType: .video).first {
-                            let revDur = revAsset.duration
-                            var cursor = CMTime.zero
-                            var forward = true
-                            while cursor < totalDur {
-                                let segDur = forward ? clipDur : revDur
-                                let insertDur = min(segDur, totalDur - cursor)
-                                if insertDur.seconds <= 0 { break }
-                                let track = forward ? srcTrack : revTrack
-                                let segStart = forward ? srcStart : CMTime.zero
-                                try? compTrack.insertTimeRange(CMTimeRange(start: segStart, duration: insertDur),
-                                                               of: track, at: cursor)
-                                cursor = cursor + insertDur
-                                forward.toggle()
-                            }
-                        } else {
-                            self.loopFill(compTrack, srcTrack, srcStart, clipDur, totalDur)
-                        }
-                    } else {
-                        self.loopFill(compTrack, srcTrack, srcStart, clipDur, totalDur)
-                    }
-
                 default:   // "loop" — concatenate the clip end-to-end until it covers the duration.
                     self.loopFill(compTrack, srcTrack, srcStart, clipDur, totalDur)
                 }
@@ -252,8 +220,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     }
 
     // Loop-fill: concatenate the clip's selected range end-to-end until it covers
-    // `totalDur`. This is the "loop" playback mode, and also the safe fallback for
-    // "bounce" when a clip is too long to reverse in memory.
+    // `totalDur`. This is the "loop" playback mode.
     private func loopFill(_ compTrack: AVMutableCompositionTrack, _ srcTrack: AVAssetTrack,
                           _ srcStart: CMTime, _ clipDur: CMTime, _ totalDur: CMTime) {
         var cursor = CMTime.zero
@@ -264,91 +231,6 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                                            of: srcTrack, at: cursor)
             cursor = cursor + insertDur
         }
-    }
-
-    // Build a frame-reversed copy of `asset`'s video track for the "bounce" playback mode.
-    // AVFoundation has no way to play a composition track backward, so this reads every
-    // frame into memory (capped — see maxReversibleSeconds at the call site) and re-writes
-    // them in reverse order to a new temp file. Synchronous (blocks the calling background
-    // thread via semaphores) so it drops cleanly into exportComposition's existing
-    // synchronous per-clip loop without restructuring it to async/await.
-    private func reverseVideoTrack(asset: AVURLAsset, range: CMTimeRange? = nil) -> URL? {
-        guard let track = asset.tracks(withMediaType: .video).first else { return nil }
-        guard let reader = try? AVAssetReader(asset: asset) else { return nil }
-        let pixelFormat = kCVPixelFormatType_32BGRA
-        let readerOutput = AVAssetReaderTrackOutput(track: track, outputSettings: [
-            kCVPixelBufferPixelFormatTypeKey as String: pixelFormat,
-        ])
-        guard reader.canAdd(readerOutput) else { return nil }
-        reader.add(readerOutput)
-        if let range { reader.timeRange = range }   // reverse only the selected sub-range
-        guard reader.startReading() else { return nil }
-
-        var frames: [CVPixelBuffer] = []
-        let maxFrames = 300   // hard cap (~10s @ 30fps) — guards against a memory spike
-        while let sample = readerOutput.copyNextSampleBuffer() {
-            guard let img = CMSampleBufferGetImageBuffer(sample) else { continue }
-            let w = CVPixelBufferGetWidth(img), h = CVPixelBufferGetHeight(img)
-            var copy: CVPixelBuffer?
-            CVPixelBufferCreate(kCFAllocatorDefault, w, h, pixelFormat, nil, &copy)
-            if let copy {
-                CVPixelBufferLockBaseAddress(img, .readOnly)
-                CVPixelBufferLockBaseAddress(copy, [])
-                if let src = CVPixelBufferGetBaseAddress(img), let dst = CVPixelBufferGetBaseAddress(copy) {
-                    memcpy(dst, src, min(CVPixelBufferGetDataSize(img), CVPixelBufferGetDataSize(copy)))
-                }
-                CVPixelBufferUnlockBaseAddress(copy, [])
-                CVPixelBufferUnlockBaseAddress(img, .readOnly)
-                frames.append(copy)
-            }
-            if frames.count >= maxFrames { reader.cancelReading(); break }
-        }
-        guard !frames.isEmpty else { return nil }
-
-        let outURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + "_rev.mp4")
-        guard let writer = try? AVAssetWriter(outputURL: outURL, fileType: .mp4) else { return nil }
-        let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: Int(track.naturalSize.width),
-            AVVideoHeightKey: Int(track.naturalSize.height),
-        ])
-        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: writerInput, sourcePixelBufferAttributes: [
-            kCVPixelBufferPixelFormatTypeKey as String: pixelFormat,
-        ])
-        guard writer.canAdd(writerInput) else { return nil }
-        writer.add(writerInput)
-        guard writer.startWriting() else { return nil }
-        writer.startSession(atSourceTime: .zero)
-
-        let frameDur = CMTime(value: 1, timescale: 30)
-        let writeQueue = DispatchQueue(label: "stlls.reverse-writer")
-        let appendSem = DispatchSemaphore(value: 0)
-        var index = frames.count - 1
-        var t = CMTime.zero
-        writerInput.requestMediaDataWhenReady(on: writeQueue) {
-            while writerInput.isReadyForMoreMediaData {
-                if index < 0 {
-                    writerInput.markAsFinished()
-                    appendSem.signal()
-                    return
-                }
-                if adaptor.append(frames[index], withPresentationTime: t) {
-                    t = t + frameDur
-                }
-                index -= 1
-            }
-        }
-        appendSem.wait()
-
-        let finishSem = DispatchSemaphore(value: 0)
-        writer.finishWriting { finishSem.signal() }
-        finishSem.wait()
-
-        guard writer.status == .completed else {
-            try? FileManager.default.removeItem(at: outURL)
-            return nil
-        }
-        return outURL
     }
 
     // Build the rounded-corner overlay (top-left coords, matching the JS dest rects):

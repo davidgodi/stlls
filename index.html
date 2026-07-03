@@ -508,8 +508,9 @@
     width: 120px;   /* compact fixed width — identical across every canvas ratio */
     background: rgba(255,255,255,0.10);
     overflow: hidden; pointer-events: none; z-index: 5;
-    /* glide with the UI when the board moves/resizes (ratio, layout, panel changes) */
-    transition: left 0.35s cubic-bezier(0.16,1,0.3,1), top 0.35s cubic-bezier(0.16,1,0.3,1);
+    opacity: 1;
+    /* position changes fade out at the old spot and back in at the new one (no travel) */
+    transition: opacity 0.25s ease;
   }
   #timelineBar[hidden] { display: none; }
   #timelineBar .tl-fill {
@@ -5983,11 +5984,11 @@ function buildLayout() {
     if (showTl) {
       const boardBottom = layoutPreview.offsetTop + previewH;
       // Fixed compact width (set in CSS) centred under the board at a CONSTANT small
-      // offset — the bar never resizes or drifts with the canvas ratio, it only glides
-      // (CSS transition) as the board itself moves.
+      // offset — the bar never resizes or drifts with the canvas ratio. When the board
+      // moves, the bar fades out where it was and fades back in at the new spot.
       const tlW = timelineBarEl.offsetWidth || 120;
-      timelineBarEl.style.left = (layoutPreview.offsetLeft + (previewW - tlW) / 2) + 'px';
-      timelineBarEl.style.top  = (boardBottom + 12) + 'px';
+      positionTimelineBar(Math.round(layoutPreview.offsetLeft + (previewW - tlW) / 2),
+                          Math.round(boardBottom + 12));
     }
   }
   _ensureClipRaf();   // after the timeline visibility update — a visible bar keeps the clock running
@@ -8927,6 +8928,29 @@ let _clipRaf = null;
 let _boardClockT0 = 0;
 const timelineBarEl  = document.getElementById('timelineBar');
 const timelineFillEl = document.getElementById('timelineFill');
+
+// Reposition the timeline bar by fading: out at the old spot, in at the new one — it never
+// visibly travels. Rapid layout changes (ratio drags, panel resizes) keep resetting the
+// timer, so the bar stays faded out until the UI settles, then reappears once, in place.
+let _tlFadeT = null, _tlTargetL = NaN, _tlTargetT = NaN;
+function positionTimelineBar(left, top) {
+  const el = timelineBarEl;
+  const curL = _tlFadeT ? _tlTargetL : parseFloat(el.style.left);
+  const curT = _tlFadeT ? _tlTargetT : parseFloat(el.style.top);
+  if (Math.abs(curL - left) < 1.5 && Math.abs(curT - top) < 1.5) return;  // already there (or heading there)
+  if (isNaN(curL) || isNaN(curT)) {              // first placement — appear in place
+    el.style.left = left + 'px'; el.style.top = top + 'px'; el.style.opacity = '1';
+    return;
+  }
+  _tlTargetL = left; _tlTargetT = top;
+  el.style.opacity = '0';                        // fade out where it is…
+  if (_tlFadeT) clearTimeout(_tlFadeT);
+  _tlFadeT = setTimeout(() => {                  // …then reappear at the latest target
+    _tlFadeT = null;
+    el.style.left = _tlTargetL + 'px'; el.style.top = _tlTargetT + 'px';
+    el.style.opacity = '1';
+  }, 280);
+}
 
 function resetBoardClock() {
   _boardClockT0 = performance.now();

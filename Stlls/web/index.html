@@ -994,6 +994,81 @@
   /* Library trigger: compact icon button that sits in the layout button row */
   .btn-icon { flex: 0 0 32px !important; padding: 8px 0 !important; display: flex; align-items: center; justify-content: center; }
 
+  /* ── Full-window choosers (canvas ratio + layouts) ─────────────────────── */
+  .big-modal {
+    position: fixed; inset: 0; z-index: 540;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.45);
+    -webkit-backdrop-filter: blur(14px) saturate(0.9);
+    backdrop-filter: blur(14px) saturate(0.9);
+    animation: bmFade 0.22s ease;
+  }
+  .big-modal[hidden] { display: none !important; }
+  .big-modal.bm-leaving { opacity: 0; transition: opacity 0.18s ease; }
+  @keyframes bmFade { from { opacity: 0; } }
+  .bm-card {
+    width: min(430px, calc(100vw - 36px));
+    max-height: min(680px, calc(100vh - 64px));
+    display: flex; flex-direction: column;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 16px; box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+    animation: popUpIn 0.35s cubic-bezier(0.16,1,0.3,1);
+    overflow: hidden;
+  }
+  .bm-head { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px 9px; flex-shrink: 0; }
+  .bm-title { font-size: 11.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-mid); font-weight: 600; }
+  .bm-close {
+    background: none; border: none; color: var(--text-dim); font-family: inherit;
+    font-size: 12.5px; cursor: pointer; padding: 4px 2px; -webkit-tap-highlight-color: transparent;
+  }
+  .bm-body { overflow-y: auto; padding: 2px 18px 20px; -webkit-overflow-scrolling: touch; }
+  .bm-sec { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin: 16px 0 9px; }
+  .bm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .bm-tile {
+    position: relative;
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: 11px;
+    padding: 12px 6px 9px; cursor: pointer; color: var(--text-mid);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px;
+    transition: transform 0.2s ease, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent; font-family: inherit;
+  }
+  .bm-tile:active { transform: scale(0.95); }
+  .bm-tile.active { border-color: var(--accent); }
+  .bm-tile svg { display: block; color: var(--text-mid); }
+  .bm-tile.active svg { color: var(--text); }
+  .bm-tile b { font-size: 10px; font-weight: 500; color: var(--text-dim); letter-spacing: 0.03em; }
+  .bm-tile.active b { color: var(--text); }
+  .bm-tile.bm-save { border-style: dashed; justify-content: center; gap: 4px; min-height: 92px; }
+  .bm-tile.bm-save span { font-size: 20px; line-height: 1; font-weight: 300; color: var(--text-dim); }
+  .bm-tile .bm-art { display: flex; align-items: center; justify-content: center; height: 56px; }
+  .bm-tile .bm-art svg { width: 40px; height: 54px; }
+  .bm-empty { grid-column: 2 / -1; align-self: center; font-size: 10.5px; color: var(--text-dim); padding: 6px 2px; }
+
+  /* Custom-ratio steppers: tap up/down per value, live line-art preview */
+  .rc-preview { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 4px 0 10px; min-height: 44px; }
+  .rc-preview b { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .rc-preview.rc-bad b { color: #ff6b5e; }
+  .rc-preview svg { color: var(--text-mid); display: block; }
+  .rc-row { display: flex; align-items: center; justify-content: center; gap: 16px; }
+  .rc-stepper { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .rc-btn {
+    width: 52px; height: 30px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s ease; -webkit-tap-highlight-color: transparent;
+  }
+  .rc-btn:active { transform: scale(0.93); color: var(--text); }
+  .rc-val { font-size: 21px; font-weight: 600; color: var(--text); min-width: 56px; text-align: center; padding: 5px 0; font-variant-numeric: tabular-nums; }
+  .rc-sep { font-size: 19px; color: var(--text-dim); }
+  .rc-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .rc-actions button {
+    flex: 1; padding: 11px; border-radius: 9px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rc-accept { background: var(--accent); color: var(--accent-fg); border: none; font-weight: 600; }
+  .rc-accept:disabled { opacity: 0.35; cursor: default; }
+  .rc-cancel { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid); }
+
   /* ── PANEL ── */
   .panel {
     width: 244px; flex-shrink: 0; order: -1;
@@ -2026,13 +2101,13 @@
   .undo-item.danger:hover { background: rgba(239,68,68,0.08); color: #ef4444; }
 
   /* Reset confirm overlay */
-  #resetConfirm, #deleteBoardConfirm, #customRatioModal {
+  #resetConfirm, #deleteBoardConfirm {
     position: fixed; inset: 0; z-index: 510;
     background: rgba(0,0,0,0.6);
     display: flex; align-items: center; justify-content: center;
     animation: popFade 0.3s ease;
   }
-  #resetConfirm[hidden], #deleteBoardConfirm[hidden], #customRatioModal[hidden] { display: none; }
+  #resetConfirm[hidden], #deleteBoardConfirm[hidden] { display: none; }
   /* Shared minimal pop-in animations for menus & dialogs */
   @keyframes menuPop {
     0%   { opacity: 0; transform: translateY(-12px) scale(0.9); }
@@ -3182,6 +3257,53 @@
           Delete
         </button>
       </div>
+      <!-- CANVAS RATIO CHOOSER — full window, blurred backdrop -->
+      <div id="ratioModal" class="big-modal" hidden>
+        <div class="bm-card">
+          <div class="bm-head">
+            <span class="bm-title">Canvas Ratio</span>
+            <button class="bm-close" data-bm-close>Close</button>
+          </div>
+          <div class="bm-body">
+            <div class="bm-grid" id="ratioPresetGrid"></div>
+            <div class="bm-sec">Custom</div>
+            <div class="rc-preview" id="rcPreview"><span id="rcArt"></span><b id="rcLabel">16:9</b></div>
+            <div class="rc-row">
+              <div class="rc-stepper">
+                <button class="rc-btn" id="rcWUp" aria-label="Width up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+                <div class="rc-val" id="rcWVal">16</div>
+                <button class="rc-btn" id="rcWDn" aria-label="Width down"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
+              <div class="rc-sep">:</div>
+              <div class="rc-stepper">
+                <button class="rc-btn" id="rcHUp" aria-label="Height up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+                <div class="rc-val" id="rcHVal">9</div>
+                <button class="rc-btn" id="rcHDn" aria-label="Height down"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+              </div>
+            </div>
+            <div class="rc-actions">
+              <button class="rc-cancel" id="rcCancel">Cancel</button>
+              <button class="rc-accept" id="rcAccept">Accept</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LAYOUT CHOOSER — premade layouts + saved custom layouts, full window -->
+      <div id="layoutModal" class="big-modal" hidden>
+        <div class="bm-card">
+          <div class="bm-head">
+            <span class="bm-title">Layouts</span>
+            <button class="bm-close" data-bm-close>Close</button>
+          </div>
+          <div class="bm-body">
+            <div class="bm-grid" id="layoutPresetGrid"></div>
+            <div class="bm-sec">Saved layouts</div>
+            <div class="bm-grid" id="layoutSavedGrid"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- Stills strip — always below import area -->
       <div class="img-strip-outer">
         <button class="m-add-btn" id="mAddBtn" title="Add images">+</button>
@@ -3205,19 +3327,6 @@
           <button class="btn" data-ratio="4:5">4:5</button>
           <button class="btn" id="customRatioBtn" data-ratio="custom">Custom</button>
         </div>
-        <!-- RATIO LIBRARY — popular ratios + custom; floats above, never reflows -->
-        <div id="ratioLibWrap" class="lib-pop" hidden>
-          <div class="ratio-lib-grid">
-            <button class="rl-btn" data-rlib="16:9">16:9</button>
-            <button class="rl-btn" data-rlib="17:9">17:9</button>
-            <button class="rl-btn" data-rlib="2.4:1">2.4:1</button>
-            <button class="rl-btn" data-rlib="2.39:1">2.39:1</button>
-            <button class="rl-btn" data-rlib="4:3">4:3</button>
-            <button class="rl-btn" data-rlib="3:2">3:2</button>
-            <button class="rl-btn" data-rlib="5:4">5:4</button>
-            <button class="rl-btn" id="rlCustom">Custom…</button>
-          </div>
-        </div>
       </div>
 
       <div class="ps ps-half" id="psLayout">
@@ -3229,10 +3338,6 @@
           <button class="btn btn-icon" id="layoutLibBtn" aria-label="Saved layouts" title="Saved layouts">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
-        </div>
-        <!-- SAVED LAYOUTS LIBRARY — line-art previews; floats above, never reflows -->
-        <div id="layoutLibWrap" class="lib-pop" hidden>
-          <div class="layout-lib-grid" id="layoutLibGrid"></div>
         </div>
         <!-- GRID OPTIONS — floating popover above the layout buttons; never reflows -->
         <div id="gridOptsWrap" hidden>
@@ -3771,24 +3876,6 @@
     <div class="dc-btns">
       <button id="dbcCancel">Cancel</button>
       <button id="dbcYes" style="background:#ef4444;color:#fff;font-weight:600;">Delete</button>
-    </div>
-  </div>
-</div>
-
-<div id="customRatioModal" hidden>
-  <div class="dc-box">
-    <p>Custom ratio</p>
-    <div class="crm-inputs">
-      <input type="text" id="customRatioW" inputmode="decimal" autocomplete="off" autocorrect="off"
-             spellcheck="false" placeholder="16" aria-label="Width">
-      <span class="crm-colon">:</span>
-      <input type="text" id="customRatioH" inputmode="decimal" autocomplete="off" autocorrect="off"
-             spellcheck="false" placeholder="9" aria-label="Height">
-    </div>
-    <div class="crm-err" id="customRatioErr" hidden>Enter two numbers, e.g. 16 : 9</div>
-    <div class="dc-btns">
-      <button id="customRatioCancel" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);">Cancel</button>
-      <button id="customRatioApply" style="background:var(--accent);color:var(--accent-fg);font-weight:600;">Apply</button>
     </div>
   </div>
 </div>
@@ -6565,12 +6652,8 @@ photosToggle.addEventListener('click', () => {
     importCollapse.style.overflow  = '';
     // The sections' headroom changed — re-orient any open popover (grid opts / libraries)
     orientLibPop(gridOptsWrap);
-    orientLibPop(ratioLibWrap);
-    orientLibPop(layoutLibWrap);
   }, 320);
   orientLibPop(gridOptsWrap);   // also flip immediately so it never sits clipped mid-fold
-  orientLibPop(ratioLibWrap);
-  orientLibPop(layoutLibWrap);
 
   photosToggle.classList.toggle('closed', isOpen);
 });
@@ -6841,15 +6924,12 @@ function onMobileEnd() {
 // ── Controls ───────────────────────────────────────────────────────────────
 document.querySelectorAll('[data-ratio]').forEach(btn => {
   btn.addEventListener('click', () => {
-    if (btn.dataset.ratio === 'custom') { toggleRatioLibrary(); return; }
+    if (btn.dataset.ratio === 'custom') { openRatioModal(); return; }
     document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     setRatioAnimated(btn.dataset.ratio);
   });
 });
-
-// ── Ratio library — popular ratios + custom entry ───────────────────────────
-const ratioLibWrap = document.getElementById('ratioLibWrap');
 
 // Popovers open upward by default. With the import area folded, their section sits at
 // the panel's top edge and the panel's overflow:hidden clips an upward popover — flip
@@ -6890,44 +6970,95 @@ function hideLibPop(pop) {
   setTimeout(done, 450);   // fallback if animationend never fires
 }
 
-function toggleRatioLibrary() {
-  if (!ratioLibWrap.hidden && !ratioLibWrap.classList.contains('pop-leaving')) {
-    hideLibPop(ratioLibWrap);
-    return;
-  }
-  ratioLibWrap.classList.remove('pop-leaving');   // cancel a leave in flight
-  // Highlight the option matching the current custom ratio (if any)
-  const cur = (state.ratio === 'custom' && state.customRatio) ? state.customRatio : null;
-  ratioLibWrap.querySelectorAll('.rl-btn[data-rlib]').forEach(b => {
-    const r = parseRatio(b.dataset.rlib);
-    b.classList.toggle('active', !!(cur && r && Math.abs(r[0] / r[1] - cur[0] / cur[1]) < 0.001));
-  });
-  ratioLibWrap.hidden = false;
-  orientLibPop(ratioLibWrap);
+// ── Full-window choosers (ratio + layouts): shared open/close ───────────────
+// The backdrop blurs + darkens the app so the line-art previews read clearly.
+const ratioModal  = document.getElementById('ratioModal');
+const layoutModal = document.getElementById('layoutModal');
+function openBigModal(m)  { m.classList.remove('bm-leaving'); m.hidden = false; }
+function closeBigModal(m) {
+  if (m.hidden) return;
+  m.classList.add('bm-leaving');
+  setTimeout(() => { m.hidden = true; m.classList.remove('bm-leaving'); }, 180);
+}
+[ratioModal, layoutModal].forEach(m => {
+  m.addEventListener('pointerdown', e => { if (e.target === m) closeBigModal(m); });
+  m.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(m));
+});
+
+// ── Canvas-ratio chooser ─────────────────────────────────────────────────────
+const RATIO_PRESETS = ['16:9', '17:9', '4:3', '3:2', '2.4:1', '2.39:1', '5:4'];
+const ratioPresetGrid = document.getElementById('ratioPresetGrid');
+
+// Minimal line art: one stroked frame at the exact aspect, fit into a fixed box.
+function ratioArtSVG(w, h, maxW = 54, maxH = 34) {
+  const sc = Math.min(maxW / w, maxH / h);
+  const rw = Math.max(8, w * sc), rh = Math.max(8, h * sc);
+  return `<svg width="${maxW + 4}" height="${maxH + 4}" viewBox="0 0 ${maxW + 4} ${maxH + 4}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">` +
+    `<rect x="${((maxW + 4 - rw) / 2).toFixed(1)}" y="${((maxH + 4 - rh) / 2).toFixed(1)}" width="${rw.toFixed(1)}" height="${rh.toFixed(1)}" rx="3"/></svg>`;
 }
 
-ratioLibWrap.querySelectorAll('.rl-btn[data-rlib]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const r = parseRatio(btn.dataset.rlib);
-    if (!r) return;
-    hideLibPop(ratioLibWrap);
-    state.customRatio = r;
-    document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
-    setRatioAnimated('custom');
-    updateCustomRatioBtn();
+function applyChosenRatio(r) {
+  state.customRatio = r;
+  document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
+  setRatioAnimated('custom');
+  updateCustomRatioBtn();
+}
+
+function renderRatioModal() {
+  ratioPresetGrid.innerHTML = '';
+  const cur = (state.ratio === 'custom' && state.customRatio) ? state.customRatio : null;
+  RATIO_PRESETS.forEach(key => {
+    const r = parseRatio(key);
+    const tile = document.createElement('button');
+    tile.className = 'bm-tile';
+    tile.innerHTML = ratioArtSVG(r[0], r[1]) + `<b>${key}</b>`;
+    if (cur && Math.abs(r[0] / r[1] - cur[0] / cur[1]) < 0.001) tile.classList.add('active');
+    tile.addEventListener('click', () => { closeBigModal(ratioModal); applyChosenRatio(r); });
+    ratioPresetGrid.appendChild(tile);
   });
+}
+
+// Custom ratio: tap up/down per value (no typing), live art + numbers, Accept/Cancel.
+const rcArt = document.getElementById('rcArt'), rcLabel = document.getElementById('rcLabel');
+const rcPreview = document.getElementById('rcPreview'), rcAccept = document.getElementById('rcAccept');
+const rcWVal = document.getElementById('rcWVal'), rcHVal = document.getElementById('rcHVal');
+let _rcW = 16, _rcH = 9;
+function rcRender() {
+  rcWVal.textContent = _rcW; rcHVal.textContent = _rcH;
+  const ok = _rcW / _rcH >= 0.1 && _rcW / _rcH <= 10;
+  rcArt.innerHTML = ratioArtSVG(_rcW, _rcH, 46, 30);
+  rcLabel.textContent = `${_rcW}:${_rcH}`;
+  rcPreview.classList.toggle('rc-bad', !ok);
+  rcAccept.disabled = !ok;
+}
+const rcStep = (which, d) => () => {
+  if (which === 'w') _rcW = Math.min(40, Math.max(1, _rcW + d));
+  else               _rcH = Math.min(40, Math.max(1, _rcH + d));
+  rcRender();
+};
+document.getElementById('rcWUp').addEventListener('click', rcStep('w', 1));
+document.getElementById('rcWDn').addEventListener('click', rcStep('w', -1));
+document.getElementById('rcHUp').addEventListener('click', rcStep('h', 1));
+document.getElementById('rcHDn').addEventListener('click', rcStep('h', -1));
+rcAccept.addEventListener('click', () => {
+  if (rcAccept.disabled) return;
+  closeBigModal(ratioModal);
+  applyChosenRatio([_rcW, _rcH]);
 });
-document.getElementById('rlCustom').addEventListener('click', () => {
-  hideLibPop(ratioLibWrap);
-  openCustomRatioDialog();
-});
+document.getElementById('rcCancel').addEventListener('click', () => closeBigModal(ratioModal));
+
+function openRatioModal() {
+  const cur = (state.ratio === 'custom' && state.customRatio) ? state.customRatio : null;
+  if (cur && Number.isInteger(cur[0]) && Number.isInteger(cur[1]) && cur[0] <= 40 && cur[1] <= 40) {
+    _rcW = cur[0]; _rcH = cur[1];
+  }
+  renderRatioModal();
+  rcRender();
+  openBigModal(ratioModal);
+}
 
 // ── Custom ratio ────────────────────────────────────────────────────────────
-const customRatioBtn   = document.getElementById('customRatioBtn');
-const customRatioModal = document.getElementById('customRatioModal');
-const customRatioW     = document.getElementById('customRatioW');
-const customRatioH     = document.getElementById('customRatioH');
-const customRatioErr   = document.getElementById('customRatioErr');
+const customRatioBtn = document.getElementById('customRatioBtn');
 
 function trimNum(n) { return Number.isInteger(n) ? String(n) : String(+(+n).toFixed(2)); }
 function ratioLabel(r) { return `${trimNum(r[0])}:${trimNum(r[1])}`; }
@@ -6950,33 +7081,6 @@ function parseRatio(str) {
   return [w, h];
 }
 
-function openCustomRatioDialog() {
-  const cur = (state.ratio === 'custom' && state.customRatio) ? state.customRatio : null;
-  customRatioW.value = cur ? trimNum(cur[0]) : '';
-  customRatioH.value = cur ? trimNum(cur[1]) : '';
-  customRatioErr.hidden = true;
-  customRatioModal.hidden = false;
-  setTimeout(() => { customRatioW.focus(); customRatioW.select(); }, 50);
-}
-
-function applyCustomRatio() {
-  const w = parseFloat(customRatioW.value), h = parseFloat(customRatioH.value);
-  const ar = w / h;
-  if (!(w > 0) || !(h > 0) || !(ar >= 0.1 && ar <= 10)) { customRatioErr.hidden = false; return; }
-  customRatioModal.hidden = true;
-  state.customRatio = [w, h];
-  document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
-  setRatioAnimated('custom');     // sets state.ratio = 'custom'
-  updateCustomRatioBtn();         // …then reflect active + label
-}
-
-document.getElementById('customRatioApply').addEventListener('click', applyCustomRatio);
-document.getElementById('customRatioCancel').addEventListener('click', () => { customRatioModal.hidden = true; });
-[customRatioW, customRatioH].forEach(el => {
-  el.addEventListener('keydown', e => { if (e.key === 'Enter') applyCustomRatio(); });
-  el.addEventListener('input', () => { customRatioErr.hidden = true; });
-});
-
 document.querySelectorAll('[data-layout]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-layout]').forEach(b => b.classList.remove('active'));
@@ -6992,12 +7096,28 @@ document.querySelectorAll('[data-layout]').forEach(btn => {
   });
 });
 
-// ── Saved-layouts library: custom layouts live in a closed popover, each drawn ──
-// as a line-art preview of its shape. The panel never reflows as presets grow.
+// ── Layout chooser: premade layouts + saved custom layouts, in the full-window
+// modal. Every tile is minimal line art drawn from the preset's actual shape.
 const LP_KEY = 'stlls-layout-presets';
-const layoutLibWrap = document.getElementById('layoutLibWrap');
-const layoutLibGrid = document.getElementById('layoutLibGrid');
-const layoutLibBtn  = document.getElementById('layoutLibBtn');
+const layoutLibBtn      = document.getElementById('layoutLibBtn');
+const layoutPresetGrid  = document.getElementById('layoutPresetGrid');
+const layoutSavedGrid   = document.getElementById('layoutSavedGrid');
+
+// Popular premade combinations (stacks, splits and grids, incl. uneven variants).
+const LAYOUT_PREMADE = [
+  { name: '2 stacked',     layout: 'vertical',   count: 2 },
+  { name: 'Tall + short',  layout: 'vertical',   count: 2, slotFracs: { vertical: [0.66, 0.34] } },
+  { name: '3 stacked',     layout: 'vertical',   count: 3 },
+  { name: 'Hero + 2',      layout: 'vertical',   count: 3, slotFracs: { vertical: [0.5, 0.25, 0.25] } },
+  { name: 'Filmstrip 4',   layout: 'vertical',   count: 4 },
+  { name: 'Side by side',  layout: 'horizontal', count: 2 },
+  { name: 'Wide + narrow', layout: 'horizontal', count: 2, slotFracs: { horizontal: [0.66, 0.34] } },
+  { name: '3 columns',     layout: 'horizontal', count: 3 },
+  { name: '2×2 grid',      layout: 'grid', gridCols: 2, gridRows: 2 },
+  { name: 'Big top row',   layout: 'grid', gridCols: 2, gridRows: 2, slotFracs: { gridRows: [0.62, 0.38] } },
+  { name: 'Wide left',     layout: 'grid', gridCols: 2, gridRows: 2, slotFracs: { gridCols: [0.62, 0.38] } },
+  { name: '2×3 grid',      layout: 'grid', gridCols: 2, gridRows: 3 },
+];
 
 function loadLayoutPresets() {
   try { return JSON.parse(localStorage.getItem(LP_KEY)) || []; } catch (e) { return []; }
@@ -7041,45 +7161,55 @@ function presetPreviewSVG(p) {
     '</svg>';
 }
 
-function renderLayoutLibrary() {
-  if (!layoutLibGrid) return;
-  layoutLibGrid.innerHTML = '';
-  // Save tile first — captures the current layout (incl. custom frame sizes)
+function layoutTile(p) {
+  const tile = document.createElement('button');
+  tile.className = 'bm-tile';
+  tile.title = p.name;
+  tile.innerHTML = `<span class="bm-art">${presetPreviewSVG(p)}</span><b>${p.name}</b>`;
+  tile.addEventListener('click', () => {
+    closeBigModal(layoutModal);
+    applyLayoutPreset(p);
+  });
+  return tile;
+}
+
+function renderLayoutModal() {
+  layoutPresetGrid.innerHTML = '';
+  LAYOUT_PREMADE.forEach(p => layoutPresetGrid.appendChild(layoutTile(p)));
+  renderSavedLayouts();
+}
+
+// Saved custom layouts (incl. edited frame lines) live under the premades; the modal
+// body scrolls, so the collection can grow past the fold.
+function renderSavedLayouts() {
+  layoutSavedGrid.innerHTML = '';
   const save = document.createElement('button');
-  save.className = 'll-tile ll-save';
+  save.className = 'bm-tile bm-save';
   save.title = 'Save the current layout';
-  save.innerHTML = '<span>+</span><small>Save</small>';
+  save.innerHTML = '<span>+</span><b>Save current</b>';
   save.addEventListener('click', saveCurrentLayoutPreset);
-  layoutLibGrid.appendChild(save);
+  layoutSavedGrid.appendChild(save);
   const list = loadLayoutPresets();
   if (!list.length) {
     const empty = document.createElement('div');
-    empty.className = 'll-empty';
-    empty.textContent = 'Saved layouts appear here';
-    layoutLibGrid.appendChild(empty);
+    empty.className = 'bm-empty';
+    empty.textContent = 'Layouts you save appear here';
+    layoutSavedGrid.appendChild(empty);
     return;
   }
   list.forEach(p => {
-    const tile = document.createElement('button');
-    tile.className = 'll-tile';
-    tile.title = p.name;
-    tile.innerHTML = presetPreviewSVG(p);
+    const tile = layoutTile(p);
     const del = document.createElement('span');
     del.className = 'll-del'; del.textContent = '×';
     del.setAttribute('aria-label', 'Delete saved layout');
     del.addEventListener('click', e => {
       e.stopPropagation();
       persistLayoutPresets(loadLayoutPresets().filter(q => q.id !== p.id));
-      renderLayoutLibrary();
+      renderSavedLayouts();
     });
     tile.appendChild(del);
-    tile.addEventListener('click', () => {
-      applyLayoutPreset(p);
-      hideLibPop(layoutLibWrap);
-    });
-    layoutLibGrid.appendChild(tile);
+    layoutSavedGrid.appendChild(tile);
   });
-  orientLibPop(layoutLibWrap);   // height changed (save/delete) — keep it un-clipped
 }
 
 function saveCurrentLayoutPreset() {
@@ -7098,7 +7228,7 @@ function saveCurrentLayoutPreset() {
     slotFracs: cloneSlotFracs(state.slotFracs),
   });
   persistLayoutPresets(list);
-  renderLayoutLibrary();                    // stays open so the new tile is visible
+  renderSavedLayouts();                     // modal stays open so the new tile is visible
 }
 
 function applyLayoutPreset(p) {
@@ -7112,21 +7242,8 @@ function applyLayoutPreset(p) {
 }
 
 layoutLibBtn.addEventListener('click', () => {
-  if (layoutLibWrap.hidden || layoutLibWrap.classList.contains('pop-leaving')) {
-    layoutLibWrap.classList.remove('pop-leaving');   // cancel a leave in flight
-    renderLayoutLibrary();
-    layoutLibWrap.hidden = false;
-    orientLibPop(layoutLibWrap);
-  } else hideLibPop(layoutLibWrap);
-});
-
-// Tap anywhere outside a library popover to close it (with the exit glide)
-document.addEventListener('pointerdown', e => {
-  const t = e.target;
-  if (!ratioLibWrap.hidden && !ratioLibWrap.contains(t) && !customRatioBtn.contains(t) && t !== customRatioBtn)
-    hideLibPop(ratioLibWrap);
-  if (!layoutLibWrap.hidden && !layoutLibWrap.contains(t) && !layoutLibBtn.contains(t) && t !== layoutLibBtn)
-    hideLibPop(layoutLibWrap);
+  renderLayoutModal();
+  openBigModal(layoutModal);
 });
 
 gapSlider.addEventListener('input', () => {

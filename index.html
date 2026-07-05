@@ -767,10 +767,12 @@
     will-change: transform;
   }
   .slot { position: absolute; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
-  /* Unfilled frame of an applied layout: dashed outline + a + button to fill it */
+  /* Unfilled frame of an applied layout: one inset dashed outline per placement.
+     The inset keeps neighbouring frames' outlines apart, so shared edges never
+     read as double lines — each available spot is a single clean dashed card. */
   .slot-empty {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    border: 1.5px dashed var(--muted); border-radius: inherit;
+    position: absolute; inset: 5px; display: flex; align-items: center; justify-content: center;
+    border: 1.5px dashed var(--muted); border-radius: 10px;
     background: rgba(127,127,127,0.04); cursor: default;
   }
   .slot-add-btn {

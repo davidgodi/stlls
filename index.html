@@ -4318,6 +4318,7 @@ const state = {
   boardType: 'photo',   // 'photo' | 'video' — video boards hold looping clips
   clipDuration: 15,     // seconds; video-board export length (5–20)
   clipPlayMode: 'loop', // 'loop' | 'freeze' — board-wide clip playback behaviour
+  presetLayout: false,  // true when the layout came from the chooser: deletes keep the shape (frame reopens as +)
   // Custom frame sizes (frame-edit mode). Each is an array of fractions summing to 1,
   // or null for uniform. Arrays are only honoured when their length matches the current
   // slot count, so adding/removing images safely falls back to uniform.
@@ -4669,6 +4670,7 @@ function serializeBoards(boards) {
     boardType:      board.boardType || 'photo',
     clipDuration:   board.clipDuration ?? 15,
     clipPlayMode:   board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop'),   // boomerang removed — old boards fall back to loop
+    presetLayout:   !!board.presetLayout,
     slotFracs:      cloneSlotFracs(board.slotFracs),
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
@@ -4772,6 +4774,7 @@ async function deserializeBoards(savedBoards) {
       boardType:      board.boardType      || 'photo',
       clipDuration:   board.clipDuration   ?? 15,
       clipPlayMode:   board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop'),
+      presetLayout:   !!board.presetLayout,
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
       detection: (board.detection && board.detection.srcBlob && board.detection.shots?.length) ? {
@@ -4951,6 +4954,7 @@ function saveCurrentBoardSnapshot() {
     boardType:      state.boardType || 'photo',
     clipDuration:   state.clipDuration ?? 15,
     clipPlayMode:   state.clipPlayMode || 'loop',
+    presetLayout:   !!state.presetLayout,
     slotFracs:      cloneSlotFracs(state.slotFracs),
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
@@ -5055,6 +5059,7 @@ function loadBoardState(board) {
   state.boardType    = board.boardType || 'photo';
   state.clipDuration = board.clipDuration ?? 15;
   state.clipPlayMode = board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop');
+  state.presetLayout = !!board.presetLayout;
   state.slotFracs    = cloneSlotFracs(board.slotFracs);
   if (typeof resetBoardClock === 'function') resetBoardClock();   // duration cycle restarts per board
   state.images         = board.images.slice();
@@ -5229,7 +5234,7 @@ function addNewBoard() {
     return;
   }
   saveCurrentBoardSnapshot();
-  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, images: [] };
+  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, images: [] };
   _projectBoards.push(newBoard);
   switchToBoard(_projectBoards.length - 1, 'left');
 }
@@ -6005,6 +6010,15 @@ function insertBoardItem(item) {
   _pendingSlotIdx = -1;
   if (idx >= 0) state.images[idx] = item;
   else insertBoardItem(item);
+}
+
+// Remove a board item. Boards built from a picked layout keep their shape — the frame
+// reopens as a dashed + placeholder for re-adding; boards built by just adding media
+// collapse to the new count, as always.
+function removeBoardItem(i) {
+  if (i < 0 || !state.images[i]) return;
+  if (state.presetLayout) state.images[i] = { id: genId(), emptySlot: true, transforms: {} };
+  else state.images.splice(i, 1);
 }
 
 // A loading placeholder that fills its slot while a clip's proxy is being prepared.
@@ -6811,7 +6825,7 @@ simDelete.addEventListener('click', () => {
   closeStripItemMenu();
   if (i < 0 || !state.images[i]) return;
   pushHistory();
-  state.images.splice(i, 1);
+  removeBoardItem(i);   // preset layouts reopen the frame (+); organic boards collapse
   renderList(); buildLayout();
   applyBoardTypeUI();   // re-show the Photos/Video switch if the board is now empty
 });
@@ -7148,6 +7162,7 @@ document.querySelectorAll('[data-layout]').forEach(btn => {
     btn.classList.add('active'); state.layout = btn.dataset.layout;
     // The plain layout buttons return to classic behaviour: frames follow the media,
     // so any unfilled scaffold frames from a picked layout preset are dropped.
+    state.presetLayout = false;   // classic mode: frames follow the media again
     if (state.images.some(it => it.emptySlot)) {
       state.images = state.images.filter(it => !it.emptySlot);
       renderList();
@@ -7305,6 +7320,7 @@ function layoutFrameCount(p) {
 
 function applyLayoutPreset(p) {
   pushHistory();
+  state.presetLayout = true;   // deletes now reopen frames instead of collapsing the shape
   state.layout   = p.layout || 'vertical';
   state.gridCols = p.gridCols || 2;
   state.gridRows = p.gridRows || 2;
@@ -7766,7 +7782,7 @@ function fillFullImportSlot(index, item) {
   const i = state.images.findIndex(it => it.id === id);
   if (i >= 0) {
     if (item) { item.id = id; state.images[i] = item; }   // keep slot id so it reconciles in place
-    else { state.images.splice(i, 1); }                   // this clip failed
+    else { removeBoardItem(i); }                          // this clip failed — preset boards reopen the frame
   }
   _fullImportIds[index] = item ? id : null;
   _fullImportDone++;
@@ -7779,7 +7795,9 @@ function fillFullImportSlot(index, item) {
 }
 
 function endFullImport() {
-  state.images = state.images.filter(it => !it.placeholder);   // drop any that failed
+  state.images = state.presetLayout
+    ? state.images.map(it => it.placeholder ? { id: genId(), emptySlot: true, transforms: {} } : it)
+    : state.images.filter(it => !it.placeholder);   // drop any that failed (preset boards keep the frames)
   _fullImportIds = []; _fullImportTotal = 0;
   exportBarFill.style.transition = 'width 0.3s ease'; exportBarFill.style.width = '100%';
   exportBarLabel.textContent = 'Added';
@@ -9027,7 +9045,7 @@ async function importSingleClip() {
     state.images[i] = clip;
     exportBtn.disabled = false;
   } else if (i >= 0) {
-    state.images.splice(i, 1);      // prep failed → remove the loading slot
+    removeBoardItem(i);             // prep failed — preset boards reopen the frame
   } else if (clip && clip.src && clip.src.startsWith('blob:')) {
     try { URL.revokeObjectURL(clip.src); } catch (e) {}   // placeholder gone (undo) → discard
   }

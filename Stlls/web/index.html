@@ -767,6 +767,19 @@
     will-change: transform;
   }
   .slot { position: absolute; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
+  /* Unfilled frame of an applied layout: dashed outline + a + button to fill it */
+  .slot-empty {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    border: 1.5px dashed var(--muted); border-radius: inherit;
+    background: rgba(127,127,127,0.04); cursor: default;
+  }
+  .slot-add-btn {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: transform 0.15s ease; -webkit-tap-highlight-color: transparent;
+  }
+  .slot-add-btn:active { transform: scale(0.88); color: var(--text); }
   .slot.grabbing { cursor: grabbing; }
   .slot-img { position: absolute; pointer-events: none; -webkit-user-drag: none; display: block; }
   /* Double-buffered clip: two stacked videos ping-pong for a seamless loop */
@@ -3335,8 +3348,8 @@
           <button class="btn active" data-layout="vertical">Vert</button>
           <button class="btn" data-layout="horizontal">Horiz</button>
           <button class="btn" data-layout="grid">Grid</button>
-          <button class="btn btn-icon" id="layoutLibBtn" aria-label="Saved layouts" title="Saved layouts">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          <button class="btn btn-icon" id="layoutLibBtn" aria-label="Layouts" title="Layouts">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
         </div>
         <!-- GRID OPTIONS — floating popover above the layout buttons; never reflows -->
@@ -4342,8 +4355,12 @@ function snapshotImages() {
     nativeLoop: item.nativeLoop,
     _shotIdx: item._shotIdx,
     _shotSrc: item._shotSrc,
+    _shotDetId: item._shotDetId,
+    srcKey: item.srcKey, srcStart: item.srcStart, srcEnd: item.srcEnd,
     videoW: item.videoW,
     videoH: item.videoH,
+    placeholder: item.placeholder,
+    emptySlot: item.emptySlot,
     transforms: JSON.parse(JSON.stringify(item.transforms)),
   }));
 }
@@ -4656,6 +4673,8 @@ function serializeBoards(boards) {
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
       .map(item => {
+        // Unfilled layout frame → keep it, so the chosen layout survives save/reopen.
+        if (item.emptySlot) return { id: item.id, emptySlot: true };
         // Video clip → persist the actual (small, trimmed) bytes as a Blob. IndexedDB
         // stores Blobs natively, so the board reopens fully playable.
         if (item.type === 'clip') {
@@ -4704,6 +4723,7 @@ async function deserializeBoards(savedBoards) {
   return Promise.all(savedBoards.map(async board => {
     const images = (await Promise.all(
       (board.images || []).map(async item => {
+        if (item.emptySlot) return { id: item.id || genId(), emptySlot: true, transforms: {} };
         // Restore a video clip from its stored Blob → fresh object URL + poster.
         if (item.type === 'clip') {
           if (!item.clipBlob) return null;
@@ -5954,6 +5974,39 @@ function _tickFreeze(c) {
   }
 }
 
+// The + button of an unfilled layout frame: opens the normal add flow, and the new
+// media lands in THIS frame first (then any other empty frames, then the board's end).
+let _pendingSlotIdx = -1;
+function createEmptySlotEl(item) {
+  const d = document.createElement('div');
+  d.className = 'slot-empty';
+  const b = document.createElement('button');
+  b.className = 'slot-add-btn';
+  b.setAttribute('aria-label', 'Add to this frame');
+  b.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    _pendingSlotIdx = state.images.indexOf(item);
+    openAddFlow(b);
+  });
+  d.appendChild(b);
+  return d;
+}
+
+// Add media to the board, filling empty layout frames before growing it: the frame the
+// user tapped + on first, then remaining empties in order, then append as before.
+function insertBoardItem(item) {
+  let idx = -1;
+  if (_pendingSlotIdx >= 0 && state.images[_pendingSlotIdx] && state.images[_pendingSlotIdx].emptySlot) {
+    idx = _pendingSlotIdx;
+  } else {
+    idx = state.images.findIndex(it => it.emptySlot);
+  }
+  _pendingSlotIdx = -1;
+  if (idx >= 0) state.images[idx] = item;
+  else insertBoardItem(item);
+}
+
 // A loading placeholder that fills its slot while a clip's proxy is being prepared.
 function createLoadingEl() {
   const d = document.createElement('div');
@@ -6019,6 +6072,7 @@ function buildLayout() {
     // Render kind — also encodes clip buffer mode + play mode, so crossing the decoder
     // threshold (double-buffer ↔ single video) OR toggling loop/freeze rebuilds slots.
     const kind = item.placeholder ? 'load'
+               : item.emptySlot ? 'empty'
                : item.type !== 'clip' ? 'media'
                : _clipMode === 'freeze' ? 'freeze'
                : item.nativeLoop ? (clipsUseDoubleBuffer() ? 'clip2' : 'clip1') : 'clip1w';
@@ -6048,6 +6102,9 @@ function buildLayout() {
       if (item.placeholder) {
         mediaEl = createLoadingEl();
         slotDiv.appendChild(mediaEl);   // no media / no reframe events while loading
+      } else if (item.emptySlot) {
+        mediaEl = createEmptySlotEl(item);
+        slotDiv.appendChild(mediaEl);   // dashed frame + its own + button; no reframe events
       } else {
         mediaEl = createSlotMedia(item);
         slotDiv.appendChild(mediaEl);
@@ -6055,7 +6112,7 @@ function buildLayout() {
       }
       layoutPreview.appendChild(slotDiv);
     }
-    if (item.placeholder) return;       // loading box fills the slot via CSS
+    if (item.placeholder || item.emptySlot) return;   // loading box / empty frame fill the slot via CSS
     // Loop mode's shared-source clips need JS-driven sub-range looping. Freeze
     // clips carry their own controller (gathered below) and must NOT also land here.
     if (_clipMode === 'loop' && item.type === 'clip' && !item.nativeLoop && mediaEl && mediaEl.tagName === 'VIDEO') {
@@ -6086,7 +6143,7 @@ function buildLayout() {
   }
   _ensureClipRaf();   // after the timeline visibility update — a visible bar keeps the clock running
 
-  exportBtn.disabled = false;
+  exportBtn.disabled = !state.images.some(it => !it.placeholder && !it.emptySlot);
   updateFrameEditBtn();
   renderFrameHandles();
 }
@@ -6333,7 +6390,7 @@ function loadFiles(files) {
     reader.onload = async e => {
       try {
         const item = await makeStillItem({ name: file.name, src: e.target.result, mime: file.type });
-        state.images.push(item);
+        insertBoardItem(item);
         ensureMediaBarOpen();
         renderList(); buildLayout();
       } catch (err) { console.warn('Image import failed:', err); }
@@ -6510,7 +6567,7 @@ async function processVideo(fileOrURL) {
       im.onload = () => res(im);
       im.src = capCvs.toDataURL('image/jpeg', 0.92);
     });
-    state.images.push({ id: Date.now() + Math.random(), name: `${baseName}_${i+1}.jpg`, img, transforms: {} });
+    insertBoardItem({ id: Date.now() + Math.random(), name: `${baseName}_${i+1}.jpg`, img, transforms: {} });
     ensureMediaBarOpen();
     setAnalyzeProgress(vaAnalyzeLoader, ((i + 1) / selectedMids.length) * 100);
     videoAnalysisLabel.textContent = `Extracting ${i + 1} / ${selectedMids.length}`;
@@ -6564,16 +6621,18 @@ function closeAddChoice() { addChoicePopup.hidden = true; }
 function toggleAddChoice(trigger) {
   if (addChoicePopup.hidden) openAddChoice(trigger); else closeAddChoice();
 }
-mAddBtn.addEventListener('click', e => {
-  e.stopPropagation();
+// Universal add entry — used by the strip's + button AND the + inside an empty
+// layout frame (the frame remembers itself via _pendingSlotIdx and gets filled first).
+function openAddFlow(trigger) {
   if (state.boardType === 'video') {
-    toggleAddChoice(mAddBtn);          // video board: + → Stills / Clips popup
+    toggleAddChoice(trigger || mAddBtn);   // + → Stills / Clips popup
   } else if (importMode === 'video' && isNativeVideo()) {
     window.webkit.messageHandlers.requestVideoSelection.postMessage(null);  // grab stills from a video
   } else {
-    fileInput.click();                 // photo board: add images
+    fileInput.click();                     // photo board: add images
   }
-});
+}
+mAddBtn.addEventListener('click', e => { e.stopPropagation(); openAddFlow(mAddBtn); });
 document.getElementById('addChoiceStills').addEventListener('click', () => {
   closeAddChoice();
   fileInput.accept = 'image/*'; fileInput.setAttribute('multiple', ''); fileInput.value = '';
@@ -6676,6 +6735,7 @@ function renderList() {
   }
   imageList.innerHTML = '';
   state.images.forEach((item, i) => {
+    if (item.emptySlot) return;   // unfilled layout frames live on the board, not the strip
     const div = document.createElement('div');
     div.className = 'image-item'; div.dataset.index = i;
     // Loading placeholder during a multi-clip import — a small spinner, no controls.
@@ -6907,9 +6967,10 @@ function onMobileEnd() {
   // commit when the mapping is a clean permutation of the current items.
   const mapped = [...imageList.children].map(el => state.images[+el.dataset.index]).filter(Boolean);
   const unique = [...new Set(mapped)];   // drops stale-div duplicates, keeps visual order
-  if (unique.length === state.images.length) {
+  const empties = state.images.filter(it => it.emptySlot);   // frames aren't in the strip
+  if (unique.length === state.images.length - empties.length) {
     pushHistory();
-    state.images = unique;
+    state.images = [...unique, ...empties];
   }
 
   document.removeEventListener('touchmove', onMobileMove);
@@ -7085,6 +7146,12 @@ document.querySelectorAll('[data-layout]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-layout]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active'); state.layout = btn.dataset.layout;
+    // The plain layout buttons return to classic behaviour: frames follow the media,
+    // so any unfilled scaffold frames from a picked layout preset are dropped.
+    if (state.images.some(it => it.emptySlot)) {
+      state.images = state.images.filter(it => !it.emptySlot);
+      renderList();
+    }
     // Picking Grid sizes it to hold every still/clip on the board (6 → 2×3).
     if (state.layout === 'grid' && state.images.length) {
       [state.gridCols, state.gridRows] = bestGridDims(state.images.length);
@@ -7231,13 +7298,28 @@ function saveCurrentLayoutPreset() {
   renderSavedLayouts();                     // modal stays open so the new tile is visible
 }
 
+function layoutFrameCount(p) {
+  if ((p.layout || 'vertical') === 'grid') return Math.max(1, p.gridCols || 2) * Math.max(1, p.gridRows || 2);
+  return Math.max(2, p.count || (p.slotFracs && p.slotFracs[p.layout] && p.slotFracs[p.layout].length) || 2);
+}
+
 function applyLayoutPreset(p) {
+  pushHistory();
   state.layout   = p.layout || 'vertical';
   state.gridCols = p.gridCols || 2;
   state.gridRows = p.gridRows || 2;
   state.slotFracs = cloneSlotFracs(p.slotFracs);
+  // Scaffold the chosen shape immediately: existing media keeps its frames and every
+  // remaining frame becomes a dashed placeholder with its own + button, so the user
+  // SEES the layout they picked and fills it frame by frame.
+  const real = state.images.filter(it => !it.emptySlot);
+  const missing = Math.max(0, layoutFrameCount(p) - real.length);
+  state.images = real.concat(Array.from({ length: missing },
+    () => ({ id: genId(), emptySlot: true, transforms: {} })));
   document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === state.layout));
   updateGridOpts();
+  renderList();
+  applyBoardTypeUI();
   buildLayout();
 }
 
@@ -7672,7 +7754,7 @@ function beginFullImport(count) {
   for (let k = 0; k < count; k++) {
     const id = Date.now() + Math.random() + k;
     _fullImportIds.push(id);
-    state.images.push({ id, placeholder: true, transforms: {} });
+    insertBoardItem({ id, placeholder: true, transforms: {} });
   }
   ensureMediaBarOpen();
   renderList(); applyBoardTypeUI(); buildLayout();
@@ -8906,7 +8988,7 @@ async function importSingleClip() {
   // Drop a loading slot on the board immediately so the user sees it's working.
   const phId = Date.now() + Math.random();
   pushHistory();
-  state.images.push({ id: phId, placeholder: true, transforms: {} });
+  insertBoardItem({ id: phId, placeholder: true, transforms: {} });
   ensureMediaBarOpen();
   renderList(); applyBoardTypeUI(); buildLayout();
 
@@ -9021,7 +9103,7 @@ async function addSelectedClips() {
     if (!s) continue;
     let poster;
     try { poster = await _loadImg(shot.thumb); } catch (e) { continue; }
-    state.images.push({
+    insertBoardItem({
       id: Date.now() + Math.random(),
       name: `clip_${i + 1}`,
       type: 'clip',
@@ -9370,7 +9452,7 @@ async function processVideoNative() {
     if (url) {
       try {
         const img = await imgFromDataURL(url);
-        state.images.push({ id: Date.now() + Math.random(), name: `still_${i+1}.jpg`, img, transforms: {} });
+        insertBoardItem({ id: Date.now() + Math.random(), name: `still_${i+1}.jpg`, img, transforms: {} });
         ensureMediaBarOpen();
         setAnalyzeProgress(vaAnalyzeLoader, ((i + 1) / selectedMids.length) * 100);
     videoAnalysisLabel.textContent = `Extracting ${i + 1} / ${selectedMids.length}`;
@@ -9544,7 +9626,7 @@ msCancelBtn.addEventListener('click', closeManualScrubber);
 msDoneBtn.addEventListener('click', () => {
   pushHistory();
   msFrames.forEach(img => {
-    state.images.push({ id: Date.now() + Math.random(), name: `still_${Date.now()}.jpg`, img, transforms: {} });
+    insertBoardItem({ id: Date.now() + Math.random(), name: `still_${Date.now()}.jpg`, img, transforms: {} });
   });
   ensureMediaBarOpen();
   renderList(); buildLayout();

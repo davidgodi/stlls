@@ -1084,6 +1084,56 @@
   .rc-accept:disabled { opacity: 0.35; cursor: default; }
   .rc-cancel { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid); }
 
+  /* ── Background settings — covers the tools panel; the board stays visible ── */
+  .panel { position: relative; }
+  .bg-btn {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; padding: 0;
+    border: 1px solid var(--border2); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  #bgPanel {
+    position: absolute; inset: 0; z-index: 260;   /* above the sections' popover stacking */
+    background: var(--surface);
+    display: flex; flex-direction: column;
+    animation: bmFade 0.2s ease;
+  }
+  #bgPanel[hidden] { display: none !important; }
+  .bgp-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; flex-shrink: 0; }
+  .bgp-title { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-mid); font-weight: 600; }
+  .bgp-close {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bgp-body { overflow-y: auto; padding: 2px 16px 16px; -webkit-overflow-scrolling: touch; }
+  .bgp-sec { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); margin: 12px 0 8px; }
+  .bgp-upload { display: flex; gap: 8px; align-items: center; }
+  .bgp-upload-btn {
+    flex: 1; padding: 11px; border-radius: 9px; font-family: inherit; font-size: 12px;
+    background: var(--surface2); border: 1px dashed var(--border2); color: var(--text-mid);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .bgp-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border2); display: block; }
+  .bgp-remove {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    background: var(--surface2); border: 1px solid var(--border2); color: #ff6b5e;
+    font-size: 14px; line-height: 1; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .bgp-sliders { margin-top: 10px; }
+  .bgp-sliders[hidden] { display: none; }
+  .bgp-swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px; }
+  .bgp-sw {
+    aspect-ratio: 1; border-radius: 8px; border: 1.5px solid var(--border2);
+    cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent;
+    transition: transform 0.15s ease;
+  }
+  .bgp-sw:active { transform: scale(0.9); }
+  .bgp-sw.active { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
+  .bgp-sw.bgp-custom { background: conic-gradient(#ff5f5f, #ffd93b, #4be36b, #3bd0ff, #6a6bff, #e05fff, #ff5f5f); }
+  /* live background layer inside the board (under every slot) */
+  #boardBgLayer { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
+  #boardBgLayer .bg-media { width: 100%; height: 100%; object-fit: cover; display: block; }
+
   /* ── PANEL ── */
   .panel {
     width: 244px; flex-shrink: 0; order: -1;
@@ -3163,6 +3213,31 @@
   <!-- ── PANEL ── -->
   <div class="panel">
 
+    <!-- BACKGROUND SETTINGS — covers the tools so the board stays in view for live tuning -->
+    <div id="bgPanel" hidden>
+      <div class="bgp-head">
+        <span class="bgp-title">Background</span>
+        <button class="bgp-close" id="bgPanelClose" aria-label="Close background settings">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="bgp-body">
+        <div class="bgp-sec">Photo / Video</div>
+        <div class="bgp-upload">
+          <button class="bgp-upload-btn" id="bgUploadBtn">Upload photo or video</button>
+          <img class="bgp-thumb" id="bgThumb" hidden alt="">
+          <button class="bgp-remove" id="bgRemoveBtn" hidden aria-label="Remove background media">×</button>
+        </div>
+        <div class="bgp-sliders" id="bgSliders" hidden>
+          <div class="slider-row"><label>Blur</label><input type="range" id="bgBlur" min="0" max="40" step="1" value="0"><span class="slider-val" id="bgBlurVal">0</span></div>
+          <div class="slider-row"><label>Opacity</label><input type="range" id="bgOpacity" min="0" max="100" step="5" value="100"><span class="slider-val" id="bgOpacityVal">100</span></div>
+        </div>
+        <div class="bgp-sec">Color</div>
+        <div class="bgp-swatches" id="bgSwatches"></div>
+      </div>
+    </div>
+    <input type="file" id="bgFileInput" accept="image/*,video/*" hidden>
+
     <!-- IMAGES -->
     <div class="ps" id="psImages">
       <div class="section-label">Images</div>
@@ -3395,7 +3470,8 @@
           <label>Corners</label>
           <input type="range" id="radiusSlider" min="0" max="64" value="0" step="2">
           <span class="slider-val" id="radiusVal">0</span>
-          <input type="color" id="bgColor" value="#000000" title="Background color" aria-label="Background color">
+          <button id="bgBtn" class="bg-btn" title="Background" aria-label="Background settings"></button>
+          <input type="color" id="bgColor" value="#000000" hidden aria-hidden="true">
         </div>
         <p class="hint">Drag to pan · Scroll or pinch to zoom · Double-tap to reset</p>
       </div>
@@ -4321,6 +4397,7 @@ const state = {
   clipDuration: 15,     // seconds; video-board export length (5–20)
   clipPlayMode: 'loop', // 'loop' | 'freeze' — board-wide clip playback behaviour
   presetLayout: false,  // true when the layout came from the chooser: deletes keep the shape (frame reopens as +)
+  bgMedia: null,        // { type:'image'|'video', src, blob, blur (canonical px), opacity 0–1 } — board background media
   // Custom frame sizes (frame-edit mode). Each is an array of fractions summing to 1,
   // or null for uniform. Arrays are only honoured when their length matches the current
   // slot count, so adding/removing images safely falls back to uniform.
@@ -4673,6 +4750,8 @@ function serializeBoards(boards) {
     clipDuration:   board.clipDuration ?? 15,
     clipPlayMode:   board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop'),   // boomerang removed — old boards fall back to loop
     presetLayout:   !!board.presetLayout,
+    bgMedia:        (board.bgMedia && board.bgMedia.blob) ? { type: board.bgMedia.type, blob: board.bgMedia.blob,
+                     blur: board.bgMedia.blur || 0, opacity: board.bgMedia.opacity ?? 1 } : null,
     slotFracs:      cloneSlotFracs(board.slotFracs),
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
@@ -4777,6 +4856,8 @@ async function deserializeBoards(savedBoards) {
       clipDuration:   board.clipDuration   ?? 15,
       clipPlayMode:   board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop'),
       presetLayout:   !!board.presetLayout,
+      bgMedia:        (board.bgMedia && board.bgMedia.blob)
+                        ? { ...board.bgMedia, src: URL.createObjectURL(board.bgMedia.blob) } : null,
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
       detection: (board.detection && board.detection.srcBlob && board.detection.shots?.length) ? {
@@ -4957,6 +5038,7 @@ function saveCurrentBoardSnapshot() {
     clipDuration:   state.clipDuration ?? 15,
     clipPlayMode:   state.clipPlayMode || 'loop',
     presetLayout:   !!state.presetLayout,
+    bgMedia:        state.bgMedia,
     slotFracs:      cloneSlotFracs(state.slotFracs),
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
@@ -5062,6 +5144,7 @@ function loadBoardState(board) {
   state.clipDuration = board.clipDuration ?? 15;
   state.clipPlayMode = board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop');
   state.presetLayout = !!board.presetLayout;
+  state.bgMedia = board.bgMedia || null;
   state.slotFracs    = cloneSlotFracs(board.slotFracs);
   if (typeof resetBoardClock === 'function') resetBoardClock();   // duration cycle restarts per board
   state.images         = board.images.slice();
@@ -5100,6 +5183,8 @@ function loadBoardState(board) {
   radiusSlider.value = state.radius; radiusVal.textContent = state.radius;
   bgColor.value   = state.bg;
   layoutPreview.style.background = state.bg;
+  if (typeof syncBgSwatch === 'function') syncBgSwatch();
+  if (typeof updateBgUI === 'function') updateBgUI();
   undoHistory.length = 0; redoHistory.length = 0;
   updateUndoBtn();
   renderList();
@@ -5236,7 +5321,7 @@ function addNewBoard() {
     return;
   }
   saveCurrentBoardSnapshot();
-  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, images: [] };
+  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, bgMedia: null, images: [] };
   _projectBoards.push(newBoard);
   switchToBoard(_projectBoards.length - 1, 'left');
 }
@@ -6052,6 +6137,7 @@ function buildLayout() {
   emptyState.style.display = 'none';
   layoutPreview.style.display = 'block';
   layoutPreview.style.background = state.bg;
+  ensureBoardBgLayer();
 
   // First clip added / last clip removed → the timeline-bar height reservation flips,
   // so refit the board before computing slots.
@@ -7355,9 +7441,209 @@ radiusSlider.addEventListener('input', () => {
 padSlider.addEventListener('input', () => {
   state.padding = +padSlider.value; padVal.textContent = state.padding; buildLayout();
 });
-bgColor.addEventListener('input', () => {
-  state.bg = bgColor.value; layoutPreview.style.background = state.bg;
+// ── Background settings: media (photo/video) + blur/opacity + palette + colour wheel ──
+const bgPanel      = document.getElementById('bgPanel');
+const bgBtn        = document.getElementById('bgBtn');
+const bgFileInput  = document.getElementById('bgFileInput');
+const bgThumb      = document.getElementById('bgThumb');
+const bgRemoveBtn  = document.getElementById('bgRemoveBtn');
+const bgSlidersEl  = document.getElementById('bgSliders');
+const bgBlurEl     = document.getElementById('bgBlur');
+const bgBlurVal    = document.getElementById('bgBlurVal');
+const bgOpacityEl  = document.getElementById('bgOpacity');
+const bgOpacityVal = document.getElementById('bgOpacityVal');
+const bgSwatchesEl = document.getElementById('bgSwatches');
+
+const BG_PALETTE = [
+  '#000000', '#0a0a0a', '#1c1c1e', '#3a3a3c', '#6e6e73', '#a1a1a6',
+  '#d4d4d8', '#ffffff', '#f2e9dc', '#f7e8c3', '#8b5e3c', '#4a0e0e',
+  '#ff3b30', '#ff6b5e', '#ff9500', '#ffcc00', '#34c759', '#00c7be',
+  '#0a84ff', '#5e5ce6', '#bf5af2', '#ff2d55', '#0f2a43', '#123524',
+];
+
+function syncBgSwatch() {
+  bgBtn.style.background = state.bg;
+  bgSwatchesEl.querySelectorAll('.bgp-sw[data-c]').forEach(b =>
+    b.classList.toggle('active', b.dataset.c.toLowerCase() === (state.bg || '').toLowerCase()));
+}
+
+function applyBgColor(c) {
+  state.bg = c;
+  if (/^#[0-9a-f]{6}$/i.test(c)) bgColor.value = c;
+  layoutPreview.style.background = state.bg;
+  syncBgSwatch();
+}
+
+// Palette: 24 blocks + a custom tile that opens the system colour wheel.
+BG_PALETTE.forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'bgp-sw'; b.dataset.c = c; b.style.background = c;
+  b.setAttribute('aria-label', 'Background ' + c);
+  b.addEventListener('click', () => applyBgColor(c));
+  bgSwatchesEl.appendChild(b);
 });
+{
+  const custom = document.createElement('button');
+  custom.className = 'bgp-sw bgp-custom';
+  custom.title = 'Custom colour';
+  custom.setAttribute('aria-label', 'Custom background colour');
+  custom.addEventListener('click', () => bgColor.click());   // opens the native colour wheel
+  bgSwatchesEl.appendChild(custom);
+}
+bgColor.addEventListener('input', () => applyBgColor(bgColor.value));
+
+bgBtn.addEventListener('click', () => { updateBgUI(); bgPanel.hidden = false; });
+document.getElementById('bgPanelClose').addEventListener('click', () => { bgPanel.hidden = true; });
+
+document.getElementById('bgUploadBtn').addEventListener('click', () => { bgFileInput.value = ''; bgFileInput.click(); });
+bgFileInput.addEventListener('change', () => {
+  const file = bgFileInput.files && bgFileInput.files[0];
+  if (!file) return;
+  clearBgMedia(false);
+  state.bgMedia = {
+    type: file.type.startsWith('video/') ? 'video' : 'image',
+    src: URL.createObjectURL(file), blob: file,
+    blur: 8, opacity: 1,           // gentle defaults — tune with the sliders
+  };
+  updateBgUI();
+  ensureBoardBgLayer();
+});
+bgRemoveBtn.addEventListener('click', () => clearBgMedia(true));
+
+function clearBgMedia(update) {
+  const m = state.bgMedia;
+  if (m && m.src && m.src.startsWith('blob:')) { try { URL.revokeObjectURL(m.src); } catch (e) {} }
+  state.bgMedia = null;
+  if (update) { updateBgUI(); ensureBoardBgLayer(); }
+}
+
+function updateBgUI() {
+  const m = state.bgMedia;
+  bgThumb.hidden = bgRemoveBtn.hidden = bgSlidersEl.hidden = !m;
+  syncBgSwatch();
+  if (!m) return;
+  bgBlurEl.value = m.blur || 0;        bgBlurVal.textContent = m.blur || 0;
+  bgOpacityEl.value = Math.round((m.opacity ?? 1) * 100);
+  bgOpacityVal.textContent = Math.round((m.opacity ?? 1) * 100);
+  if (m.type === 'image') { bgThumb.src = m.src; }
+  else {                                // video → grab a small frame for the thumbnail
+    const v = Object.assign(document.createElement('video'), { muted: true, playsInline: true, preload: 'auto', src: m.src });
+    v.addEventListener('loadeddata', () => {
+      try {
+        const c = Object.assign(document.createElement('canvas'), { width: 80, height: 80 });
+        const sc = Math.max(80 / v.videoWidth, 80 / v.videoHeight);
+        c.getContext('2d').drawImage(v, (80 - v.videoWidth * sc) / 2, (80 - v.videoHeight * sc) / 2,
+                                     v.videoWidth * sc, v.videoHeight * sc);
+        bgThumb.src = c.toDataURL('image/jpeg', 0.7);
+      } catch (e) {}
+      v.removeAttribute('src'); v.load();
+    }, { once: true });
+  }
+}
+
+bgBlurEl.addEventListener('input', () => {
+  if (!state.bgMedia) return;
+  state.bgMedia.blur = +bgBlurEl.value; bgBlurVal.textContent = bgBlurEl.value;
+  applyBgLayerStyle();
+});
+bgOpacityEl.addEventListener('input', () => {
+  if (!state.bgMedia) return;
+  state.bgMedia.opacity = +bgOpacityEl.value / 100; bgOpacityVal.textContent = bgOpacityEl.value;
+  applyBgLayerStyle();
+});
+
+// Live background layer inside the board — sits under every slot; recreated whenever a
+// rebuild wiped it (e.g. the Edit-length decoder release empties the board container).
+let _bgDrawEl = null;   // the live <img>/<video> the exporters draw from
+function ensureBoardBgLayer() {
+  let layer = document.getElementById('boardBgLayer');
+  const m = state.bgMedia;
+  if (!m) { if (layer) layer.remove(); _bgDrawEl = null; return; }
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'boardBgLayer';
+    layoutPreview.prepend(layer);
+  } else if (layoutPreview.firstChild !== layer) {
+    layoutPreview.prepend(layer);          // stay underneath the slots after rebuilds
+  }
+  let el = layer.firstElementChild;
+  if (!el || el.dataset.src !== m.src) {
+    layer.innerHTML = '';
+    if (m.type === 'video') {
+      el = document.createElement('video');
+      el.muted = true; el.playsInline = true;
+      el.setAttribute('playsinline', ''); el.setAttribute('muted', '');
+      el.loop = true; el.autoplay = true; el.preload = 'auto'; el.src = m.src;
+      const pr = el.play(); if (pr && pr.catch) pr.catch(() => {});
+    } else {
+      el = document.createElement('img');
+      el.src = m.src;
+    }
+    el.className = 'bg-media'; el.dataset.src = m.src;
+    layer.appendChild(el);
+  }
+  _bgDrawEl = el;
+  applyBgLayerStyle();
+}
+function applyBgLayerStyle() {
+  const layer = document.getElementById('boardBgLayer');
+  const m = state.bgMedia;
+  if (!layer || !m) return;
+  const el = layer.firstElementChild; if (!el) return;
+  const px = (m.blur || 0) * (previewW / CANONICAL_W);
+  el.style.filter = px > 0 ? `blur(${px.toFixed(1)}px)` : '';
+  el.style.opacity = String(m.opacity ?? 1);
+  el.style.transform = px > 0 ? `scale(${(1 + px / 50).toFixed(3)})` : '';   // hide blur edge fade
+}
+
+// Draw the background media into an export/snapshot context (cover-fit, blur, opacity).
+// Uses the live board element so the current video frame is what exports.
+function drawBgMedia(ctx, W, H) {
+  const m = state.bgMedia;
+  if (!m || !_bgDrawEl || _bgDrawEl.dataset.src !== m.src) return;
+  const el = _bgDrawEl;
+  const iw = el.videoWidth || el.naturalWidth || 0, ih = el.videoHeight || el.naturalHeight || 0;
+  if (!iw || !ih || (el.tagName === 'VIDEO' && el.readyState < 2)) return;
+  const blurPx = (m.blur || 0) * (W / CANONICAL_W);
+  const sc = Math.max(W / iw, H / ih);
+  const dw = iw * sc, dh = ih * sc, dx = (W - dw) / 2, dy = (H - dh) / 2;
+  ctx.save();
+  ctx.globalAlpha = m.opacity ?? 1;
+  let usedFilter = false;
+  if (blurPx > 0) {
+    ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
+    usedFilter = String(ctx.filter).includes('blur');
+    if (!usedFilter) ctx.filter = 'none';
+  }
+  if (blurPx > 0 && !usedFilter) {
+    // No canvas-filter support: bounce through a small canvas — downscale + smooth
+    // upscale reads as a soft blur, close enough for a background.
+    const f = Math.max(2, blurPx / 2);
+    const c = document.createElement('canvas');
+    c.width = Math.max(8, Math.round(W / f)); c.height = Math.max(8, Math.round(H / f));
+    const cc = c.getContext('2d');
+    const s2 = Math.max(c.width / iw, c.height / ih);
+    cc.drawImage(el, (c.width - iw * s2) / 2, (c.height - ih * s2) / 2, iw * s2, ih * s2);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low';
+    ctx.drawImage(c, 0, 0, W, H);
+  } else {
+    ctx.drawImage(el, dx, dy, dw, dh);
+  }
+  ctx.restore();
+}
+
+// Pre-render the background (colour + media, blurred/faded) for the native video export.
+// Swift punches the content holes into it, so it shows in gaps, padding and corners.
+function _bgExportImage(W, H) {
+  if (!state.bgMedia || !_bgDrawEl) return null;
+  try {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const cc = c.getContext('2d');
+    cc.fillStyle = state.bg || '#000000'; cc.fillRect(0, 0, W, H);
+    drawBgMedia(cc, W, H);
+    return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+  } catch (e) { return null; }
+}
 
 // Grid steppers
 function updateGridVal(key, el, delta, min, max) {
@@ -9850,6 +10136,7 @@ function resetCurrentBoard() {
   padSlider.value = 0; padVal.textContent = 0;
   radiusSlider.value = 0; radiusVal.textContent = 0;
   bgColor.value = '#000000';
+  clearBgMedia(false);
   gridOptsHidden = false;
   updateGridOpts();
   updateUndoBtn();
@@ -10621,6 +10908,7 @@ function paintBoard(ctx, W, H, expScale, exportImgs) {
   const radPx = (state.radius || 0) * expScale;
   if (state.gap === 0 && radPx > 0) { roundRectPath(ctx, 0, 0, W, H, radPx); ctx.clip(); }
   ctx.fillStyle = state.bg; ctx.fillRect(0, 0, W, H);
+  drawBgMedia(ctx, W, H);   // background photo / current video frame, blurred + faded
   const slotR = (state.gap > 0) ? radPx : 0;
   getSlots(W, H).forEach(({ item, x, y, w, h }) => {
     const img = exportImgs.get(item) || item.img; if (!img) return;
@@ -10866,6 +11154,7 @@ async function doVideoExportNative() {
     bitrate: BITRATE_LEVELS[_exportBitrate] || BITRATE_LEVELS.high,
     radius: state.radius || 0, gap: state.gap || 0,
     playMode: state.clipPlayMode || 'loop',   // 'loop' | 'freeze' — applies to every clip
+    bgImage: _bgExportImage(W, H),            // pre-rendered bg media layer (or null)
     clips,
   });
   // Swift drives window.exportProgress(...) then window.exportComplete(success).

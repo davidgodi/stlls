@@ -82,6 +82,11 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         let radius  = CGFloat((body["radius"] as? NSNumber)?.doubleValue ?? 0)
         let gap     = (body["gap"] as? NSNumber)?.doubleValue ?? 0
         let bgColor = UIColor(hexString: (body["bg"] as? String) ?? "#000000")
+        // Optional pre-rendered background layer (photo/video frame, already blurred and
+        // faded by the web). Content holes get punched into it like the plain-colour overlay.
+        let bgImage: UIImage? = (body["bgImage"] as? String)
+            .flatMap { Data(base64Encoded: $0) }
+            .flatMap { UIImage(data: $0) }
         // Board-wide clip playback mode: 'loop' (default, unchanged) | 'freeze' (play once,
         // hold the last frame).
         let playMode = (body["playMode"] as? String) ?? "loop"
@@ -208,7 +213,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
             // Rounded-corner overlay: bg colour with rounded holes punched for the content
             // (clips AND stills), composited last. Whole board when gap==0, each frame otherwise.
             let overlay = self.makeCornerOverlay(size: renderSize, radius: radius, gap: gap,
-                                                 bg: bgColor, destRects: destRects)
+                                                 bg: bgColor, bgImage: bgImage, destRects: destRects)
 
             let outURL = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString + ".mp4")
@@ -233,12 +238,17 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         }
     }
 
-    // Build the rounded-corner overlay (top-left coords, matching the JS dest rects):
-    // background colour everywhere except inside the rounded content rectangles, which are
-    // left transparent so the composed video shows through.
+    // Build the background/corner overlay (top-left coords, matching the JS dest rects):
+    // the background — a solid colour, or the pre-rendered bg-media image — everywhere
+    // except inside the rounded content rectangles, which are left transparent so the
+    // composed video shows through. Needed when corners are rounded, and whenever bg
+    // media exists (it must show in gaps and padding).
     private func makeCornerOverlay(size: CGSize, radius: CGFloat, gap: Double,
-                                   bg: UIColor, destRects: [CGRect]) -> CGImage? {
-        guard radius > 0, size.width > 0, size.height > 0 else { return nil }
+                                   bg: UIColor, bgImage: UIImage?, destRects: [CGRect]) -> CGImage? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        guard radius > 0 || bgImage != nil else { return nil }
+        // gap 0 + no rounding: content covers the whole board — nothing of the bg shows.
+        if bgImage != nil && radius <= 0 && gap <= 0 { return nil }
         let contentRects = gap > 0 ? destRects : [CGRect(origin: .zero, size: size)]
         guard !contentRects.isEmpty else { return nil }
         let format = UIGraphicsImageRendererFormat.default()
@@ -246,8 +256,20 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         let renderer = UIGraphicsImageRenderer(size: size, format: format)
         let image = renderer.image { c in
             let cg = c.cgContext
-            cg.setFillColor(bg.cgColor)
-            cg.fill(CGRect(origin: .zero, size: size))
+            if let bgImage {
+                // Aspect-fill the pre-rendered background layer (web already sized it to
+                // the render dimensions, so this is normally a 1:1 draw).
+                let iw = bgImage.size.width, ih = bgImage.size.height
+                if iw > 0, ih > 0 {
+                    let sc = max(size.width / iw, size.height / ih)
+                    let dw = iw * sc, dh = ih * sc
+                    bgImage.draw(in: CGRect(x: (size.width - dw) / 2, y: (size.height - dh) / 2,
+                                            width: dw, height: dh))
+                }
+            } else {
+                cg.setFillColor(bg.cgColor)
+                cg.fill(CGRect(origin: .zero, size: size))
+            }
             cg.setBlendMode(.clear)
             for r in contentRects {
                 let rr = min(radius, r.width / 2, r.height / 2)

@@ -7598,6 +7598,34 @@ function applyBgLayerStyle() {
 
 // Draw the background media into an export/snapshot context (cover-fit, blur, opacity).
 // Uses the live board element so the current video frame is what exports.
+// Canvas-filter support must be probed on the PROTOTYPE: Safari/WKWebView has no
+// ctx.filter, but assigning one creates a plain JS property that echoes back — a naive
+// set-and-read check "passes" while the blur is silently ignored (sharp exports).
+const _CTX_FILTER_OK = ('filter' in CanvasRenderingContext2D.prototype);
+
+// Fallback blur without ctx.filter: cover-draw into a small canvas, then upscale back
+// in doubling steps with high-quality smoothing — reads as a soft gaussian-ish blur.
+function _drawBlurredCover(ctx, el, iw, ih, W, H, blurPx) {
+  const factor = Math.min(16, Math.max(2, blurPx / 2));
+  let c = document.createElement('canvas');
+  c.width = Math.max(8, Math.round(W / factor));
+  c.height = Math.max(8, Math.round(H / factor));
+  const cc = c.getContext('2d');
+  cc.imageSmoothingEnabled = true; cc.imageSmoothingQuality = 'high';
+  const s2 = Math.max(c.width / iw, c.height / ih);
+  cc.drawImage(el, (c.width - iw * s2) / 2, (c.height - ih * s2) / 2, iw * s2, ih * s2);
+  while (c.width * 2 < W) {
+    const up = document.createElement('canvas');
+    up.width = Math.min(W, c.width * 2); up.height = Math.min(H, c.height * 2);
+    const ux = up.getContext('2d');
+    ux.imageSmoothingEnabled = true; ux.imageSmoothingQuality = 'high';
+    ux.drawImage(c, 0, 0, up.width, up.height);
+    c = up;
+  }
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(c, 0, 0, W, H);
+}
+
 function drawBgMedia(ctx, W, H) {
   const m = state.bgMedia;
   if (!m || !_bgDrawEl || _bgDrawEl.dataset.src !== m.src) return;
@@ -7609,23 +7637,11 @@ function drawBgMedia(ctx, W, H) {
   const dw = iw * sc, dh = ih * sc, dx = (W - dw) / 2, dy = (H - dh) / 2;
   ctx.save();
   ctx.globalAlpha = m.opacity ?? 1;
-  let usedFilter = false;
-  if (blurPx > 0) {
+  if (blurPx > 0 && _CTX_FILTER_OK) {
     ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
-    usedFilter = String(ctx.filter).includes('blur');
-    if (!usedFilter) ctx.filter = 'none';
-  }
-  if (blurPx > 0 && !usedFilter) {
-    // No canvas-filter support: bounce through a small canvas — downscale + smooth
-    // upscale reads as a soft blur, close enough for a background.
-    const f = Math.max(2, blurPx / 2);
-    const c = document.createElement('canvas');
-    c.width = Math.max(8, Math.round(W / f)); c.height = Math.max(8, Math.round(H / f));
-    const cc = c.getContext('2d');
-    const s2 = Math.max(c.width / iw, c.height / ih);
-    cc.drawImage(el, (c.width - iw * s2) / 2, (c.height - ih * s2) / 2, iw * s2, ih * s2);
-    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'low';
-    ctx.drawImage(c, 0, 0, W, H);
+    ctx.drawImage(el, dx, dy, dw, dh);
+  } else if (blurPx > 0) {
+    _drawBlurredCover(ctx, el, iw, ih, W, H, blurPx);   // WKWebView path — blur still exports
   } else {
     ctx.drawImage(el, dx, dy, dw, dh);
   }

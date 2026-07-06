@@ -8197,11 +8197,25 @@ const ANALYZE_TIPS = [
 const TIP_START_MS = 5000;    // wait this long before the first tip appears
 const TIP_HOLD_MS  = 10000;   // each tip stays fully visible this long
 const TIP_BREAK_MS = 3000;    // then it fades out and nothing shows for this long
-let _analyzeTipTimer = null, _analyzeTipIdx = 0;
+let _analyzeTipTimer = null, _analyzeTipIdx = 0, _analyzeTipOrder = [];
 const spTipEl = document.getElementById('spTip');
+// Fresh random order every run (Fisher–Yates); reshuffled when a pass completes,
+// nudged so the same tip never shows twice in a row across the wrap.
+function shuffleAnalyzeTips() {
+  const last = _analyzeTipOrder.length ? _analyzeTipOrder[_analyzeTipOrder.length - 1] : null;
+  const deck = ANALYZE_TIPS.slice();
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  if (deck.length > 1 && deck[0] === last) [deck[0], deck[deck.length - 1]] = [deck[deck.length - 1], deck[0]];
+  _analyzeTipOrder = deck;
+  _analyzeTipIdx = 0;
+}
 function cycleAnalyzeTip() {
   if (!spTipEl) return;
-  spTipEl.innerHTML = ANALYZE_TIPS[_analyzeTipIdx % ANALYZE_TIPS.length];
+  if (_analyzeTipIdx >= _analyzeTipOrder.length) shuffleAnalyzeTips();
+  spTipEl.innerHTML = _analyzeTipOrder[_analyzeTipIdx];
   requestAnimationFrame(() => spTipEl.classList.add('show'));   // fade in
   _analyzeTipTimer = setTimeout(() => {
     spTipEl.classList.remove('show');                            // fade out, then a break
@@ -8210,7 +8224,7 @@ function cycleAnalyzeTip() {
 }
 function startAnalyzeTips() {
   if (!spTipEl || _analyzeTipTimer) return;
-  _analyzeTipIdx = 0;
+  shuffleAnalyzeTips();
   _analyzeTipTimer = setTimeout(cycleAnalyzeTip, TIP_START_MS);   // hold off on the first tip
 }
 function stopAnalyzeTips() {

@@ -6096,7 +6096,7 @@ function insertBoardItem(item) {
   }
   _pendingSlotIdx = -1;
   if (idx >= 0) state.images[idx] = item;
-  else insertBoardItem(item);
+  else state.images.push(item);   // no layout frames to fill → grow the board as always
 }
 
 // Remove a board item. Boards built from a picked layout keep their shape — the frame

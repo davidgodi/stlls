@@ -11163,15 +11163,21 @@ async function doVideoExportNative() {
       try { data = _imageToBase64(item.img); } catch (e) { continue; }
     }
     if (_videoExportCancel) return;
-    const coverS = Math.max(w / dw, h / dh);
+    // Snap the slot to WHOLE pixels, edge-consistently: adjacent slots share the same
+    // fractional boundary, so rounding the EDGES (not x+w independently) keeps them
+    // seamless. Fractional rects made the compositor antialias each clip's edge against
+    // the render background, leaving a ~1px dark hairline between frames.
+    const rx = Math.round(x),     ry = Math.round(y);
+    const rw = Math.round(x + w) - rx, rh = Math.round(y + h) - ry;
+    const coverS = Math.max(rw / dw, rh / dh);
     const totalS = coverS * t.scale;
-    const left = (w - dw * totalS) / 2 + t.fx * w;
-    const top  = (h - dh * totalS) / 2 + t.fy * h;
+    const left = (rw - dw * totalS) / 2 + t.fx * rw;
+    const top  = (rh - dh * totalS) / 2 + t.fy * rh;
     clips.push({
       data, still: !isClip,
-      dest: [x, y, w, h],                                           // slot in canonical coords
+      dest: [rx, ry, rw, rh],                                       // slot in canonical coords
       crop: [(-left / totalS) / dw, (-top / totalS) / dh,           // visible region, normalized
-             (w / totalS) / dw, (h / totalS) / dh],
+             (rw / totalS) / dw, (rh / totalS) / dh],
       // Sub-range within the clip's own file (board "Edit length" / web-fallback clips).
       // 0/0 or full-range → Swift uses the whole file, matching the old behaviour.
       start: isClip ? (item.start || 0) : 0,

@@ -200,6 +200,9 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
 
             let instruction = AVMutableVideoCompositionInstruction()
             instruction.timeRange = CMTimeRange(start: .zero, duration: totalDur)
+            // Render background = the board's bg colour (default is BLACK): any sub-pixel
+            // edge blending now fades into the background instead of a dark hairline.
+            instruction.backgroundColor = bgColor.cgColor
             instruction.layerInstructions = layerInstructions
 
             let videoComp = AVMutableVideoComposition()

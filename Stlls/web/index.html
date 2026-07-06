@@ -3222,9 +3222,9 @@
         </button>
       </div>
       <div class="bgp-body">
-        <div class="bgp-sec">Photo / Video</div>
+        <div class="bgp-sec">Photo</div>
         <div class="bgp-upload">
-          <button class="bgp-upload-btn" id="bgUploadBtn">Upload photo or video</button>
+          <button class="bgp-upload-btn" id="bgUploadBtn">Upload photo</button>
           <img class="bgp-thumb" id="bgThumb" hidden alt="">
           <button class="bgp-remove" id="bgRemoveBtn" hidden aria-label="Remove background media">×</button>
         </div>
@@ -3236,7 +3236,7 @@
         <div class="bgp-swatches" id="bgSwatches"></div>
       </div>
     </div>
-    <input type="file" id="bgFileInput" accept="image/*,video/*" hidden>
+    <input type="file" id="bgFileInput" accept="image/*" hidden>
 
     <!-- IMAGES -->
     <div class="ps" id="psImages">
@@ -7499,9 +7499,12 @@ document.getElementById('bgUploadBtn').addEventListener('click', () => { bgFileI
 bgFileInput.addEventListener('change', () => {
   const file = bgFileInput.files && bgFileInput.files[0];
   if (!file) return;
+  // Photos only for now (the video-bg render path stays dormant for later; the
+  // accept attribute already filters, this guards pickers that ignore it).
+  if (!file.type.startsWith('image/')) return;
   clearBgMedia(false);
   state.bgMedia = {
-    type: file.type.startsWith('video/') ? 'video' : 'image',
+    type: 'image',
     src: URL.createObjectURL(file), blob: file,
     blur: 8, opacity: 1,           // gentle defaults — tune with the sliders
   };

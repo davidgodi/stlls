@@ -1507,6 +1507,7 @@
 
   /* ── Video-clip controls (video boards) ── */
   #clipImportArea[hidden] { display: none; }
+  .clip-len-row[hidden] { display: none !important; }
   .clip-add-slim {
     width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
     padding: 9px; margin-bottom: 10px;
@@ -7872,6 +7873,7 @@ function applyBoardTypeUI() {
     clipImportArea.hidden  = false;         // auto-detect button + length (+ the + popup)
     const lenRow = document.querySelector('.clip-len-row');
     if (lenRow) lenRow.hidden = !hasClips();
+    if (lenRow && lenRow.hidden && typeof setClipLenOpen === 'function' && _clipLenOpen) setClipLenOpen(false);
   } else {
     importModeRow.hidden   = false;
     importSection.hidden   = false;
@@ -8478,7 +8480,7 @@ function updateClipAddBtnLabel() {
   const mSpan = manualBtn && manualBtn.querySelector('span');
   if (hasLibrary) {
     if (manualBtn) manualBtn.hidden = true;          // one consolidated button
-    if (aSpan) aSpan.textContent = 'Add more manually';
+    if (aSpan) aSpan.textContent = 'Add more from library';
   } else {
     if (manualBtn) manualBtn.hidden = false;
     if (aSpan) aSpan.textContent = 'Auto select';

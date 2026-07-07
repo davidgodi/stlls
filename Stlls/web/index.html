@@ -3336,63 +3336,10 @@
       <input type="file" id="clipSingleFileInput" accept="video/*" hidden>
       <input type="file" id="clipManualFileInput" accept="video/*" hidden>
 
-      <!-- Options menu for a strip item (positioned fixed next to the tapped ⋯ badge) -->
-      <div id="stripItemMenu" hidden>
-        <button class="sim-item" id="simEditLen">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
-          Edit length
-        </button>
-        <button class="sim-item danger" id="simDelete">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-          Delete
-        </button>
-      </div>
-      <!-- CANVAS RATIO CHOOSER — full window, blurred backdrop -->
-      <div id="ratioModal" class="big-modal" hidden>
-        <div class="bm-card">
-          <div class="bm-head">
-            <span class="bm-title">Canvas Ratio</span>
-            <button class="bm-close" data-bm-close>Close</button>
-          </div>
-          <div class="bm-body">
-            <div class="bm-grid" id="ratioPresetGrid"></div>
-            <div class="bm-sec">Custom</div>
-            <div class="rc-preview" id="rcPreview"><span id="rcArt"></span><b id="rcLabel">16:9</b></div>
-            <div class="rc-row">
-              <div class="rc-stepper">
-                <button class="rc-btn" id="rcWUp" aria-label="Width up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
-                <div class="rc-val" id="rcWVal">16</div>
-                <button class="rc-btn" id="rcWDn" aria-label="Width down"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
-              </div>
-              <div class="rc-sep">:</div>
-              <div class="rc-stepper">
-                <button class="rc-btn" id="rcHUp" aria-label="Height up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
-                <div class="rc-val" id="rcHVal">9</div>
-                <button class="rc-btn" id="rcHDn" aria-label="Height down"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
-              </div>
-            </div>
-            <div class="rc-actions">
-              <button class="rc-cancel" id="rcCancel">Cancel</button>
-              <button class="rc-accept" id="rcAccept">Accept</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- LAYOUT CHOOSER — premade layouts + saved custom layouts, full window -->
-      <div id="layoutModal" class="big-modal" hidden>
-        <div class="bm-card">
-          <div class="bm-head">
-            <span class="bm-title">Layouts</span>
-            <button class="bm-close" data-bm-close>Close</button>
-          </div>
-          <div class="bm-body">
-            <div class="bm-grid" id="layoutPresetGrid"></div>
-            <div class="bm-sec">Saved layouts</div>
-            <div class="bm-grid" id="layoutSavedGrid"></div>
-          </div>
-        </div>
-      </div>
+
+
+
 
       <!-- Stills strip — always below import area -->
       <div class="img-strip-outer">
@@ -3967,6 +3914,68 @@
     <div class="dc-btns">
       <button id="dbcCancel">Cancel</button>
       <button id="dbcYes" style="background:#ef4444;color:#fff;font-weight:600;">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Full-window overlays — MUST live at body level: inside the panel they
+     inherit the import area's collapsed state (opacity 0, pointer-events none)
+     and the choosers silently refuse to appear once a board has content. -->
+<!-- Options menu for a strip item (positioned fixed next to the tapped ⋯ badge) -->
+<div id="stripItemMenu" hidden>
+  <button class="sim-item" id="simEditLen">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>
+    Edit length
+  </button>
+  <button class="sim-item danger" id="simDelete">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+    Delete
+  </button>
+</div>
+
+<!-- CANVAS RATIO CHOOSER — full window, blurred backdrop -->
+<div id="ratioModal" class="big-modal" hidden>
+  <div class="bm-card">
+    <div class="bm-head">
+      <span class="bm-title">Canvas Ratio</span>
+      <button class="bm-close" data-bm-close>Close</button>
+    </div>
+    <div class="bm-body">
+      <div class="bm-grid" id="ratioPresetGrid"></div>
+      <div class="bm-sec">Custom</div>
+      <div class="rc-preview" id="rcPreview"><span id="rcArt"></span><b id="rcLabel">16:9</b></div>
+      <div class="rc-row">
+        <div class="rc-stepper">
+          <button class="rc-btn" id="rcWUp" aria-label="Width up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+          <div class="rc-val" id="rcWVal">16</div>
+          <button class="rc-btn" id="rcWDn" aria-label="Width down"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+        </div>
+        <div class="rc-sep">:</div>
+        <div class="rc-stepper">
+          <button class="rc-btn" id="rcHUp" aria-label="Height up"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+          <div class="rc-val" id="rcHVal">9</div>
+          <button class="rc-btn" id="rcHDn" aria-label="Height down"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+        </div>
+      </div>
+      <div class="rc-actions">
+        <button class="rc-cancel" id="rcCancel">Cancel</button>
+        <button class="rc-accept" id="rcAccept">Accept</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYOUT CHOOSER — premade layouts + saved custom layouts, full window -->
+<div id="layoutModal" class="big-modal" hidden>
+  <div class="bm-card">
+    <div class="bm-head">
+      <span class="bm-title">Layouts</span>
+      <button class="bm-close" data-bm-close>Close</button>
+    </div>
+    <div class="bm-body">
+      <div class="bm-grid" id="layoutPresetGrid"></div>
+      <div class="bm-sec">Saved layouts</div>
+      <div class="bm-grid" id="layoutSavedGrid"></div>
     </div>
   </div>
 </div>
@@ -10863,6 +10872,8 @@ let _exportCancelled = false;
 let _labelRaf = null;
 
 exportBarX.addEventListener('click', () => {
+  clearTimeout(_veWatchdog);
+  _videoExportBusy = false;
   _exportCancelled = true;
   _videoExportCancel = true;
   cancelAnimationFrame(_labelRaf);
@@ -11044,7 +11055,22 @@ async function doExport() {
   }, mime, qual);
 }
 
+// One export at a time + a watchdog: if the native side ever goes silent (dropped
+// message, wedged writer), the UI unwedges itself instead of needing an app relaunch.
+let _videoExportBusy = false;
+let _veWatchdog = null;
+function _armExportWatchdog(ms) {
+  clearTimeout(_veWatchdog);
+  _veWatchdog = setTimeout(() => {
+    _videoExportBusy = false;
+    window.exportComplete(false);   // show "Failed" and reset the bar…
+    _exportCancelled = true;        // …then swallow any LATE native callbacks
+  }, ms);
+}
+
 window.exportComplete = function(success) {
+  clearTimeout(_veWatchdog);
+  _videoExportBusy = false;
   if (_exportCancelled || _videoExportCancel) return;
   cancelAnimationFrame(_labelRaf);
 
@@ -11125,6 +11151,7 @@ function _imageToBase64(img) {
 // Progress callback from the native exporter (0..1 during compose+encode).
 window.exportProgress = function(p) {
   if (_exportCancelled || _videoExportCancel) return;
+  if (_videoExportBusy) _armExportWatchdog(45000);   // still alive — allow long encodes, catch stalls
   const pct = Math.max(30, Math.min(98, Math.round(30 + (+p || 0) * 68)));
   exportBarFill.style.transition = 'none';
   exportBarFill.style.width = pct + '%';
@@ -11134,15 +11161,40 @@ window.exportProgress = function(p) {
 // Native AVFoundation export: hand the layout geometry + each clip's bytes to Swift,
 // which builds an AVMutableComposition (each clip looped to fill the duration) and
 // composites each into its slot via crop+transform — a pre-rendered, stall-free loop.
+// Big changes leave async work in flight (loading placeholders, blob fetches, the bg
+// image decode). Exporting mid-flight produced missing clips or outright failures — so
+// wait for the board to settle first, showing "Preparing…" instead of failing.
+async function waitForBoardReady(maxMs) {
+  const pending = () =>
+    state.images.some(it => it.placeholder) ||
+    state.images.some(it => it.type === 'clip' && !it._blob && !it.emptySlot) ||
+    !!(state.bgMedia && (!_bgDrawEl || _bgDrawEl.dataset.src !== state.bgMedia.src ||
+        !(_bgDrawEl.naturalWidth || _bgDrawEl.videoWidth)));
+  const t0 = performance.now();
+  while (pending() && performance.now() - t0 < maxMs) {
+    exportBarLabel.textContent = 'Preparing…';
+    await new Promise(r => setTimeout(r, 250));
+    if (_videoExportCancel) return false;
+  }
+  return !pending();
+}
+
 async function doVideoExportNative() {
+  _videoExportBusy = true;
   _exportCancelled = false; _videoExportCancel = false;
-  const [W, H] = canonicalDims();
-  const duration = Math.max(1, state.clipDuration || 15);
-  const slots = getSlots(W, H);
 
   exportBar.hidden = false;
   exportBarFill.style.transition = 'none'; exportBarFill.style.width = '10%';
   exportBarLabel.textContent = 'Exporting…';
+
+  try {
+  // Let in-flight imports/edits finish so the payload is complete and consistent.
+  if (!(await waitForBoardReady(12000))) { window.exportComplete(false); return; }
+  if (_videoExportCancel) return;
+
+  const [W, H] = canonicalDims();
+  const duration = Math.max(1, state.clipDuration || 15);
+  const slots = getSlots(W, H);
 
   // Mixed board: clips become looping video tracks; stills are stamped as static frames.
   const clips = [];
@@ -11197,9 +11249,17 @@ async function doVideoExportNative() {
     clips,
   });
   // Swift drives window.exportProgress(...) then window.exportComplete(success).
+  // If it never speaks (dropped message / wedged writer), the watchdog fails the
+  // export cleanly so the next attempt can run — no relaunch needed.
+  _armExportWatchdog(30000);
+  } catch (e) {
+    console.warn('Video export failed to start:', e);
+    window.exportComplete(false);
+  }
 }
 
 async function doVideoExport() {
+  if (_videoExportBusy) return;          // an export is already running — never stack a second one
   if (!throttle('export', 3000)) return;
   if (!state.images.length) return;
   // Native compositor path (stall-free pre-rendered loop). Reverse: VIDEO_EXPORT_NATIVE=false.

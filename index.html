@@ -3958,7 +3958,7 @@
         </div>
       </div>
       <div class="rc-actions">
-        <button class="rc-cancel" id="rcCancel">Cancel</button>
+        <button class="rc-cancel" id="rcmCancel">Cancel</button>
         <button class="rc-accept" id="rcAccept">Accept</button>
       </div>
     </div>
@@ -7231,7 +7231,7 @@ rcAccept.addEventListener('click', () => {
   closeBigModal(ratioModal);
   applyChosenRatio([_rcW, _rcH]);
 });
-document.getElementById('rcCancel').addEventListener('click', () => closeBigModal(ratioModal));
+document.getElementById('rcmCancel').addEventListener('click', () => closeBigModal(ratioModal));
 
 function openRatioModal() {
   const cur = (state.ratio === 'custom' && state.customRatio) ? state.customRatio : null;
@@ -10692,6 +10692,11 @@ previewExpandBtn.addEventListener('click', () => {
     const d = computeBoardDims(state.ratio, state.customRatio);      // fit to the CURRENT preview area
     layoutPreview.style.width  = d.w + 'px';
     layoutPreview.style.height = d.h + 'px';
+    // Corner radius scales with board width — recompute it every frame so the rounding
+    // morphs in step with the resize instead of snapping (or sticking) at the end.
+    const radPx = (state.radius || 0) * (d.w / CANONICAL_W);
+    const slotR = state.gap > 0 ? radPx : 0;
+    layoutPreview.style.borderRadius = (state.gap === 0 && radPx > 0) ? radPx + 'px' : '';
     if (slots.length) {
       const ns = getSlots(d.w, d.h);
       // Match by item id (DOM slot order may differ from state order after a reorder).
@@ -10700,6 +10705,7 @@ previewExpandBtn.addEventListener('click', () => {
         const s = byId.get(sd.dataset.itemId); if (!s) return;
         sd.style.left = s.x + 'px'; sd.style.top = s.y + 'px';
         sd.style.width = s.w + 'px'; sd.style.height = s.h + 'px';
+        sd.style.borderRadius = slotR + 'px';
         const im = sd.querySelector('.slot-img');
         if (im) positionSlotImage(im, s.item, s.w, s.h);
       });

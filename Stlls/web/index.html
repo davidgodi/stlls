@@ -4803,7 +4803,9 @@ function serializeBoards(boards) {
     detection: (board.detection && board.detection.shots?.length &&
                 (board.detection.blob || board.detection.shots.some(sh => sh.blob))) ? {
       id:      board.detection.id || null,
-      shots:   board.detection.shots.map(sh => ({ ...sh, srcURL: undefined })),   // objURLs die across sessions
+      shots:   board.detection.shots
+                 .filter(sh => !(sh.srcURL && !sh.blob))                            // own-source entry without bytes can't restore
+                 .map(sh => { const c = { ...sh, srcURL: undefined }; delete c._blobFetch; return c; }),
       aspect:  board.detection.aspect || (9 / 16),
       srcBlob: board.detection.blob || null,
       mode:    board.detection.mode || 'auto',
@@ -8090,7 +8092,7 @@ function startFullVideoImport() {
     exportBar.hidden = false;
     exportBarFill.style.transition = 'none'; exportBarFill.style.width = '15%';
     exportBarLabel.textContent = 'Preparing…';
-    window.webkit.messageHandlers.requestFullClips.postMessage({ maxSeconds: 60 });
+    window.webkit.messageHandlers.requestFullClips.postMessage({ maxSeconds: 30 });
   } else {
     clipFullFileInput.value = '';
     clipFullFileInput.click();                         // web/desktop fallback
@@ -8111,6 +8113,8 @@ clipFullFileInput.addEventListener('change', async e => {
       const probe = await makeFullClipItem(URL.createObjectURL(f), f, f.name.replace(/\.[^.]+$/, ''));
       _appendLibraryShot({ thumb: probe.thumb, srcURL: probe.src, blob: probe._blob,
                            dur: probe.end, srcKey: probe.srcKey, vw: probe.videoW, vh: probe.videoH });
+      if (_fullAdded === 1) { updateClipAddBtnLabel(); reopenShotPicker(); }
+      if (!shotPicker.hidden) { _clipSelected.add(_clipShots.length - 1); renderShotGrid(); }
     } catch (e2) {}
     _fullDone++; _fullProgress();
   }
@@ -8145,10 +8149,10 @@ function _finishLibraryImport() {
   exportBar.hidden = true;
   if (!_fullAdded) return;
   updateClipAddBtnLabel();
-  reopenShotPicker();
-  // Preselect the freshly imported clips so a single tap adds them all.
+  if (shotPicker.hidden) reopenShotPicker();
+  // Ensure every freshly imported clip is preselected — one tap adds them all.
   const n = _clipShots.length;
-  _clipSelected = new Set(Array.from({ length: _fullAdded }, (_, k) => n - _fullAdded + k));
+  for (let k = n - _fullAdded; k < n; k++) _clipSelected.add(k);
   renderShotGrid();
 }
 
@@ -8161,26 +8165,45 @@ window.nativeFullClipsStart = function(count) {
   exportBarFill.style.transition = 'none'; exportBarFill.style.width = '5%';
   exportBarLabel.textContent = count === 1 ? 'Preparing…' : `Importing 0/${count}…`;
 };
-window.nativeFullClipReady = async function(payload) {
+window.nativeFullClipReady = function(payload) {
   if (!payload) return;
   const info = payload.clip;
-  if (!info || !info.webURL) { _fullDone++; _fullProgress(); return; }
+  _fullDone++;
+  if (!info || !info.webURL) { _fullProgress(); return; }
   if (_fullMode === 'single') {
     // One video picked → straight into the length trimmer, not the library.
     exportBar.hidden = true;
-    const { url, blob } = await toBlobObj(info.webURL);
-    openSingleTrimmer(url, { native: false, isObjURL: url.startsWith('blob:'), blob });
+    toBlobObj(info.webURL).then(({ url, blob }) =>
+      openSingleTrimmer(url, { native: false, isObjURL: url.startsWith('blob:'), blob }));
     return;
   }
-  try {
-    const { url, blob } = await toBlobObj(info.webURL);
-    const dur = info.duration || 5;
-    const srcKey = genId();
-    registerClipSource(srcKey, { url, blob, dur, w: info.width || 0, h: info.height || 0 });
-    _appendLibraryShot({ thumb: info.poster, srcURL: url, blob, dur, srcKey,
-                         vw: info.width, vh: info.height });
-  } catch (e) {}
-  _fullDone++; _fullProgress();
+  // Library: the entry appears IMMEDIATELY on its streaming URL (the trimmer plays it
+  // as-is). Its bytes download in the background — they're only needed when the clip
+  // is added to the board or the project is saved. Appending synchronously also means
+  // the Done callback can never race a fetch and drop entries from the first render.
+  const dur = info.duration || 5;
+  const srcKey = genId();
+  if (!_clipDetId) _clipDetId = genId();
+  const sh = { start: 0, end: dur, dur, thumb: info.poster || '',
+               srcURL: info.webURL, blob: null, srcDur: dur, srcKey,
+               vw: info.width || 0, vh: info.height || 0 };
+  registerClipSource(srcKey, { url: info.webURL, dur, w: sh.vw, h: sh.vh });
+  sh._blobFetch = toBlobObj(info.webURL).then(({ url, blob }) => {
+    if (!blob) return;
+    sh.blob = blob;
+    sh.srcURL = url;                       // durable object URL from here on
+    registerClipSource(srcKey, { blob });
+  }).catch(() => {});
+  _clipShots.push(sh);
+  _fullAdded++;
+  _fullProgress();
+  // Progressive: the library opens on the FIRST clip; the rest stream into the grid.
+  if (_fullAdded === 1) { updateClipAddBtnLabel(); reopenShotPicker(); }
+  if (!shotPicker.hidden) {
+    renderShotGrid();
+    _clipSelected.add(_clipShots.length - 1);   // preselect as they arrive
+    renderShotGrid();
+  }
 };
 window.nativeFullClipsDone = function() {
   if (_fullMode === 'library') _finishLibraryImport();
@@ -9467,6 +9490,22 @@ window.nativeVideoClipsReady = function(payload) {
 
 async function addSelectedClips() {
   const idxs = [..._clipSelected].sort((a, b) => a - b);
+
+  // Own-source entries may still be downloading their bytes in the background — wait
+  // for the selected ones (usually already done), and retry any that failed outright.
+  const pendingOwn = idxs.map(i => _clipShots[i]).filter(sh => sh.srcURL && !sh.blob);
+  if (pendingOwn.length) {
+    spStatus.hidden = false; spGrid.hidden = true;
+    spStatusText.textContent = 'Preparing…';
+    await Promise.allSettled(pendingOwn.map(sh => sh._blobFetch || Promise.resolve()));
+    for (const sh of pendingOwn) {
+      if (sh.blob) continue;
+      try {
+        const { url, blob } = await toBlobObj(sh.srcURL);
+        if (blob) { sh.blob = blob; sh.srcURL = url; registerClipSource(sh.srcKey, { blob }); }
+      } catch (e) {}
+    }
+  }
 
   // Build the playback source for each selected shot.
   // Own-source entries (multi-video imports) already carry their file — use it directly.

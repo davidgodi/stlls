@@ -4800,11 +4800,12 @@ function serializeBoards(boards) {
     sources: collectClipSources(board.images),
     // Analysed-video context: lets the shot picker reopen after the app is closed
     // (the source bytes + detected shots) without re-picking a video.
-    detection: (board.detection && board.detection.blob && board.detection.shots?.length) ? {
+    detection: (board.detection && board.detection.shots?.length &&
+                (board.detection.blob || board.detection.shots.some(sh => sh.blob))) ? {
       id:      board.detection.id || null,
-      shots:   board.detection.shots,
+      shots:   board.detection.shots.map(sh => ({ ...sh, srcURL: undefined })),   // objURLs die across sessions
       aspect:  board.detection.aspect || (9 / 16),
-      srcBlob: board.detection.blob,
+      srcBlob: board.detection.blob || null,
       mode:    board.detection.mode || 'auto',
     } : null,
   }));
@@ -4869,11 +4870,12 @@ async function deserializeBoards(savedBoards) {
                         ? { ...board.bgMedia, src: URL.createObjectURL(board.bgMedia.blob) } : null,
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
-      detection: (board.detection && board.detection.srcBlob && board.detection.shots?.length) ? {
+      detection: (board.detection && board.detection.shots?.length &&
+                  (board.detection.srcBlob || board.detection.shots.some(sh => sh.blob))) ? {
         id:     board.detection.id || null,
         shots:  board.detection.shots,
         aspect: board.detection.aspect || (9 / 16),
-        blob:   board.detection.srcBlob,
+        blob:   board.detection.srcBlob || null,
         mode:   board.detection.mode || 'auto',
       } : null,
       images,
@@ -5052,11 +5054,12 @@ function saveCurrentBoardSnapshot() {
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
     // Persist the analysed-video context (source bytes + shots) so the picker reopens.
-    detection: (state.boardType === 'video' && _clipShots.length && _clipSrcBlob) ? {
+    detection: (state.boardType === 'video' && _clipShots.length &&
+                (_clipSrcBlob || _clipShots.some(sh => sh.blob))) ? {
       id:     _clipDetId,
       shots:  _clipShots,
       aspect: _clipAspect,
-      blob:   _clipSrcBlob,
+      blob:   _clipSrcBlob,          // may be null when every entry has its own source
       mode:   _detectMode,
     } : (_projectBoards[_activeBoardIdx]?.detection || null),
   };
@@ -5162,19 +5165,28 @@ function loadBoardState(board) {
   // Restore analysed-video context so "Add more from video" reopens the shot picker
   // without re-picking. The native source key is gone after a restart, so we play/trim
   // from the saved bytes via the web path (object URL).
-  if (board.detection && board.detection.blob && board.detection.shots?.length) {
-    _clipSrcBlob     = board.detection.blob;
-    _clipSrcURL      = URL.createObjectURL(board.detection.blob);
-    _clipSrcIsObjURL = true;
+  if (board.detection && board.detection.shots?.length &&
+      (board.detection.blob || board.detection.shots.some(sh => sh.blob))) {
+    _clipSrcBlob     = board.detection.blob || null;
+    _clipSrcURL      = board.detection.blob ? URL.createObjectURL(board.detection.blob) : null;
+    _clipSrcIsObjURL = !!board.detection.blob;
     _clipNative      = false;
     _clipSourceKey   = null;
     _clipShots       = board.detection.shots;
     _clipAspect      = board.detection.aspect || (9 / 16);
     _clipDetId       = board.detection.id || null;
     _detectMode      = board.detection.mode || 'auto';
+    // Own-source library entries: object URLs die across sessions — rebuild them from
+    // the persisted blobs and re-register each source for the length editor.
+    _clipShots.forEach(sh => {
+      if (!sh.blob) return;
+      sh.srcURL = URL.createObjectURL(sh.blob);
+      if (sh.srcKey) registerClipSource(sh.srcKey, { url: sh.srcURL, blob: sh.blob,
+        dur: sh.srcDur || sh.dur || 0, w: sh.vw || 0, h: sh.vh || 0 });
+    });
     // Fallback for boards saved with a detection blob but no explicit sources[] entry —
     // make that source available to the length editor too (metadata filled in lazily).
-    if (_clipDetId && !_clipSources.has(_clipDetId)) registerClipSource(_clipDetId, { blob: board.detection.blob });
+    if (_clipDetId && board.detection.blob && !_clipSources.has(_clipDetId)) registerClipSource(_clipDetId, { blob: board.detection.blob });
     updateClipAddBtnLabel();
   } else {
     _detectMode = 'auto';
@@ -6765,7 +6777,7 @@ document.getElementById('addChoiceStills').addEventListener('click', () => {
 });
 document.getElementById('addChoiceClips').addEventListener('click', () => {
   closeAddChoice();
-  startSingleClipImport();
+  startFullVideoImport();   // multi-select: 1 video → straight to the length trimmer, N → clip library
 });
 document.addEventListener('click', e => {
   if (addChoicePopup.hidden) return;
@@ -7975,7 +7987,7 @@ function reopenShotPicker() {
 // single "Add more manually" button — it just reopens the existing shot-pick library so the
 // user can add more (via the "+ Add clips" tile) without resetting what's already there.
 document.getElementById('clipAddBtn').addEventListener('click', () => {
-  if (_clipShots.length > 0 && _clipSrcURL) reopenShotPicker();
+  if (_clipShots.length > 0 && (_clipSrcURL || _clipShots.some(s => s.srcURL))) reopenShotPicker();
   else startClipImport();
 });
 
@@ -8078,96 +8090,102 @@ function startFullVideoImport() {
     exportBar.hidden = false;
     exportBarFill.style.transition = 'none'; exportBarFill.style.width = '15%';
     exportBarLabel.textContent = 'Preparing…';
-    window.webkit.messageHandlers.requestFullClips.postMessage(null);
+    window.webkit.messageHandlers.requestFullClips.postMessage({ maxSeconds: 60 });
   } else {
     clipFullFileInput.value = '';
     clipFullFileInput.click();                         // web/desktop fallback
   }
 }
 
-// Web/desktop fallback — process the picked files one by one so slots fill in live.
+// Web/desktop fallback — same routing as native: 1 video → trimmer, N → library.
 clipFullFileInput.addEventListener('change', async e => {
   const files = [...(e.target.files || [])].filter(f => f.type.startsWith('video/'));
   if (!files.length) return;
-  beginFullImport(files.length);
-  for (let i = 0; i < files.length; i++) {
-    let item = null;
-    try { item = await makeFullClipItem(URL.createObjectURL(files[i]), files[i], files[i].name.replace(/\.[^.]+$/, '')); } catch (e2) {}
-    fillFullImportSlot(i, item);
+  if (files.length === 1) {
+    openSingleTrimmer(URL.createObjectURL(files[0]), { native: false, isObjURL: true, blob: files[0] });
+    return;
   }
-  endFullImport();
+  window.nativeFullClipsStart(files.length);
+  for (const f of files) {
+    try {
+      const probe = await makeFullClipItem(URL.createObjectURL(f), f, f.name.replace(/\.[^.]+$/, ''));
+      _appendLibraryShot({ thumb: probe.thumb, srcURL: probe.src, blob: probe._blob,
+                           dur: probe.end, srcKey: probe.srcKey, vw: probe.videoW, vh: probe.videoH });
+    } catch (e2) {}
+    _fullDone++; _fullProgress();
+  }
+  window.nativeFullClipsDone();
 });
 
-// ── Progressive multi-clip import ───────────────────────────────────────────
-// Build N loading slots immediately, then fill each as its clip becomes ready, so
-// the user sees the board take shape during a slow multi-clip import.
-let _fullImportIds = [];
-let _fullImportTotal = 0, _fullImportDone = 0;
+// ── Multi-video import → CLIP LIBRARY ───────────────────────────────────────
+// Picked videos become library entries (each with its OWN source, trimmable to any
+// length up to the proxy cap) rather than landing straight on the board. A single
+// picked video skips the library and opens the length trimmer directly.
+let _fullMode = null;                 // 'single' | 'library'
+let _fullTotal = 0, _fullDone = 0, _fullAdded = 0;
 
-function beginFullImport(count) {
-  _fullImportTotal = count; _fullImportDone = 0; _fullImportIds = [];
-  if (!count) return;
-  exportBar.hidden = false;
-  exportBarFill.style.transition = 'none'; exportBarFill.style.width = '5%';
-  exportBarLabel.textContent = `Importing 0/${count}…`;
-  pushHistory();
-  for (let k = 0; k < count; k++) {
-    const id = Date.now() + Math.random() + k;
-    _fullImportIds.push(id);
-    insertBoardItem({ id, placeholder: true, transforms: {} });
-  }
-  ensureMediaBarOpen();
-  renderList(); applyBoardTypeUI(); buildLayout();
+function _fullProgress() {
+  if (_fullMode !== 'library' || !_fullTotal) return;
+  exportBarFill.style.width = Math.round(5 + (_fullDone / _fullTotal) * 90) + '%';
+  exportBarLabel.textContent = `Importing ${_fullDone}/${_fullTotal}…`;
 }
 
-function fillFullImportSlot(index, item) {
-  const id = _fullImportIds[index];
-  if (id == null) return;
-  const i = state.images.findIndex(it => it.id === id);
-  if (i >= 0) {
-    if (item) { item.id = id; state.images[i] = item; }   // keep slot id so it reconciles in place
-    else { removeBoardItem(i); }                          // this clip failed — preset boards reopen the frame
-  }
-  _fullImportIds[index] = item ? id : null;
-  _fullImportDone++;
-  if (_fullImportTotal) {
-    exportBarFill.style.width = Math.round(5 + (_fullImportDone / _fullImportTotal) * 90) + '%';
-    exportBarLabel.textContent = `Importing ${_fullImportDone}/${_fullImportTotal}…`;
-  }
-  renderList(); buildLayout();
-  if (state.images.length) exportBtn.disabled = false;
+// Append one own-source entry to the clip library (shared by native + web paths).
+function _appendLibraryShot({ thumb, srcURL, blob, dur, srcKey, vw, vh }) {
+  if (!_clipDetId) _clipDetId = genId();
+  _clipShots.push({
+    start: 0, end: dur, dur, thumb: thumb || '',
+    srcURL, blob: blob || null, srcDur: dur, srcKey,
+    vw: vw || 0, vh: vh || 0,
+  });
+  _fullAdded++;
 }
 
-function endFullImport() {
-  state.images = state.presetLayout
-    ? state.images.map(it => it.placeholder ? { id: genId(), emptySlot: true, transforms: {} } : it)
-    : state.images.filter(it => !it.placeholder);   // drop any that failed (preset boards keep the frames)
-  _fullImportIds = []; _fullImportTotal = 0;
-  exportBarFill.style.transition = 'width 0.3s ease'; exportBarFill.style.width = '100%';
-  exportBarLabel.textContent = 'Added';
-  setTimeout(() => { exportBar.hidden = true; exportBarFill.style.transition = 'none'; exportBarFill.style.width = '0%'; }, 800);
-  renderList(); applyBoardTypeUI(); buildLayout();
+function _finishLibraryImport() {
+  exportBar.hidden = true;
+  if (!_fullAdded) return;
+  updateClipAddBtnLabel();
+  reopenShotPicker();
+  // Preselect the freshly imported clips so a single tap adds them all.
+  const n = _clipShots.length;
+  _clipSelected = new Set(Array.from({ length: _fullAdded }, (_, k) => n - _fullAdded + k));
+  renderShotGrid();
 }
 
 // Native streaming callbacks: count first, then each clip as its proxy finishes.
 window.nativeFullClipsStart = function(count) {
-  if (!count) { exportBar.hidden = true; return; }
-  beginFullImport(count);
+  if (!count) { exportBar.hidden = true; _fullMode = null; return; }
+  _fullMode = count === 1 ? 'single' : 'library';
+  _fullTotal = count; _fullDone = 0; _fullAdded = 0;
+  exportBar.hidden = false;
+  exportBarFill.style.transition = 'none'; exportBarFill.style.width = '5%';
+  exportBarLabel.textContent = count === 1 ? 'Preparing…' : `Importing 0/${count}…`;
 };
 window.nativeFullClipReady = async function(payload) {
   if (!payload) return;
   const info = payload.clip;
-  let item = null;
-  if (info && info.webURL) {
-    try {
-      const { url, blob } = await toBlobObj(info.webURL);
-      item = await buildClipFromMeta({ src: url, blob, name: info.fileName,
-        poster: info.poster, duration: info.duration, width: info.width, height: info.height });
-    } catch (e) { item = null; }
+  if (!info || !info.webURL) { _fullDone++; _fullProgress(); return; }
+  if (_fullMode === 'single') {
+    // One video picked → straight into the length trimmer, not the library.
+    exportBar.hidden = true;
+    const { url, blob } = await toBlobObj(info.webURL);
+    openSingleTrimmer(url, { native: false, isObjURL: url.startsWith('blob:'), blob });
+    return;
   }
-  fillFullImportSlot(payload.index, item);
+  try {
+    const { url, blob } = await toBlobObj(info.webURL);
+    const dur = info.duration || 5;
+    const srcKey = genId();
+    registerClipSource(srcKey, { url, blob, dur, w: info.width || 0, h: info.height || 0 });
+    _appendLibraryShot({ thumb: info.poster, srcURL: url, blob, dur, srcKey,
+                         vw: info.width, vh: info.height });
+  } catch (e) {}
+  _fullDone++; _fullProgress();
 };
-window.nativeFullClipsDone = function() { endFullImport(); };
+window.nativeFullClipsDone = function() {
+  if (_fullMode === 'library') _finishLibraryImport();
+  _fullMode = null;
+};
 
 // Build a clip item from native-supplied metadata — no video element opened.
 async function buildClipFromMeta(it) {
@@ -8386,7 +8404,7 @@ function addedShotIndices() {
 // exists for this video, collapse to ONE button that reopens it — both old buttons did the
 // same thing at that point, and Manual used to wrongly reset the library.
 function updateClipAddBtnLabel() {
-  const hasLibrary = _clipShots.length > 0 && _clipSrcURL;
+  const hasLibrary = _clipShots.length > 0 && (_clipSrcURL || _clipShots.some(s => s.srcURL));
   const autoBtn   = document.getElementById('clipAddBtn');
   const manualBtn = document.getElementById('clipManualBtn');
   const aSpan = autoBtn && autoBtn.querySelector('span');
@@ -8406,6 +8424,9 @@ function updateClipAddBtnLabel() {
 function discardDetectedShots() {
   if (_clipSrcIsObjURL && _clipSrcURL) { try { URL.revokeObjectURL(_clipSrcURL); } catch (e) {} }
   else if (_clipSourceKey) nativeRelease(_clipSourceKey);
+  _clipShots.forEach(sh => {
+    if (sh.srcURL && sh.srcURL.startsWith('blob:')) { try { URL.revokeObjectURL(sh.srcURL); } catch (e) {} }
+  });
   _clipSrcURL = null; _clipSrcIsObjURL = false; _clipSourceKey = null; _clipNative = false;
   _clipShots = []; _clipSelected = new Set();
   _clipSrcBlob = null; _clipDetId = null;
@@ -8801,11 +8822,12 @@ const CT_PLAY_SVG  = '<svg width="12" height="14" viewBox="0 0 12 14" fill="curr
 const CT_PAUSE_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18" rx="1"/><rect x="15" y="3" width="4" height="18" rx="1"/></svg>';
 
 async function openClipTrimmer(i) {
-  if (!_clipSrcURL || !_clipShots[i]) return;
+  const shot = _clipShots[i];
+  const srcURL = (shot && shot.srcURL) || _clipSrcURL;   // own-source entry, or the shared analysed video
+  if (!srcURL || !shot) return;
   _ctMode = 'shot';
   _ctIdx = i;
-  const shot = _clipShots[i];
-  ctEl.video.src = _clipSrcURL;
+  ctEl.video.src = srcURL;
   await new Promise(res => {
     if (ctEl.video.readyState >= 1) return res();
     ctEl.video.addEventListener('loadedmetadata', res, { once: true });
@@ -8813,9 +8835,11 @@ async function openClipTrimmer(i) {
     setTimeout(res, 2000);
   });
   _ctVidDur = (isFinite(ctEl.video.duration) && ctEl.video.duration) || (shot.end + 1);
-  const PAD = 1.0;   // 1s handle on each side
-  _ctWinA = Math.max(0, shot.start - PAD);
-  _ctWinB = Math.min(_ctVidDur, shot.end + PAD);
+  const own = !!shot.srcURL;
+  if (own) shot.srcDur = _ctVidDur;                      // authoritative length of its own file
+  const PAD = 1.0;   // 1s handle on each side (shared source); own files adjust end to end
+  _ctWinA = own ? 0 : Math.max(0, shot.start - PAD);
+  _ctWinB = own ? _ctVidDur : Math.min(_ctVidDur, shot.end + PAD);
   _ctIn = shot.start; _ctOut = shot.end;
   if (ctEl.title) ctEl.title.textContent = 'Adjust Clip';
   if (ctEl.hint)  ctEl.hint.hidden = true;
@@ -9445,13 +9469,22 @@ async function addSelectedClips() {
   const idxs = [..._clipSelected].sort((a, b) => a - b);
 
   // Build the playback source for each selected shot.
-  // Native: trim each shot into its own clip → instant, seamless native loop.
-  // Web fallback: share the source URL and loop the sub-range via JS.
-  let sources;
-  if (_clipNative && _clipSourceKey) {
+  // Own-source entries (multi-video imports) already carry their file — use it directly.
+  // Shared-source shots: native trims each range into its own clip; web fallback loops
+  // the sub-range of the shared source via JS.
+  const byIdx = {};
+  idxs.forEach(i => {
+    const sh = _clipShots[i];
+    if (!sh.srcURL) return;
+    const full = sh.start <= 0.01 && sh.end >= (sh.srcDur || sh.end) - 0.05;
+    byIdx[i] = { src: sh.srcURL, blob: sh.blob || null, start: sh.start, end: sh.end,
+                 nativeLoop: full, srcKey: sh.srcKey };
+  });
+  const sharedIdx = idxs.filter(i => !_clipShots[i].srcURL);
+  if (sharedIdx.length && _clipNative && _clipSourceKey) {
     spStatus.hidden = false; spGrid.hidden = true;
-    spStatusText.textContent = `Preparing ${idxs.length} clip${idxs.length !== 1 ? 's' : ''}…`;
-    const ranges = idxs.map(i => [_clipShots[i].start, _clipShots[i].end]);
+    spStatusText.textContent = `Preparing ${sharedIdx.length} clip${sharedIdx.length !== 1 ? 's' : ''}…`;
+    const ranges = sharedIdx.map(i => [_clipShots[i].start, _clipShots[i].end]);
     const clips = await new Promise(resolve => {
       _pendingClips = resolve;
       window.webkit.messageHandlers.requestVideoClips.postMessage({ key: _clipSourceKey, ranges });
@@ -9461,17 +9494,20 @@ async function addSelectedClips() {
       setTimeout(closeShotPicker, 1300); return;
     }
     // Pull each tiny trimmed clip fully into memory (blob): seamless looping + savable.
-    sources = await Promise.all(clips.map(async c => {
+    await Promise.all(clips.map(async (c, j) => {
       const { url, blob } = await toBlobObj(c.webURL);
-      return { src: url, blob, start: 0, end: c.dur || 0, nativeLoop: true };
+      byIdx[sharedIdx[j]] = { src: url, blob, start: 0, end: c.dur || 0, nativeLoop: true };
     }));
-  } else {
+  } else if (sharedIdx.length) {
     // Web fallback (desktop testing): clips share the one source; grab its bytes once
     // so the board can still be saved/reloaded.
     let srcBlob = null;
     try { const r = await fetch(_clipSrcURL); if (r.ok) srcBlob = await r.blob(); } catch (e) {}
-    sources = idxs.map(i => ({ src: _clipSrcURL, blob: srcBlob, start: _clipShots[i].start, end: _clipShots[i].end, nativeLoop: false }));
+    sharedIdx.forEach(i => {
+      byIdx[i] = { src: _clipSrcURL, blob: srcBlob, start: _clipShots[i].start, end: _clipShots[i].end, nativeLoop: false };
+    });
   }
+  const sources = idxs.map(i => byIdx[i]);
 
   pushHistory();
   for (let j = 0; j < idxs.length; j++) {
@@ -9493,7 +9529,7 @@ async function addSelectedClips() {
       _shotIdx: i,               // which detected shot this is (frees it again on delete)
       _shotSrc: _clipSrcURL,     // of which analysed video (this session)
       _shotDetId: _clipDetId,    // stable detection id — matches the shot after reopen
-      srcKey: _clipDetId,        // full-source key for "Edit length" (lengthen toward whole video)
+      srcKey: s.srcKey || _clipDetId,   // full-source key for "Edit length" (own file, or the analysed video)
       srcStart: shot.start,      // this clip's window within the full source
       srcEnd: shot.end,
       videoW: poster.naturalWidth,

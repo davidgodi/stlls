@@ -595,6 +595,7 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     // When true, the next pick allows MULTIPLE videos and each whole video becomes a
     // clip (no shot analysis). Reset to false as soon as a pick is handled.
     private var fullClipsMode = false
+    private var fullClipsMaxSeconds: Double = 10
 
     // MARK: Message routing
 
@@ -608,7 +609,13 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         case "requestVideoProxy":
             DispatchQueue.main.async { self.proxyMode = true; self.fullClipsMode = false; self.presentVideoPicker() }
         case "requestFullClips":
-            DispatchQueue.main.async { self.fullClipsMode = true; self.proxyMode = false; self.presentVideoPicker() }
+            // Optional maxSeconds: the clip-library flow wants a longer trimmable window
+            // than the 10s whole-clip default.
+            let maxS = ((message.body as? [String: Any])?["maxSeconds"] as? NSNumber)?.doubleValue ?? 10
+            DispatchQueue.main.async {
+                self.fullClipsMaxSeconds = max(1, min(maxS, 120))
+                self.fullClipsMode = true; self.proxyMode = false; self.presentVideoPicker()
+            }
         case "requestVideoClips":
             guard let body = message.body as? [String: Any] else { return }
             DispatchQueue.main.async { self.trimClips(body) }
@@ -965,7 +972,8 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
             catch { do { try FileManager.default.copyItem(at: url, to: dest) }
                     catch { self.sendFullClip(index, nil); next(); return } }
             let fileName = url.deletingPathExtension().lastPathComponent
-            self.exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName) { info in
+            self.exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName,
+                                 maxSeconds: self.fullClipsMaxSeconds) { info in
                 self.sendFullClip(index, info)   // stream this clip in, then start the next
                 next()
             }
@@ -1004,7 +1012,8 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         do { try FileManager.default.copyItem(at: src, to: dest) }
         catch { sendFullClip(index, nil); next(); return }
         let fileName = src.deletingPathExtension().lastPathComponent
-        exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName) { [weak self] info in
+        exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName,
+                        maxSeconds: fullClipsMaxSeconds) { [weak self] info in
             self?.sendFullClip(index, info)
             next()
         }
@@ -1037,12 +1046,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
 
     private func exportFullProxy(asset: AVURLAsset, source: URL, fileName: String,
                                  preset: String = AVAssetExportPreset960x540, retriesLeft: Int = 1,
+                                 maxSeconds: Double = 10,
                                  completion: @escaping ([String: Any]?) -> Void) {
         guard let export = AVAssetExportSession(asset: asset, presetName: preset) else {
             // Can't even build this preset → last-resort passthrough, else give up.
             if preset != AVAssetExportPresetPassthrough {
                 exportFullProxy(asset: asset, source: source, fileName: fileName,
-                                preset: AVAssetExportPresetPassthrough, retriesLeft: 0, completion: completion)
+                                preset: AVAssetExportPresetPassthrough, retriesLeft: 0,
+                                maxSeconds: maxSeconds, completion: completion)
             } else { cleanupTemp(source); completion(nil) }
             return
         }
@@ -1051,12 +1062,11 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         export.outputURL = outURL
         export.outputFileType = .mp4
         export.shouldOptimizeForNetworkUse = true
-        // Cap whole-video clips to the first 10s — also makes the transcode far faster on
-        // long iPhone clips (only 10s is decoded/encoded). Works on passthrough too.
-        let maxClipSeconds = 10.0
-        if asset.duration.seconds > maxClipSeconds {
+        // Cap the proxy length (default 10s; the clip-library flow asks for more so the
+        // user has a real trimming window). Also keeps long-iPhone-clip transcodes fast.
+        if asset.duration.seconds > maxSeconds {
             export.timeRange = CMTimeRange(start: .zero,
-                                           duration: CMTime(seconds: maxClipSeconds, preferredTimescale: 600))
+                                           duration: CMTime(seconds: maxSeconds, preferredTimescale: 600))
         }
         // 960x540 orients + downscales every normal input. One export runs at a time
         // (sequential) with a retry; if it still fails (e.g. an HDR/Dolby-Vision clip the
@@ -1069,11 +1079,13 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                 if retriesLeft > 0 {
                     DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.6) {
                         self.exportFullProxy(asset: asset, source: source, fileName: fileName,
-                                             preset: preset, retriesLeft: retriesLeft - 1, completion: completion)
+                                             preset: preset, retriesLeft: retriesLeft - 1,
+                                             maxSeconds: maxSeconds, completion: completion)
                     }
                 } else if preset != AVAssetExportPresetPassthrough {
                     self.exportFullProxy(asset: asset, source: source, fileName: fileName,
-                                         preset: AVAssetExportPresetPassthrough, retriesLeft: 0, completion: completion)
+                                         preset: AVAssetExportPresetPassthrough, retriesLeft: 0,
+                                         maxSeconds: maxSeconds, completion: completion)
                 } else {
                     self.cleanupTemp(source); completion(nil)
                 }

@@ -1829,6 +1829,12 @@
   }
   .sp-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .sp-shot.selected { border-color: var(--accent); }
+  /* Skeleton frame for a video still importing — dashed outline + soft spinner */
+  .sp-shot.sp-loading {
+    border: 1.5px dashed var(--border2); background: var(--surface2);
+    display: flex; align-items: center; justify-content: center; cursor: default;
+  }
+  .sp-shot.sp-loading .ms-load-ring { transform: scale(0.7); opacity: 0.6; }
   .sp-shot-dur {
     position: absolute; left: 6px; bottom: 6px;
     background: rgba(0,0,0,0.6); color: #fff; font-size: 10px;
@@ -8111,12 +8117,12 @@ clipFullFileInput.addEventListener('change', async e => {
   for (const f of files) {
     try {
       const probe = await makeFullClipItem(URL.createObjectURL(f), f, f.name.replace(/\.[^.]+$/, ''));
+      _fullLoading = Math.max(0, _fullLoading - 1);
       _appendLibraryShot({ thumb: probe.thumb, srcURL: probe.src, blob: probe._blob,
                            dur: probe.end, srcKey: probe.srcKey, vw: probe.videoW, vh: probe.videoH });
-      if (_fullAdded === 1) { updateClipAddBtnLabel(); reopenShotPicker(); }
       if (!shotPicker.hidden) { _clipSelected.add(_clipShots.length - 1); renderShotGrid(); }
-    } catch (e2) {}
-    _fullDone++; _fullProgress();
+    } catch (e2) { _fullLoading = Math.max(0, _fullLoading - 1); if (!shotPicker.hidden) renderShotGrid(); }
+    _fullDone++;
   }
   window.nativeFullClipsDone();
 });
@@ -8127,12 +8133,9 @@ clipFullFileInput.addEventListener('change', async e => {
 // picked video skips the library and opens the length trimmer directly.
 let _fullMode = null;                 // 'single' | 'library'
 let _fullTotal = 0, _fullDone = 0, _fullAdded = 0;
+let _fullLoading = 0;                 // skeleton frames still expected in the library grid
 
-function _fullProgress() {
-  if (_fullMode !== 'library' || !_fullTotal) return;
-  exportBarFill.style.width = Math.round(5 + (_fullDone / _fullTotal) * 90) + '%';
-  exportBarLabel.textContent = `Importing ${_fullDone}/${_fullTotal}…`;
-}
+function _fullProgress() { /* library shows skeleton frames in the grid, not the board bar */ }
 
 // Append one own-source entry to the clip library (shared by native + web paths).
 function _appendLibraryShot({ thumb, srcURL, blob, dur, srcKey, vw, vh }) {
@@ -8161,15 +8164,29 @@ window.nativeFullClipsStart = function(count) {
   if (!count) { exportBar.hidden = true; _fullMode = null; return; }
   _fullMode = count === 1 ? 'single' : 'library';
   _fullTotal = count; _fullDone = 0; _fullAdded = 0;
-  exportBar.hidden = false;
-  exportBarFill.style.transition = 'none'; exportBarFill.style.width = '5%';
-  exportBarLabel.textContent = count === 1 ? 'Preparing…' : `Importing 0/${count}…`;
+  if (_fullMode === 'single') {
+    exportBar.hidden = false;
+    exportBarFill.style.transition = 'none'; exportBarFill.style.width = '5%';
+    exportBarLabel.textContent = 'Preparing…';
+    return;
+  }
+  // Library: open the picker RIGHT AWAY with a skeleton frame per incoming video —
+  // the grid fills in live, so there's no progress bar over the board workspace.
+  exportBar.hidden = true;
+  _fullLoading = count;
+  if (!_clipDetId) _clipDetId = genId();
+  updateClipAddBtnLabel();
+  reopenShotPicker();
 };
 window.nativeFullClipReady = function(payload) {
   if (!payload) return;
   const info = payload.clip;
   _fullDone++;
-  if (!info || !info.webURL) { _fullProgress(); return; }
+  if (!info || !info.webURL) {                       // this video failed to import
+    _fullLoading = Math.max(0, _fullLoading - 1);    // its skeleton frame goes away
+    if (!shotPicker.hidden) renderShotGrid();
+    return;
+  }
   if (_fullMode === 'single') {
     // One video picked → straight into the length trimmer, not the library.
     exportBar.hidden = true;
@@ -8194,18 +8211,16 @@ window.nativeFullClipReady = function(payload) {
     sh.srcURL = url;                       // durable object URL from here on
     registerClipSource(srcKey, { blob });
   }).catch(() => {});
+  _fullLoading = Math.max(0, _fullLoading - 1);   // this entry replaces its skeleton frame
   _clipShots.push(sh);
   _fullAdded++;
-  _fullProgress();
-  // Progressive: the library opens on the FIRST clip; the rest stream into the grid.
-  if (_fullAdded === 1) { updateClipAddBtnLabel(); reopenShotPicker(); }
   if (!shotPicker.hidden) {
-    renderShotGrid();
-    _clipSelected.add(_clipShots.length - 1);   // preselect as they arrive
+    _clipSelected.add(_clipShots.length - 1);     // preselect as they arrive
     renderShotGrid();
   }
 };
 window.nativeFullClipsDone = function() {
+  _fullLoading = 0;                                // drop any leftover skeleton frames
   if (_fullMode === 'library') _finishLibraryImport();
   _fullMode = null;
 };
@@ -8454,6 +8469,7 @@ function discardDetectedShots() {
   _clipShots = []; _clipSelected = new Set();
   _clipSrcBlob = null; _clipDetId = null;
   _manualClips = [];
+  _fullLoading = 0;
   updateClipAddBtnLabel();
 }
 
@@ -8792,6 +8808,13 @@ function renderShotGrid() {
     tile.addEventListener('touchmove',  () => clearTimeout(lpTimer));
     spGrid.appendChild(tile);
   });
+  // Skeleton frames for videos still importing — they fill in live as each one lands.
+  for (let k = 0; k < _fullLoading; k++) {
+    const ph = document.createElement('div');
+    ph.className = 'sp-shot sp-loading';
+    ph.innerHTML = '<div class="ms-load-ring"></div>';
+    spGrid.appendChild(ph);
+  }
   // A tile to open the trimmer and hand-pick more clips from the same video — available for
   // both manual selection AND auto detection (so a poor auto result can be topped up).
   if (_clipSrcURL) {

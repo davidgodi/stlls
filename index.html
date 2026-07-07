@@ -5687,7 +5687,9 @@ ro.observe(previewOuter);
 function canonicalDims() {
   const r = state.ratio === 'custom' ? (state.customRatio || [9, 16]) : (RATIOS[state.ratio] || [9, 16]);
   const [rw, rh] = r;
-  return [CANONICAL_W, Math.round(CANONICAL_W * rh / rw)];
+  // Height rounded to EVEN: H.264 pads odd dimensions with a black row, which used to
+  // show as a hairline at the bottom of video exports for some custom ratios.
+  return [CANONICAL_W, Math.max(2, 2 * Math.round(CANONICAL_W * rh / rw / 2))];
 }
 
 function getSlots(totalW, totalH) {
@@ -11120,13 +11122,17 @@ function paintBoard(ctx, W, H, expScale, exportImgs) {
   const slotR = (state.gap > 0) ? radPx : 0;
   getSlots(W, H).forEach(({ item, x, y, w, h }) => {
     const img = exportImgs.get(item) || item.img; if (!img) return;
+    // Snap to whole pixels edge-consistently (shared boundaries round identically), so
+    // neighbouring frames butt together seamlessly instead of leaving bg hairlines.
+    const rx = Math.round(x), ry = Math.round(y);
+    const rw = Math.round(x + w) - rx, rh2 = Math.round(y + h) - ry;
     const t = itemT(item);
-    const coverS = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+    const coverS = Math.max(rw / img.naturalWidth, rh2 / img.naturalHeight);
     const totalS = coverS * t.scale;
-    const left   = (w - img.naturalWidth  * totalS) / 2 + t.fx * w;
-    const top    = (h - img.naturalHeight * totalS) / 2 + t.fy * h;
-    if (slotR > 0) { ctx.save(); roundRectPath(ctx, x, y, w, h, slotR); ctx.clip(); }
-    ctx.drawImage(img, -left / totalS, -top / totalS, w / totalS, h / totalS, x, y, w, h);
+    const left   = (rw - img.naturalWidth  * totalS) / 2 + t.fx * rw;
+    const top    = (rh2 - img.naturalHeight * totalS) / 2 + t.fy * rh2;
+    if (slotR > 0) { ctx.save(); roundRectPath(ctx, rx, ry, rw, rh2, slotR); ctx.clip(); }
+    ctx.drawImage(img, -left / totalS, -top / totalS, rw / totalS, rh2 / totalS, rx, ry, rw, rh2);
     if (slotR > 0) ctx.restore();
   });
 }

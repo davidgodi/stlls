@@ -179,21 +179,33 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                     self.loopFill(compTrack, srcTrack, srcStart, clipDur, totalDur)
                 }
 
-                // Clips are re-encoded upright by the trim (identity preferredTransform),
-                // so natural size == display size and we crop in those coords.
-                let natW = srcTrack.naturalSize.width
-                let natH = srcTrack.naturalSize.height
-                let cropRect = CGRect(x: CGFloat(crop[0]) * natW, y: CGFloat(crop[1]) * natH,
-                                      width: CGFloat(crop[2]) * natW, height: CGFloat(crop[3]) * natH)
+                // Crop in the clip's DISPLAY space — the same space the web measured from
+                // its <video> element — then bake the file's preferredTransform into the
+                // layer instruction. Most clips are stored upright (identity transform,
+                // where this degenerates to the plain crop/scale mapping), but passthrough
+                // proxy fallbacks (e.g. HDR iPhone footage the H.264 preset can't convert)
+                // keep rotated pixels + a rotation flag; ignoring the flag exported them
+                // rotated 90° and squeezed while the preview looked fine.
+                let natSize = srcTrack.naturalSize
+                let prefT   = srcTrack.preferredTransform
+                let orientedRect = CGRect(origin: .zero, size: natSize).applying(prefT)
+                let dispW = abs(orientedRect.width), dispH = abs(orientedRect.height)
+                let toDisplay = prefT.concatenating(
+                    CGAffineTransform(translationX: -orientedRect.minX, y: -orientedRect.minY))
+                let cropRect = CGRect(x: CGFloat(crop[0]) * dispW, y: CGFloat(crop[1]) * dispH,
+                                      width: CGFloat(crop[2]) * dispW, height: CGFloat(crop[3]) * dispH)
                 let sx = destRect.width  / max(1, cropRect.width)
                 let sy = destRect.height / max(1, cropRect.height)
-                // Map cropped region → slot: translate(-crop) · scale · translate(dest)
-                var tf = CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY)
+                // Map: natural → upright display → shift crop to origin → scale → slot
+                var tf = toDisplay
+                tf = tf.concatenating(CGAffineTransform(translationX: -cropRect.minX, y: -cropRect.minY))
                 tf = tf.concatenating(CGAffineTransform(scaleX: sx, y: sy))
                 tf = tf.concatenating(CGAffineTransform(translationX: destRect.minX, y: destRect.minY))
 
                 let li = AVMutableVideoCompositionLayerInstruction(assetTrack: compTrack)
-                li.setCropRectangle(cropRect, at: .zero)
+                // The crop rectangle is expressed in the source's NATURAL space — map the
+                // display-space crop back through the orientation transform.
+                li.setCropRectangle(cropRect.applying(toDisplay.inverted()).standardized, at: .zero)
                 li.setTransform(tf, at: .zero)
                 layerInstructions.append(li)
                 destRects.append(destRect)

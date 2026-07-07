@@ -1829,12 +1829,21 @@
   }
   .sp-shot img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .sp-shot.selected { border-color: var(--accent); }
-  /* Skeleton frame for a video still importing — dashed outline + soft spinner */
+  /* Skeleton frame for a video still importing — dashed outline + a SPINNING ring
+     whose arc fills with the clip's real transcode progress. */
   .sp-shot.sp-loading {
     border: 1.5px dashed var(--border2); background: var(--surface2);
     display: flex; align-items: center; justify-content: center; cursor: default;
   }
-  .sp-shot.sp-loading .ms-load-ring { transform: scale(0.7); opacity: 0.6; }
+  .sp-load-ring { animation: spRingSpin 1.1s linear infinite; display: block; }
+  .sp-load-ring circle { fill: none; stroke-width: 2.5; }
+  .sp-load-ring .rtrack { stroke: var(--border2); }
+  .sp-load-ring .rarc {
+    stroke: var(--text-mid); stroke-linecap: round;
+    stroke-dasharray: 94.25; stroke-dashoffset: 88.6;   /* small starting dot */
+    transition: stroke-dashoffset 0.3s linear;
+  }
+  @keyframes spRingSpin { to { transform: rotate(360deg); } }
   .sp-shot-dur {
     position: absolute; left: 6px; bottom: 6px;
     background: rgba(0,0,0,0.6); color: #fff; font-size: 10px;
@@ -8134,8 +8143,24 @@ clipFullFileInput.addEventListener('change', async e => {
 let _fullMode = null;                 // 'single' | 'library'
 let _fullTotal = 0, _fullDone = 0, _fullAdded = 0;
 let _fullLoading = 0;                 // skeleton frames still expected in the library grid
+let _fullCurProgress = 0;             // real transcode progress of the clip importing right now
 
 function _fullProgress() { /* library shows skeleton frames in the grid, not the board bar */ }
+
+const _RING_C = 94.25;                // circumference of the skeleton ring (r=15)
+function _applyRingProgress(tile, p) {
+  const arc = tile && tile.querySelector('.rarc');
+  if (!arc) return;
+  const frac = Math.max(0.06, Math.min(1, p || 0));   // keep a visible dot at 0%
+  arc.style.strokeDashoffset = (_RING_C * (1 - frac)).toFixed(1);
+}
+
+// Native streams the current clip's transcode progress — fill the first skeleton's ring.
+window.nativeFullClipProgress = function(index, p) {
+  _fullCurProgress = p || 0;
+  if (shotPicker.hidden) return;
+  _applyRingProgress(spGrid.querySelector('.sp-shot.sp-loading'), _fullCurProgress);
+};
 
 // Append one own-source entry to the clip library (shared by native + web paths).
 function _appendLibraryShot({ thumb, srcURL, blob, dur, srcKey, vw, vh }) {
@@ -8174,6 +8199,7 @@ window.nativeFullClipsStart = function(count) {
   // the grid fills in live, so there's no progress bar over the board workspace.
   exportBar.hidden = true;
   _fullLoading = count;
+  _fullCurProgress = 0;
   if (!_clipDetId) _clipDetId = genId();
   updateClipAddBtnLabel();
   reopenShotPicker();
@@ -8212,6 +8238,7 @@ window.nativeFullClipReady = function(payload) {
     registerClipSource(srcKey, { blob });
   }).catch(() => {});
   _fullLoading = Math.max(0, _fullLoading - 1);   // this entry replaces its skeleton frame
+  _fullCurProgress = 0;                            // next clip's ring starts fresh
   _clipShots.push(sh);
   _fullAdded++;
   if (!shotPicker.hidden) {
@@ -8809,10 +8836,15 @@ function renderShotGrid() {
     spGrid.appendChild(tile);
   });
   // Skeleton frames for videos still importing — they fill in live as each one lands.
+  // Imports run one at a time, so the FIRST skeleton is the clip currently transcoding:
+  // its ring shows the real progress (restored across re-renders); the rest idle-spin.
   for (let k = 0; k < _fullLoading; k++) {
     const ph = document.createElement('div');
     ph.className = 'sp-shot sp-loading';
-    ph.innerHTML = '<div class="ms-load-ring"></div>';
+    ph.innerHTML = '<svg class="sp-load-ring" width="34" height="34" viewBox="0 0 36 36">' +
+      '<circle class="rtrack" cx="18" cy="18" r="15"/>' +
+      '<circle class="rarc" cx="18" cy="18" r="15" transform="rotate(-90 18 18)"/></svg>';
+    if (k === 0) _applyRingProgress(ph, _fullCurProgress);
     spGrid.appendChild(ph);
   }
   // A tile to open the trimmer and hand-pick more clips from the same video — available for

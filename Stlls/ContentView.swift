@@ -973,7 +973,12 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                     catch { self.sendFullClip(index, nil); next(); return } }
             let fileName = url.deletingPathExtension().lastPathComponent
             self.exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName,
-                                 maxSeconds: self.fullClipsMaxSeconds) { info in
+                                 maxSeconds: self.fullClipsMaxSeconds,
+                                 progress: { [weak self] p in
+                self.map { sf in sf.webView?.callAsyncJavaScript(
+                    "if (typeof window.nativeFullClipProgress === 'function') window.nativeFullClipProgress(i, p)",
+                    arguments: ["i": index, "p": p], in: nil, in: .page, completionHandler: nil) }
+            }) { info in
                 self.sendFullClip(index, info)   // stream this clip in, then start the next
                 next()
             }
@@ -1013,7 +1018,12 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         catch { sendFullClip(index, nil); next(); return }
         let fileName = src.deletingPathExtension().lastPathComponent
         exportFullProxy(asset: AVURLAsset(url: dest), source: dest, fileName: fileName,
-                        maxSeconds: fullClipsMaxSeconds) { [weak self] info in
+                        maxSeconds: fullClipsMaxSeconds,
+                        progress: { [weak self] p in
+            self?.webView?.callAsyncJavaScript(
+                "if (typeof window.nativeFullClipProgress === 'function') window.nativeFullClipProgress(i, p)",
+                arguments: ["i": index, "p": p], in: nil, in: .page, completionHandler: nil)
+        }) { [weak self] info in
             self?.sendFullClip(index, info)
             next()
         }
@@ -1047,13 +1057,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
     private func exportFullProxy(asset: AVURLAsset, source: URL, fileName: String,
                                  preset: String = AVAssetExportPreset960x540, retriesLeft: Int = 1,
                                  maxSeconds: Double = 10,
+                                 progress: ((Double) -> Void)? = nil,
                                  completion: @escaping ([String: Any]?) -> Void) {
         guard let export = AVAssetExportSession(asset: asset, presetName: preset) else {
             // Can't even build this preset → last-resort passthrough, else give up.
             if preset != AVAssetExportPresetPassthrough {
                 exportFullProxy(asset: asset, source: source, fileName: fileName,
                                 preset: AVAssetExportPresetPassthrough, retriesLeft: 0,
-                                maxSeconds: maxSeconds, completion: completion)
+                                maxSeconds: maxSeconds, progress: progress, completion: completion)
             } else { cleanupTemp(source); completion(nil) }
             return
         }
@@ -1072,7 +1083,17 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
         // (sequential) with a retry; if it still fails (e.g. an HDR/Dolby-Vision clip the
         // H.264 preset can't convert), fall back to PASSTHROUGH (copies the original,
         // can't fail on format) so the clip loads instead of vanishing.
+        // Stream real transcode progress to the caller (drives the library skeleton rings).
+        var progressTimer: Timer?
+        if let progress {
+            DispatchQueue.main.async {
+                progressTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+                    progress(Double(export.progress))
+                }
+            }
+        }
         export.exportAsynchronously { [weak self] in
+            DispatchQueue.main.async { progressTimer?.invalidate() }
             guard let self else { return }
             guard export.status == .completed else {
                 try? FileManager.default.removeItem(at: outURL)
@@ -1080,12 +1101,12 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                     DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.6) {
                         self.exportFullProxy(asset: asset, source: source, fileName: fileName,
                                              preset: preset, retriesLeft: retriesLeft - 1,
-                                             maxSeconds: maxSeconds, completion: completion)
+                                             maxSeconds: maxSeconds, progress: progress, completion: completion)
                     }
                 } else if preset != AVAssetExportPresetPassthrough {
                     self.exportFullProxy(asset: asset, source: source, fileName: fileName,
                                          preset: AVAssetExportPresetPassthrough, retriesLeft: 0,
-                                         maxSeconds: maxSeconds, completion: completion)
+                                         maxSeconds: maxSeconds, progress: progress, completion: completion)
                 } else {
                     self.cleanupTemp(source); completion(nil)
                 }

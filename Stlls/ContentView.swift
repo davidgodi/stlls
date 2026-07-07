@@ -11,6 +11,10 @@ import UserNotifications
 
 class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     weak var webView: WKWebView?
+    // One native composition at a time: overlapping exports fight over the hardware
+    // encoder and can wedge it until the app restarts. The web guards too; this is
+    // the backstop. Reset in callback(), which every completion path funnels through.
+    private var exporting = false
 
     func userContentController(
         _ userContentController: WKUserContentController,
@@ -69,6 +73,8 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     }
 
     private func exportComposition(_ body: [String: Any]) {
+        if exporting { callback(false); return }
+        exporting = true
         guard let width    = (body["width"]    as? NSNumber)?.intValue,
               let height   = (body["height"]   as? NSNumber)?.intValue,
               let duration = (body["duration"] as? NSNumber)?.doubleValue,
@@ -375,6 +381,19 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
             let q = DispatchQueue(label: "stlls.export")
             writerInput.requestMediaDataWhenReady(on: q) { [weak self] in
                 guard let self else { return }
+                // A failed writer stops asking for data — without this check the export
+                // would hang silently (the web watchdog would fail it, but end it here
+                // cleanly and release the encoder as soon as the failure is visible).
+                if writer.status == .failed || reader.status == .failed {
+                    writerInput.markAsFinished()
+                    if reader.status == .reading { reader.cancelReading() }
+                    cleanup()
+                    DispatchQueue.main.async {
+                        try? FileManager.default.removeItem(at: outURL)
+                        self.callback(false)
+                    }
+                    return
+                }
                 while writerInput.isReadyForMoreMediaData {
                     if reader.status == .reading, let sample = readerOutput.copyNextSampleBuffer() {
                         let pt = CMSampleBufferGetPresentationTimeStamp(sample).seconds
@@ -444,6 +463,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
 
     private func callback(_ success: Bool) {
         DispatchQueue.main.async { [weak self] in
+            self?.exporting = false
             self?.webView?.evaluateJavaScript(
                 "window.exportComplete(\(success ? "true" : "false"))",
                 completionHandler: nil

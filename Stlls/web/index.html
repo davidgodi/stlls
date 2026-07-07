@@ -5700,10 +5700,24 @@ function getSlots(totalW, totalH) {
   const { cols, rows, xs, ws, ys, hs } = _gridTracks(totalW, totalH);
   const slots = [];
   for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const idx = r * cols + c;
-      if (idx >= n) break;
-      slots.push({ item: state.images[idx], x: xs[c], y: ys[r], w: ws[c], h: hs[r] });
+    const rowStart = r * cols;
+    if (rowStart >= n) break;
+    const inRow = Math.min(cols, n - rowStart);
+    if (inRow === cols) {
+      for (let c = 0; c < cols; c++) {
+        slots.push({ item: state.images[rowStart + c], x: xs[c], y: ys[r], w: ws[c], h: hs[r] });
+      }
+    } else {
+      // Partial LAST row: stretch its items across the full row width, so layouts like
+      // "two side by side + one wide underneath" (2×2 grid, 3 frames) are expressible
+      // instead of leaving dead space in the missing cells.
+      const rowW = (xs[cols - 1] + ws[cols - 1]) - xs[0];
+      const cellW = (rowW - gap * (inRow - 1)) / inRow;
+      let x = xs[0];
+      for (let k = 0; k < inRow; k++) {
+        slots.push({ item: state.images[rowStart + k], x, y: ys[r], w: cellW, h: hs[r] });
+        x += cellW + gap;
+      }
     }
   }
   return slots;
@@ -7288,14 +7302,15 @@ const LAYOUT_PREMADE = [
   { name: 'Tall + short',  layout: 'vertical',   count: 2, slotFracs: { vertical: [0.66, 0.34] } },
   { name: '3 stacked',     layout: 'vertical',   count: 3 },
   { name: 'Hero + 2',      layout: 'vertical',   count: 3, slotFracs: { vertical: [0.5, 0.25, 0.25] } },
-  { name: 'Filmstrip 4',   layout: 'vertical',   count: 4 },
   { name: 'Side by side',  layout: 'horizontal', count: 2 },
-  { name: 'Wide + narrow', layout: 'horizontal', count: 2, slotFracs: { horizontal: [0.66, 0.34] } },
-  { name: '3 columns',     layout: 'horizontal', count: 3 },
   { name: '2×2 grid',      layout: 'grid', gridCols: 2, gridRows: 2 },
   { name: 'Big top row',   layout: 'grid', gridCols: 2, gridRows: 2, slotFracs: { gridRows: [0.62, 0.38] } },
-  { name: 'Wide left',     layout: 'grid', gridCols: 2, gridRows: 2, slotFracs: { gridCols: [0.62, 0.38] } },
-  { name: '2×3 grid',      layout: 'grid', gridCols: 2, gridRows: 3 },
+  // Pair-over-wide family: two side by side with a single full-width frame underneath.
+  { name: 'Duo + wide',    layout: 'grid', gridCols: 2, gridRows: 2, count: 3 },
+  { name: 'Duo + hero',    layout: 'grid', gridCols: 2, gridRows: 2, count: 3, slotFracs: { gridRows: [0.35, 0.65] } },
+  { name: 'Pair + banner', layout: 'grid', gridCols: 2, gridRows: 2, count: 3, slotFracs: { gridRows: [0.68, 0.32] } },
+  { name: 'Trio + wide',   layout: 'grid', gridCols: 3, gridRows: 2, count: 4 },
+  { name: 'Quad + wide',   layout: 'grid', gridCols: 2, gridRows: 3, count: 5 },
 ];
 
 function loadLayoutPresets() {
@@ -7311,15 +7326,25 @@ function presetPreviewSVG(p) {
   const rects = [];
   if (p.layout === 'grid') {
     const cols = Math.max(1, p.gridCols || 2), rows = Math.max(1, p.gridRows || 2);
+    const total = Math.min(p.count || cols * rows, cols * rows);
     const cFr = _fr(p.slotFracs?.gridCols, cols), rFr = _fr(p.slotFracs?.gridRows, rows);
     const availW = W - G * (cols - 1), availH = H - G * (rows - 1);
     let y = 0;
     for (let r = 0; r < rows; r++) {
+      const rowStart = r * cols;
+      if (rowStart >= total) break;
       const h = availH * (rFr ? rFr[r] : 1 / rows);
-      let x = 0;
-      for (let c = 0; c < cols; c++) {
-        const w = availW * (cFr ? cFr[c] : 1 / cols);
-        rects.push([x, y, w, h]); x += w + G;
+      const inRow = Math.min(cols, total - rowStart);
+      if (inRow === cols) {
+        let x = 0;
+        for (let c = 0; c < cols; c++) {
+          const w = availW * (cFr ? cFr[c] : 1 / cols);
+          rects.push([x, y, w, h]); x += w + G;
+        }
+      } else {
+        const cellW = (W - G * (inRow - 1)) / inRow;   // partial last row spans full width
+        let x = 0;
+        for (let k = 0; k < inRow; k++) { rects.push([x, y, cellW, h]); x += cellW + G; }
       }
       y += h + G;
     }
@@ -7411,7 +7436,10 @@ function saveCurrentLayoutPreset() {
 }
 
 function layoutFrameCount(p) {
-  if ((p.layout || 'vertical') === 'grid') return Math.max(1, p.gridCols || 2) * Math.max(1, p.gridRows || 2);
+  if ((p.layout || 'vertical') === 'grid') {
+    const cells = Math.max(1, p.gridCols || 2) * Math.max(1, p.gridRows || 2);
+    return Math.min(p.count || cells, cells);   // count < cells → last row spans (e.g. 2 + 1 wide)
+  }
   return Math.max(2, p.count || (p.slotFracs && p.slotFracs[p.layout] && p.slotFracs[p.layout].length) || 2);
 }
 

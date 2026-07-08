@@ -10633,7 +10633,7 @@ document.querySelectorAll('#colorSwatches .swatch').forEach(btn => {
   });
 });
 
-applyColor(localStorage.getItem('stlls-accent') || 'default');
+applyColor(localStorage.getItem('stlls-accent') || 'blue');   // blue accent out of the box; any explicit pick (incl. default) sticks
 
 // ── Feedback overlay ────────────────────────────────────────────────────────
 const feedbackOverlay  = document.getElementById('feedbackOverlay');

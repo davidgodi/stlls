@@ -8149,6 +8149,7 @@ let _fullTotal = 0, _fullDone = 0, _fullAdded = 0;
 let _fullLoading = 0;                 // skeleton frames still expected in the library grid
 let _fullCurProgress = 0;             // real transcode progress of the clip importing right now
 let _fullStallT = null;               // watchdog: native emits progress 4x/s, so silence = wedged
+let _fullSawProgress = false;         // no progress stream (older native build) → be patient
 
 function _fullProgress() { /* library shows skeleton frames in the grid, not the board bar */ }
 
@@ -8164,13 +8165,16 @@ function _failFullImportBar(msg) {
 
 function _armFullStall() {
   clearTimeout(_fullStallT);
+  // With live progress, 30s of silence means wedged. Without it (native build without
+  // the progress stream), a long HDR transcode is silent for its whole duration.
+  const ms = _fullSawProgress ? 30000 : 75000;
   _fullStallT = setTimeout(() => {
     // The native import went silent (no progress, no clip) — unwedge the UI instead
     // of sitting on "Preparing…" until the app is relaunched.
     _fullMode = null; _fullLoading = 0; _fullCurProgress = 0;
     if (!shotPicker.hidden) renderShotGrid();
     _failFullImportBar('Import failed');
-  }, 30000);
+  }, ms);
 }
 
 const _RING_C = 94.25;                // circumference of the skeleton ring (r=15)
@@ -8184,6 +8188,7 @@ function _applyRingProgress(tile, p) {
 // Native streams the current clip's transcode progress — fill the first skeleton's ring.
 window.nativeFullClipProgress = function(index, p) {
   _fullCurProgress = p || 0;
+  _fullSawProgress = true;
   _armFullStall();                                     // still alive
   if (_fullMode === 'single' && !exportBar.hidden) {   // single path: fill the bottom bar
     exportBarFill.style.width = Math.round(5 + _fullCurProgress * 90) + '%';
@@ -8220,6 +8225,7 @@ window.nativeFullClipsStart = function(count) {
   if (!count) { exportBar.hidden = true; _fullMode = null; return; }
   _fullMode = count === 1 ? 'single' : 'library';
   _fullTotal = count; _fullDone = 0; _fullAdded = 0;
+  _fullSawProgress = false;
   _armFullStall();
   if (_fullMode === 'single') {
     exportBar.hidden = false;
@@ -8252,16 +8258,20 @@ window.nativeFullClipReady = function(payload) {
     if (!shotPicker.hidden) renderShotGrid();
     return;
   }
-  if (_fullMode === 'single') {
+  if (_fullMode === 'single' || (_fullMode === null && _fullTotal === 1)) {
     // One video picked → straight into the length trimmer, not the library. Open on the
     // STREAMING url immediately — a passthrough proxy (HDR iPhone footage) can be the
     // full-size original, and downloading it here left the bar stuck on "Preparing…";
     // the bytes are fetched when the trim is applied instead.
+    // (The null-mode case is a LATE arrival: the stall watchdog already reset the
+    // import, but the clip made it after all — salvage it into the trimmer instead of
+    // swallowing it silently.)
     clearTimeout(_fullStallT);
     exportBar.hidden = true;
     openSingleTrimmer(info.webURL, { native: false, isObjURL: false, blob: null });
     return;
   }
+  if (_fullMode === null) return;   // stale multi-batch arrival — the watchdog already reported
   // Library: the entry appears IMMEDIATELY on its streaming URL (the trimmer plays it
   // as-is). Its bytes download in the background — they're only needed when the clip
   // is added to the board or the project is saved. Appending synchronously also means

@@ -683,6 +683,7 @@
   body.coach-layout-on #previewOuter,
   body.coach-adjust-on #previewOuter,
   body.coach-reframe-on #previewOuter,
+  body.coach-framelines-on #previewOuter,
   body.coach-export-on #previewOuter { z-index: 211; }
   /* The Adjust spotlight rings the whole slider block, softly rounded */
   #psAdjust .ctrl.coach-pulse::after { border-radius: 12px; inset: -8px; }
@@ -3475,7 +3476,18 @@
 <div id="guideCanvas" class="coach coach-fixed" hidden>
   <div class="coach-bubble">
     <strong>Pick a canvas</strong>
-    Choose the aspect ratio for your board — 9:16 for stories, 1:1 for posts.
+    Choose the aspect ratio for your board — 9:16 for stories, 1:1 for posts. Tap <b>Custom</b> for more ratios, or create your own.
+  </div>
+  <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11 2 C 11 11, 11 19, 11 26"/>
+    <path d="M5 20 L 11 27 L 17 20"/>
+  </svg>
+</div>
+
+<div id="guideFramelines" class="coach coach-fixed" hidden>
+  <div class="coach-bubble">
+    <strong>Resize the frames</strong>
+    Tap the <b>edit lines</b> button, then drag the handles between frames to give one more room than another.
   </div>
   <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
     <path d="M11 2 C 11 11, 11 19, 11 26"/>
@@ -4200,6 +4212,7 @@ setupCoach('canvas', {
   anchor: '#psCanvas', pulse: ['#psCanvas .btn'], next: 'layout',
   zone: ['#psCanvas'], continueable: true,
 });
+let _lcT1 = null, _lcT2 = null, _lcOpened = false;
 setupCoach('layout', {
   el: 'guideLayout', store: 'stlls-guide-layout', area: 'body',
   dim: 'coachDimEditor', body: 'coach-layout-on',
@@ -4207,6 +4220,21 @@ setupCoach('layout', {
   // Try layouts freely — Grid opens its cols/rows popover and a show/hide
   // toggle; none of these advance the tour, only a tap elsewhere does.
   zone: ['#psLayout', '#gridShowBtn'], continueable: true,
+  // Flash the layout window after the message lands, so the user SEES the premade
+  // options exist — then tuck it away again.
+  onShow: () => {
+    _lcT1 = setTimeout(() => {
+      if (!layoutModal.hidden) { _lcOpened = false; return; }   // they already opened it
+      _lcOpened = true;
+      renderLayoutModal();
+      openBigModal(layoutModal);
+    }, 1200);
+    _lcT2 = setTimeout(() => { if (_lcOpened) { _lcOpened = false; closeBigModal(layoutModal); } }, 3400);
+  },
+  onDismiss: () => {
+    clearTimeout(_lcT1); clearTimeout(_lcT2);
+    if (_lcOpened) { _lcOpened = false; closeBigModal(layoutModal); }
+  },
 });
 setupCoach('adjust', {
   el: 'guideAdjust', store: 'stlls-guide-adjust', area: 'body',
@@ -4217,9 +4245,17 @@ setupCoach('adjust', {
 setupCoach('reframe', {
   el: 'guideReframe', store: 'stlls-guide-reframe', area: 'body',
   dim: 'coachDimEditor', body: 'coach-reframe-on',
-  anchor: '#layoutPreview', pulse: ['#layoutPreview'], next: 'export',
+  anchor: '#layoutPreview', pulse: ['#layoutPreview'], next: 'framelines',
   // Drag/pinch the board to reframe — the board is the interactive zone.
   zone: ['#previewOuter'], continueable: true,
+});
+// Frame lines: the edit-lines button + the draggable handles between frames.
+setupCoach('framelines', {
+  el: 'guideFramelines', store: 'stlls-guide-framelines', area: 'body',
+  dim: 'coachDimEditor', body: 'coach-framelines-on',
+  anchor: '#frameEditBtn', pulse: ['#frameEditBtn'], next: 'export',
+  zone: ['#previewOuter'], continueable: true,
+  onShow: () => updateFrameEditBtn(),   // make sure the button reflects the current board
 });
 setupCoach('export', {
   el: 'guideExport', store: 'stlls-guide-export', area: 'body',

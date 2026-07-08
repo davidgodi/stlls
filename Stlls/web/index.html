@@ -4101,6 +4101,7 @@ function setupCoach(key, o) {
     next:       o.next   || null,   // guide to chain into after this one is dismissed
     zone:       o.zone   || null,   // selectors the user may interact with without dismissing
     continueable: o.continueable || false,  // show a continue icon after they explore
+    showIf:     o.showIf || null,   // conditions for showing; unmet → skip (and retry later)
     onShow:     o.onShow   || null, // run when the guide appears (e.g. reveal its target)
     onDismiss:  o.onDismiss|| null, // run after it leaves (e.g. restore the target)
     autoDismiss: o.autoDismiss || 0, // ms after which the guide dismisses itself (0 = never)
@@ -4123,6 +4124,11 @@ function showCoach(key, delay) {
   c.shown = true;
   const render = () => {
     if (localStorage.getItem(c.storageKey) === '1') return; // pre-empted meanwhile
+    if (c.showIf && !c.showIf()) {
+      c.shown = false;                       // not now — allow a later re-attempt…
+      if (c.next) showCoach(c.next, 400);    // …and keep the tour chain moving
+      return;
+    }
     // One guide on screen at a time — wait for any current one to finish leaving, so
     // out-of-order actions (e.g. flipping to Video mid-tour) don't stack tips on top.
     if (anyCoachVisible(key)) { setTimeout(render, 500); return; }
@@ -4290,13 +4296,16 @@ setupCoach('reframe', {
   // Drag/pinch the board to reframe — the board is the interactive zone.
   zone: ['#previewOuter'], continueable: true,
 });
-// Frame lines: the edit-lines button + the draggable handles between frames.
+// Frame lines: the edit-lines button + the draggable handles between frames. Only
+// meaningful with 2+ frames — with a single image the step is skipped and shows the
+// first time a second image lands (see renderList).
 setupCoach('framelines', {
   el: 'guideFramelines', store: 'stlls-guide-framelines', area: 'body',
   dim: 'coachDimEditor', body: 'coach-framelines-on',
   anchor: '#frameEditBtn', pulse: ['#frameEditBtn'], next: 'export',
   zone: ['#previewOuter'], continueable: true,
-  onShow: () => updateFrameEditBtn(),   // make sure the button reflects the current board
+  showIf: () => { updateFrameEditBtn();
+    return state.images.filter(it => !it.emptySlot && !it.placeholder).length >= 2 && !frameEditBtn.hidden; },
 });
 setupCoach('export', {
   el: 'guideExport', store: 'stlls-guide-export', area: 'body',
@@ -4458,6 +4467,16 @@ function positionCoach(c) {
   guide.classList.toggle('coach-below', below);
   guide.style.left = left + 'px';
   guide.style.top  = top + 'px';
+  // Aim the arrow at the ANCHOR, not the bubble's centre: when the bubble is clamped
+  // into the viewport (small targets near an edge, e.g. the edit-lines button), a
+  // centred arrow points at nothing.
+  const arrow = guide.querySelector('.coach-arrow');
+  if (arrow) {
+    const aw = arrow.offsetWidth || 22;
+    const off = (r.left + r.width / 2) - left - gw / 2;   // anchor centre vs bubble centre
+    const max = gw / 2 - aw / 2 - 8;
+    arrow.style.transform = `translateX(${Math.max(-max, Math.min(max, off)).toFixed(0)}px)`;
+  }
 }
 window.addEventListener('resize', () => {
   Object.values(_coaches).forEach(c => { if (c.anchor && !c.el.hidden) positionCoach(c); });
@@ -6979,6 +6998,11 @@ function renderList() {
     // The stills-editing tips apply whenever a still is added — even on a video board, so the
     // tour continues if the user wanders into Video mode first and then imports stills.
     if (state.images.some(it => it.type !== 'clip')) showCoach('canvas', 900);
+    // The frame-lines tip waits for a board with 2+ frames; if it was skipped during a
+    // single-image tour, surface it the first time a second image lands.
+    if (localStorage.getItem('stlls-guide-reframe') === '1' &&
+        state.images.filter(it => !it.emptySlot && !it.placeholder).length >= 2)
+      showCoach('framelines', 900);
   }
   imageList.innerHTML = '';
   state.images.forEach((item, i) => {

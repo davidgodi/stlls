@@ -1472,7 +1472,9 @@
   #boardTypeChip {
     position: absolute; top: 7px; left: 7px; z-index: 11;
     display: flex; gap: 2px;
-    background: rgba(0,0,0,0.45); border-radius: 9px; padding: 3px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 9px; padding: 3px;
+    box-shadow: var(--btn-shadow);
   }
   /* Lift the preview (and the switch chip inside it) above the coach scrim */
   body.coach-switch-on #previewOuter { z-index: 211; }
@@ -1500,7 +1502,7 @@
   .btc-seg {
     position: relative; z-index: 1;   /* icons ride above the thumb */
     width: 32px; height: 24px; border: none; border-radius: 6px;
-    background: transparent; color: rgba(255,255,255,0.5);
+    background: transparent; color: var(--text-mid);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     -webkit-tap-highlight-color: transparent; transition: color 0.8s ease;
   }
@@ -1508,8 +1510,8 @@
   #boardTypeLabel {
     position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
     margin-left: 8px; white-space: nowrap; font-size: 12px; font-weight: 700;
-    letter-spacing: 0.02em; color: #fff; opacity: 0; pointer-events: none;
-    text-shadow: 0 1px 5px rgba(0,0,0,0.7); transition: opacity 0.3s ease;
+    letter-spacing: 0.02em; color: var(--text); opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
   }
   #boardTypeLabel.show { opacity: 1; }
   .btc-seg.active { color: #fff; }
@@ -2859,18 +2861,20 @@
   #boardActionsBtn {
     position: absolute;
     top: 7px; right: 7px;
-    width: 28px; height: 28px;
-    border-radius: 8px;
-    border: none;
-    background: rgba(0,0,0,0.45);
-    color: rgba(255,255,255,0.8);
+    width: 32px; height: 32px;
+    border-radius: 9px;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    color: var(--text);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     z-index: 10;
     -webkit-tap-highlight-color: transparent;
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.15s;
+    box-shadow: var(--btn-shadow);
   }
-  #boardActionsBtn:hover { background: rgba(0,0,0,0.65); }
+  #boardActionsBtn:hover { background: var(--surface2); }
+  #boardActionsBtn:active { transform: scale(0.92); }
 
   /* Board actions dropdown */
   #boardActionsMenu {

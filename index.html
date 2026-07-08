@@ -9529,10 +9529,14 @@ async function importSingleClip() {
       clip = makeSingleClipItem({ src: url, blob, thumb, poster, start: 0, end: clips[0].dur || (outT - inT), nativeLoop: true, vw, vh });
     }
   } else if (ctx && poster) {
-    // Web/desktop fallback: loop the sub-range of the shared source via JS.
-    let blob = ctx.blob || null;
-    if (!blob) { try { const r = await fetch(ctx.srcURL); if (r.ok) blob = await r.blob(); } catch (e) {} }
-    clip = makeSingleClipItem({ src: ctx.srcURL, blob, thumb, poster, start: inT, end: outT, nativeLoop: false, vw, vh });
+    // Web path: place the clip on its streaming URL immediately and attach the bytes in
+    // the background — fetching a huge passthrough proxy (HDR iPhone footage) here used
+    // to hang the Done. The export's readiness barrier waits for byte-less clips.
+    clip = makeSingleClipItem({ src: ctx.srcURL, blob: ctx.blob || null, thumb, poster, start: inT, end: outT, nativeLoop: false, vw, vh });
+    if (!clip._blob) {
+      const c = clip;
+      toBlobObj(ctx.srcURL).then(({ blob }) => { if (blob && !c._blob) c._blob = blob; }).catch(() => {});
+    }
   }
 
   if (clip && ctx) {

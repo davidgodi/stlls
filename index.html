@@ -1105,6 +1105,7 @@
     animation: bmFade 0.2s ease;
   }
   #bgPanel[hidden] { display: none !important; }
+  #bgPanel.bgp-leaving { opacity: 0; transition: opacity 0.2s ease; }   /* mirror of the 0.2s fade-in */
   .bgp-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; flex-shrink: 0; }
   .bgp-title { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-mid); font-weight: 600; }
   .bgp-close {
@@ -7569,8 +7570,20 @@ BG_PALETTE.forEach(c => {
 }
 bgColor.addEventListener('input', () => applyBgColor(bgColor.value));
 
-bgBtn.addEventListener('click', () => { updateBgUI(); bgPanel.hidden = false; });
-document.getElementById('bgPanelClose').addEventListener('click', () => { bgPanel.hidden = true; });
+bgBtn.addEventListener('click', () => {
+  bgPanel.classList.remove('bgp-leaving');   // cancel a fade-out in flight
+  updateBgUI();
+  bgPanel.hidden = false;
+});
+document.getElementById('bgPanelClose').addEventListener('click', () => {
+  if (bgPanel.hidden || bgPanel.classList.contains('bgp-leaving')) return;
+  bgPanel.classList.add('bgp-leaving');      // fade out at the fade-in speed…
+  setTimeout(() => {
+    if (!bgPanel.classList.contains('bgp-leaving')) return;   // reopened mid-fade
+    bgPanel.classList.remove('bgp-leaving');
+    bgPanel.hidden = true;                   // …then actually hide
+  }, 200);
+});
 
 document.getElementById('bgUploadBtn').addEventListener('click', () => { bgFileInput.value = ''; bgFileInput.click(); });
 bgFileInput.addEventListener('change', () => {

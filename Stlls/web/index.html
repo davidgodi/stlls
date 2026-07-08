@@ -1063,6 +1063,23 @@
   .bm-tile b { font-size: 10px; font-weight: 500; color: var(--text-dim); letter-spacing: 0.03em; }
   .bm-tile.active b { color: var(--text); }
   .bm-tile.bm-save { border-style: dashed; justify-content: center; gap: 4px; min-height: 92px; }
+  /* Mini layout preview shown during the "Choose a layout" tour step */
+  #layoutPeek {
+    position: fixed; z-index: 214;   /* above the coach scrim + lifted sections */
+    display: flex; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 12px; padding: 8px;
+    box-shadow: var(--btn-shadow);
+    pointer-events: none;
+    animation: popUpIn 0.35s cubic-bezier(0.16,1,0.3,1);
+  }
+  #layoutPeek[hidden] { display: none !important; }
+  #layoutPeek.peek-leaving { opacity: 0; transition: opacity 0.25s ease; }
+  .lp-cell {
+    width: 42px; height: 54px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--surface2); display: flex; align-items: center; justify-content: center;
+  }
+  .lp-cell svg { width: 28px; height: 40px; color: var(--text-mid); display: block; }
   .bm-tile.bm-save span { font-size: 20px; line-height: 1; font-weight: 300; color: var(--text-dim); }
   .bm-tile .bm-art { display: flex; align-items: center; justify-content: center; height: 56px; }
   .bm-tile .bm-art svg { width: 40px; height: 54px; }
@@ -4021,6 +4038,8 @@
   </div>
 </div>
 
+<div id="layoutPeek" hidden aria-hidden="true"></div>
+
 <!-- Export choice modal (multi-board projects) -->
 <div id="exportChoiceModal" hidden>
   <div class="export-choice-box">
@@ -4212,7 +4231,42 @@ setupCoach('canvas', {
   anchor: '#psCanvas', pulse: ['#psCanvas .btn'], next: 'layout',
   zone: ['#psCanvas'], continueable: true,
 });
-let _lcT1 = null, _lcT2 = null, _lcOpened = false;
+// Mini preview of the layout library, floated above the tour bubble for the duration
+// of the "Choose a layout" step — a taste of the premade options without taking over
+// the screen the way the full window would.
+let _lcPeekT = null;
+function showLayoutPeek() {
+  const peek = document.getElementById('layoutPeek');
+  if (!peek || typeof LAYOUT_PREMADE === 'undefined') return;
+  const picks = ['2 stacked', 'Side by side', '2×2 grid', 'Hero + 2', 'Duo + wide', 'Quad + wide'];
+  peek.innerHTML = '';
+  picks.forEach(name => {
+    const p = LAYOUT_PREMADE.find(q => q.name === name);
+    if (!p) return;
+    const cell = document.createElement('span');
+    cell.className = 'lp-cell';
+    cell.innerHTML = presetPreviewSVG(p);
+    peek.appendChild(cell);
+  });
+  peek.classList.remove('peek-leaving');
+  peek.hidden = false;
+  // Sit just above the tour bubble (fall back to the layout section).
+  const anchor = document.querySelector('#guideLayout .coach-bubble') || document.querySelector('#psLayout');
+  const ar = anchor.getBoundingClientRect();
+  const pw = peek.offsetWidth, ph = peek.offsetHeight;
+  let left = Math.max(8, Math.min(ar.left + ar.width / 2 - pw / 2, window.innerWidth - pw - 8));
+  let top  = ar.top - ph - 10;
+  if (top < 8) top = ar.bottom + 10;
+  peek.style.left = left + 'px';
+  peek.style.top  = top + 'px';
+}
+function hideLayoutPeek() {
+  const peek = document.getElementById('layoutPeek');
+  if (!peek || peek.hidden) return;
+  peek.classList.add('peek-leaving');
+  setTimeout(() => { peek.hidden = true; peek.classList.remove('peek-leaving'); }, 260);
+}
+
 setupCoach('layout', {
   el: 'guideLayout', store: 'stlls-guide-layout', area: 'body',
   dim: 'coachDimEditor', body: 'coach-layout-on',
@@ -4220,21 +4274,8 @@ setupCoach('layout', {
   // Try layouts freely — Grid opens its cols/rows popover and a show/hide
   // toggle; none of these advance the tour, only a tap elsewhere does.
   zone: ['#psLayout', '#gridShowBtn'], continueable: true,
-  // Flash the layout window after the message lands, so the user SEES the premade
-  // options exist — then tuck it away again.
-  onShow: () => {
-    _lcT1 = setTimeout(() => {
-      if (!layoutModal.hidden) { _lcOpened = false; return; }   // they already opened it
-      _lcOpened = true;
-      renderLayoutModal();
-      openBigModal(layoutModal);
-    }, 1200);
-    _lcT2 = setTimeout(() => { if (_lcOpened) { _lcOpened = false; closeBigModal(layoutModal); } }, 3400);
-  },
-  onDismiss: () => {
-    clearTimeout(_lcT1); clearTimeout(_lcT2);
-    if (_lcOpened) { _lcOpened = false; closeBigModal(layoutModal); }
-  },
+  onShow: () => { _lcPeekT = setTimeout(showLayoutPeek, 700); },   // after the bubble settles
+  onDismiss: () => { clearTimeout(_lcPeekT); hideLayoutPeek(); },
 });
 setupCoach('adjust', {
   el: 'guideAdjust', store: 'stlls-guide-adjust', area: 'body',

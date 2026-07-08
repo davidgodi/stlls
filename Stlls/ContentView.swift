@@ -1119,6 +1119,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
                     self.exportFullProxy(asset: asset, source: source, fileName: fileName,
                                          preset: AVAssetExportPresetPassthrough, retriesLeft: 0,
                                          maxSeconds: maxSeconds, progress: progress, completion: completion)
+                } else if maxSeconds < 100_000 {
+                    // Even passthrough failed WITH a trim window — some HDR/fragmented
+                    // sources reject timeRange on passthrough. Last resort: remux the
+                    // whole file untrimmed (a plain copy, effectively cannot fail for a
+                    // local video). The web trims to any length it needs afterwards.
+                    self.exportFullProxy(asset: asset, source: source, fileName: fileName,
+                                         preset: AVAssetExportPresetPassthrough, retriesLeft: 0,
+                                         maxSeconds: 100_000, progress: progress, completion: completion)
                 } else {
                     self.cleanupTemp(source); completion(nil)
                 }

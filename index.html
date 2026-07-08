@@ -8440,10 +8440,24 @@ window.nativeFullClipReady = function(payload) {
 };
 window.nativeFullClipsDone = function() {
   clearTimeout(_fullStallT);
-  _fullLoading = 0;                                // drop any leftover skeleton frames
-  if (_fullMode === 'library') _finishLibraryImport();
-  else exportBar.hidden = true;                    // cancelled before/after picking (e.g. the
-  _fullMode = null;                                // Files chooser) — never strand "Preparing…"
+  const finish = () => {
+    _fullLoading = 0;                              // drop any leftover skeleton frames
+    if (_fullMode === 'library') _finishLibraryImport();
+    else exportBar.hidden = true;                  // cancelled before/after picking (e.g. the
+    _fullMode = null;                              // Files chooser) — never strand "Preparing…"
+  };
+  // The done signal can overtake the LAST clip's ready message — if clips are still
+  // outstanding, give the stragglers a moment instead of dropping the final entry.
+  if (_fullMode === 'library' && _fullDone < _fullTotal) {
+    let waited = 0;
+    const poll = () => {
+      if (_fullDone >= _fullTotal || waited >= 2500 || _fullMode !== 'library') return finish();
+      waited += 100; setTimeout(poll, 100);
+    };
+    poll();
+    return;
+  }
+  finish();
 };
 
 // Build a clip item from native-supplied metadata — no video element opened.
@@ -11614,15 +11628,24 @@ async function doVideoExportNative() {
     // the render background, leaving a ~1px dark hairline between frames.
     const rx = Math.round(x),     ry = Math.round(y);
     const rw = Math.round(x + w) - rx, rh = Math.round(y + h) - ry;
-    const coverS = Math.max(rw / dw, rh / dh);
+    // Overscan: when frames touch (gap 0) or a rounded overlay rings each frame, draw
+    // the media 1px past its logical bounds so edge/hole antialiasing lands on FOOTAGE
+    // instead of the render background — the residual dark hairlines the preview never
+    // shows. The overlay holes stay at the true frame bounds (the `frame` field).
+    const bleed = (state.gap === 0 || (state.radius || 0) > 0) ? 1 : 0;
+    const bx = Math.max(0, rx - bleed), by = Math.max(0, ry - bleed);
+    const bw = Math.min(W, rx + rw + bleed) - bx;
+    const bh = Math.min(H, ry + rh + bleed) - by;
+    const coverS = Math.max(bw / dw, bh / dh);
     const totalS = coverS * t.scale;
-    const left = (rw - dw * totalS) / 2 + t.fx * rw;
-    const top  = (rh - dh * totalS) / 2 + t.fy * rh;
+    const left = (bw - dw * totalS) / 2 + t.fx * bw;
+    const top  = (bh - dh * totalS) / 2 + t.fy * bh;
     clips.push({
       data, still: !isClip,
-      dest: [rx, ry, rw, rh],                                       // slot in canonical coords
+      dest: [bx, by, bw, bh],                                       // drawn media (overscanned)
+      frame: [rx, ry, rw, rh],                                      // logical frame (overlay holes)
       crop: [(-left / totalS) / dw, (-top / totalS) / dh,           // visible region, normalized
-             (rw / totalS) / dw, (rh / totalS) / dh],
+             (bw / totalS) / dw, (bh / totalS) / dh],
       // Sub-range within the clip's own file (board "Edit length" / web-fallback clips).
       // 0/0 or full-range → Swift uses the whole file, matching the old behaviour.
       start: isClip ? (item.start || 0) : 0,

@@ -112,11 +112,18 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 guard dest.count == 4, crop.count == 4 else { continue }
                 let destRect = CGRect(x: CGFloat(dest[0]), y: CGFloat(dest[1]),
                                       width: CGFloat(dest[2]), height: CGFloat(dest[3]))
+                // Logical frame bounds for the overlay holes — the media itself may be
+                // drawn 1px past them (overscan) so edge antialiasing lands on footage.
+                let frameArr = self.nums(clip["frame"])
+                let frameRect = frameArr.count == 4
+                    ? CGRect(x: CGFloat(frameArr[0]), y: CGFloat(frameArr[1]),
+                             width: CGFloat(frameArr[2]), height: CGFloat(frameArr[3]))
+                    : destRect
 
                 // Still → stamped as a static frame after compositing (not a video track).
                 if (clip["still"] as? Bool) == true {
                     if let img = UIImage(data: data) {
-                        stills.append((img, destRect, crop)); destRects.append(destRect)
+                        stills.append((img, destRect, crop)); destRects.append(frameRect)
                     }
                     continue
                 }
@@ -208,7 +215,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 li.setCropRectangle(cropRect.applying(toDisplay.inverted()).standardized, at: .zero)
                 li.setTransform(tf, at: .zero)
                 layerInstructions.append(li)
-                destRects.append(destRect)
+                destRects.append(frameRect)
             }
 
             guard !layerInstructions.isEmpty else {
@@ -967,9 +974,14 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
 
     private func processFullClipsSequentially(_ results: [PHPickerResult], index: Int, movieType: String) {
         if index >= results.count {
-            webView?.callAsyncJavaScript(
-                "if (typeof window.nativeFullClipsDone === 'function') window.nativeFullClipsDone()",
-                arguments: [:], in: nil, in: .page, completionHandler: nil)
+            // Hop through main like sendFullClip does — a direct call from the export
+            // completion thread could reach the page BEFORE the last clip's ready
+            // message, making the web drop that clip's entry.
+            DispatchQueue.main.async {
+                self.webView?.callAsyncJavaScript(
+                    "if (typeof window.nativeFullClipsDone === 'function') window.nativeFullClipsDone()",
+                    arguments: [:], in: nil, in: .page, completionHandler: nil)
+            }
             return
         }
         let next: () -> Void = { [weak self] in
@@ -1017,9 +1029,11 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
 
     private func processFullClipURLs(_ urls: [URL], index: Int) {
         if index >= urls.count {
-            webView?.callAsyncJavaScript(
-                "if (typeof window.nativeFullClipsDone === 'function') window.nativeFullClipsDone()",
-                arguments: [:], in: nil, in: .page, completionHandler: nil)
+            DispatchQueue.main.async {   // ordered behind the last clip's ready message
+                self.webView?.callAsyncJavaScript(
+                    "if (typeof window.nativeFullClipsDone === 'function') window.nativeFullClipsDone()",
+                    arguments: [:], in: nil, in: .page, completionHandler: nil)
+            }
             return
         }
         let next: () -> Void = { [weak self] in self?.processFullClipURLs(urls, index: index + 1) }

@@ -8274,11 +8274,11 @@ window.nativeFullClipReady = function(payload) {
                vw: info.width || 0, vh: info.height || 0 };
   registerClipSource(srcKey, { url: info.webURL, dur, w: sh.vw, h: sh.vh });
   sh._blobFetch = toBlobObj(info.webURL).then(({ url, blob }) => {
-    if (!blob) return;
+    if (!blob) { sh._blobFailed = true; return; }
     sh.blob = blob;
     sh.srcURL = url;                       // durable object URL from here on
     registerClipSource(srcKey, { blob });
-  }).catch(() => {});
+  }).catch(() => { sh._blobFailed = true; });
   _fullLoading = Math.max(0, _fullLoading - 1);   // this entry replaces its skeleton frame
   _fullCurProgress = 0;                            // next clip's ring starts fresh
   _clipShots.push(sh);
@@ -8292,7 +8292,8 @@ window.nativeFullClipsDone = function() {
   clearTimeout(_fullStallT);
   _fullLoading = 0;                                // drop any leftover skeleton frames
   if (_fullMode === 'library') _finishLibraryImport();
-  _fullMode = null;
+  else exportBar.hidden = true;                    // cancelled before/after picking (e.g. the
+  _fullMode = null;                                // Files chooser) — never strand "Preparing…"
 };
 
 // Build a clip item from native-supplied metadata — no video element opened.
@@ -9590,19 +9591,27 @@ window.nativeVideoClipsReady = function(payload) {
 async function addSelectedClips() {
   const idxs = [..._clipSelected].sort((a, b) => a - b);
 
-  // Own-source entries may still be downloading their bytes in the background — wait
-  // for the selected ones (usually already done), and retry any that failed outright.
+  // Own-source entries may still be downloading their bytes in the background. Wait
+  // BRIEFLY for the selected ones (usually already done) — but never hang the Add on a
+  // huge download: after the grace period the clips are added on their streaming URLs
+  // and the bytes attach to the board items whenever they land (the export's readiness
+  // barrier already waits for clips without bytes).
   const pendingOwn = idxs.map(i => _clipShots[i]).filter(sh => sh.srcURL && !sh.blob);
   if (pendingOwn.length) {
     spStatus.hidden = false; spGrid.hidden = true;
     spStatusText.textContent = 'Preparing…';
-    await Promise.allSettled(pendingOwn.map(sh => sh._blobFetch || Promise.resolve()));
+    await Promise.race([
+      Promise.allSettled(pendingOwn.map(sh => sh._blobFetch || Promise.resolve())),
+      new Promise(r => setTimeout(r, 8000)),
+    ]);
+    // one quick retry ONLY for fetches that failed outright (never double a live one)
     for (const sh of pendingOwn) {
-      if (sh.blob) continue;
-      try {
-        const { url, blob } = await toBlobObj(sh.srcURL);
-        if (blob) { sh.blob = blob; sh.srcURL = url; registerClipSource(sh.srcKey, { blob }); }
-      } catch (e) {}
+      if (sh.blob || !sh._blobFailed) continue;
+      sh._blobFailed = false;
+      sh._blobFetch = toBlobObj(sh.srcURL).then(({ url, blob }) => {
+        if (!blob) { sh._blobFailed = true; return; }
+        sh.blob = blob; sh.srcURL = url; registerClipSource(sh.srcKey, { blob });
+      }).catch(() => { sh._blobFailed = true; });
     }
   }
 
@@ -9653,7 +9662,7 @@ async function addSelectedClips() {
     if (!s) continue;
     let poster;
     try { poster = await _loadImg(shot.thumb); } catch (e) { continue; }
-    insertBoardItem({
+    const item = {
       id: Date.now() + Math.random(),
       name: `clip_${i + 1}`,
       type: 'clip',
@@ -9673,7 +9682,13 @@ async function addSelectedClips() {
       videoW: poster.naturalWidth,
       videoH: poster.naturalHeight,
       transforms: {},
-    });
+    };
+    insertBoardItem(item);
+    // Bytes still streaming in → attach them to the board clip when they land, so
+    // save/export pick them up without ever having blocked the Add.
+    if (!item._blob && shot._blobFetch) {
+      shot._blobFetch.then(() => { if (shot.blob && !item._blob) item._blob = shot.blob; });
+    }
   }
   // Keep the full source in memory so its clips can be lengthened later this session,
   // and its bytes are ready to persist with the board.

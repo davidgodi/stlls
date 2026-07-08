@@ -8148,8 +8148,30 @@ let _fullMode = null;                 // 'single' | 'library'
 let _fullTotal = 0, _fullDone = 0, _fullAdded = 0;
 let _fullLoading = 0;                 // skeleton frames still expected in the library grid
 let _fullCurProgress = 0;             // real transcode progress of the clip importing right now
+let _fullStallT = null;               // watchdog: native emits progress 4x/s, so silence = wedged
 
 function _fullProgress() { /* library shows skeleton frames in the grid, not the board bar */ }
+
+function _failFullImportBar(msg) {
+  exportBar.hidden = false;
+  exportBarFill.style.transition = 'none'; exportBarFill.style.width = '100%';
+  exportBarLabel.textContent = msg;
+  setTimeout(() => {
+    exportBar.hidden = true;
+    exportBarFill.style.width = '0%'; exportBarLabel.textContent = '0%';
+  }, 1500);
+}
+
+function _armFullStall() {
+  clearTimeout(_fullStallT);
+  _fullStallT = setTimeout(() => {
+    // The native import went silent (no progress, no clip) — unwedge the UI instead
+    // of sitting on "Preparing…" until the app is relaunched.
+    _fullMode = null; _fullLoading = 0; _fullCurProgress = 0;
+    if (!shotPicker.hidden) renderShotGrid();
+    _failFullImportBar('Import failed');
+  }, 30000);
+}
 
 const _RING_C = 94.25;                // circumference of the skeleton ring (r=15)
 function _applyRingProgress(tile, p) {
@@ -8162,6 +8184,11 @@ function _applyRingProgress(tile, p) {
 // Native streams the current clip's transcode progress — fill the first skeleton's ring.
 window.nativeFullClipProgress = function(index, p) {
   _fullCurProgress = p || 0;
+  _armFullStall();                                     // still alive
+  if (_fullMode === 'single' && !exportBar.hidden) {   // single path: fill the bottom bar
+    exportBarFill.style.width = Math.round(5 + _fullCurProgress * 90) + '%';
+    return;
+  }
   if (shotPicker.hidden) return;
   _applyRingProgress(spGrid.querySelector('.sp-shot.sp-loading'), _fullCurProgress);
 };
@@ -8193,6 +8220,7 @@ window.nativeFullClipsStart = function(count) {
   if (!count) { exportBar.hidden = true; _fullMode = null; return; }
   _fullMode = count === 1 ? 'single' : 'library';
   _fullTotal = count; _fullDone = 0; _fullAdded = 0;
+  _armFullStall();
   if (_fullMode === 'single') {
     exportBar.hidden = false;
     exportBarFill.style.transition = 'none'; exportBarFill.style.width = '5%';
@@ -8212,16 +8240,26 @@ window.nativeFullClipReady = function(payload) {
   if (!payload) return;
   const info = payload.clip;
   _fullDone++;
+  _armFullStall();
   if (!info || !info.webURL) {                       // this video failed to import
     _fullLoading = Math.max(0, _fullLoading - 1);    // its skeleton frame goes away
+    if (_fullMode === 'single') {                    // single path: say so and reset (was
+      clearTimeout(_fullStallT);                     // stuck on "Preparing…" forever)
+      _fullMode = null;
+      _failFullImportBar("Couldn't load that video");
+      return;
+    }
     if (!shotPicker.hidden) renderShotGrid();
     return;
   }
   if (_fullMode === 'single') {
-    // One video picked → straight into the length trimmer, not the library.
+    // One video picked → straight into the length trimmer, not the library. Open on the
+    // STREAMING url immediately — a passthrough proxy (HDR iPhone footage) can be the
+    // full-size original, and downloading it here left the bar stuck on "Preparing…";
+    // the bytes are fetched when the trim is applied instead.
+    clearTimeout(_fullStallT);
     exportBar.hidden = true;
-    toBlobObj(info.webURL).then(({ url, blob }) =>
-      openSingleTrimmer(url, { native: false, isObjURL: url.startsWith('blob:'), blob }));
+    openSingleTrimmer(info.webURL, { native: false, isObjURL: false, blob: null });
     return;
   }
   // Library: the entry appears IMMEDIATELY on its streaming URL (the trimmer plays it
@@ -8251,6 +8289,7 @@ window.nativeFullClipReady = function(payload) {
   }
 };
 window.nativeFullClipsDone = function() {
+  clearTimeout(_fullStallT);
   _fullLoading = 0;                                // drop any leftover skeleton frames
   if (_fullMode === 'library') _finishLibraryImport();
   _fullMode = null;
@@ -8501,6 +8540,7 @@ function discardDetectedShots() {
   _clipSrcBlob = null; _clipDetId = null;
   _manualClips = [];
   _fullLoading = 0;
+  clearTimeout(_fullStallT);
   updateClipAddBtnLabel();
 }
 

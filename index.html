@@ -4256,8 +4256,15 @@ function showLayoutPeek() {
   });
   peek.classList.remove('peek-leaving');
   peek.hidden = false;
-  // Sit just above the tour bubble (fall back to the layout section).
+  placeLayoutPeek();
+}
+// Sit just above the tour bubble (fall back to the layout section). Re-run whenever the
+// bubble moves or grows — e.g. when its continue button appears — so they never collide.
+function placeLayoutPeek() {
+  const peek = document.getElementById('layoutPeek');
+  if (!peek || peek.hidden) return;
   const anchor = document.querySelector('#guideLayout .coach-bubble') || document.querySelector('#psLayout');
+  if (!anchor) return;
   const ar = anchor.getBoundingClientRect();
   const pw = peek.offsetWidth, ph = peek.offsetHeight;
   let left = Math.max(8, Math.min(ar.left + ar.width / 2 - pw / 2, window.innerWidth - pw - 8));
@@ -4467,15 +4474,22 @@ function positionCoach(c) {
   guide.classList.toggle('coach-below', below);
   guide.style.left = left + 'px';
   guide.style.top  = top + 'px';
+  // The layout step's mini preview rides just above the bubble — keep it attached when
+  // the bubble moves or grows (the continue button makes it taller).
+  if (guide.id === 'guideLayout' && typeof placeLayoutPeek === 'function')
+    requestAnimationFrame(placeLayoutPeek);
   // Aim the arrow at the ANCHOR, not the bubble's centre: when the bubble is clamped
   // into the viewport (small targets near an edge, e.g. the edit-lines button), a
-  // centred arrow points at nothing.
+  // centred arrow points at nothing. Positioned via flex margin — NOT transform, which
+  // the coachBob animation overwrites every frame.
   const arrow = guide.querySelector('.coach-arrow');
   if (arrow) {
-    const aw = arrow.offsetWidth || 22;
-    const off = (r.left + r.width / 2) - left - gw / 2;   // anchor centre vs bubble centre
-    const max = gw / 2 - aw / 2 - 8;
-    arrow.style.transform = `translateX(${Math.max(-max, Math.min(max, off)).toFixed(0)}px)`;
+    const aw = 22;                                     // svg width attribute
+    let ax = (r.left + r.width / 2) - left - aw / 2;   // arrow's left edge within the guide
+    ax = Math.max(8, Math.min(ax, gw - aw - 8));
+    arrow.style.display = 'block';
+    arrow.style.alignSelf = 'flex-start';              // stop the flex column re-centring it
+    arrow.style.marginLeft = ax.toFixed(0) + 'px';     // left edge = aimed at the anchor
   }
 }
 window.addEventListener('resize', () => {

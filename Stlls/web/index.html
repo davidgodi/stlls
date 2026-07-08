@@ -11022,6 +11022,14 @@ previewExpandBtn.addEventListener('click', () => {
          <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
          <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
+  // The duration timeline must never ride over the board while it resizes — vanish it
+  // now; clearing its stored position makes the final layout's placement appear in
+  // place under the new board bounds instead of travelling or fading late.
+  if (timelineBarEl && !timelineBarEl.hidden) {
+    clearTimeout(_tlFadeT); _tlFadeT = null;
+    timelineBarEl.style.opacity = '0';
+    timelineBarEl.style.left = ''; timelineBarEl.style.top = '';
+  }
   // Refit the board to the animating preview area every frame.
   // Frame-edit handles would sit at stale positions during the morph — drop them now;
   // the clean buildLayout() at the end re-renders them at the new size.
@@ -11088,8 +11096,12 @@ function _swipeApplyTx(tx) {
 // neighbour's snapshot is pixel-identical to what loadBoardState will rebuild).
 function computeBoardDims(ratio, customRatio) {
   const [rw, rh] = ratio === 'custom' ? (customRatio || [9, 16]) : (RATIOS[ratio] || RATIOS['9:16']);
+  // Reserve the timeline sliver EXACTLY like computePreviewSize — the fullscreen morph
+  // sizes the board with this every frame, and any mismatch with the final layout pass
+  // shows as a bump when the animation hands off to the clean rebuild.
+  const tlReserve = (typeof hasClips === 'function' && hasClips()) ? 18 : 0;
   const avW = previewOuter.clientWidth  - 8;
-  const avH = previewOuter.clientHeight - 8;
+  const avH = previewOuter.clientHeight - 8 - tlReserve;
   if (avW < 10 || avH < 10) return { w: previewW, h: previewH };
   let w = avW, h = w * rh / rw;
   if (h > avH) { h = avH; w = h * rw / rh; }

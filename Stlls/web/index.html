@@ -1242,14 +1242,23 @@
     border: 1px solid var(--border2); border-radius: 999px; padding: 4px 10px;
     font-variant-numeric: tabular-nums; pointer-events: none;
   }
-  .car-empty {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 12px; padding: 24px;
+  /* Ghost frames: the strip always ends in an empty outlined frame with a +,
+     so the carousel shape is visible before (and while) anything is added */
+  .car-slide.car-ghost {
+    background: none; border: 1.5px dashed var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    filter: none;   /* no image to dim — keep the outline readable at the edges */
+    cursor: pointer;
   }
-  .car-empty[hidden] { display: none !important; }
-  .car-empty p { color: var(--text-dim); font-size: 12px; margin: 0 0 6px; text-align: center; }
+  .cg-plus {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: 1.5px solid var(--text-dim); color: var(--text-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 300; line-height: 1; pointer-events: none;
+  }
 
   .car-tools { display: flex; gap: 7px; justify-content: center; align-items: center; padding: 9px 12px 2px; flex-shrink: 0; flex-wrap: wrap; min-height: 44px; }
+  .car-tools[hidden] { display: none !important; }
   .car-tool {
     display: flex; align-items: center; gap: 5px; padding: 8px 11px; border-radius: 9px;
     background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
@@ -4293,11 +4302,6 @@
   <div id="carStage">
     <div id="carStrip"></div>
     <div class="car-count" id="carCount" hidden>1 / 1</div>
-    <div class="car-empty" id="carEmpty">
-      <p>Build a swipeable carousel for your post.<br>Start with photos, or split one wide image into frames.</p>
-      <button class="car-chip" id="carEmptyPhotos">Import photos</button>
-      <button class="car-chip" id="carEmptyWide">Split a wide image</button>
-    </div>
   </div>
   <div class="car-tools" id="carTools" hidden>
     <button class="car-tool" id="carMoveL" title="Move frame left">
@@ -12192,7 +12196,6 @@ const carouselScreen = document.getElementById('carouselScreen');
 const carStage   = document.getElementById('carStage');
 const carStrip   = document.getElementById('carStrip');
 const carCount   = document.getElementById('carCount');
-const carEmpty   = document.getElementById('carEmpty');
 const carTools   = document.getElementById('carTools');
 const carFilm    = document.getElementById('carFilm');
 const carAddModal = document.getElementById('carAddModal');
@@ -12252,7 +12255,6 @@ function carClampT(item, W, H) {
 function carRender(structural = true) {
   const slides = carSlides();
   const has = slides.length > 0;
-  carEmpty.hidden = has;
   carTools.hidden = !has;
   carCount.hidden = !has;
   document.getElementById('carFullBtn').disabled = !has;
@@ -12261,6 +12263,9 @@ function carRender(structural = true) {
   if (car.cur > slides.length - 1) car.cur = Math.max(0, slides.length - 1);
 
   const [W, H] = carSlideDims();
+  // the strip always trails off into empty scaffold frames — one while building,
+  // two on an empty carousel so the swipe shape reads immediately
+  const ghostN = has ? 1 : 2;
 
   if (structural) {
     carStrip.innerHTML = '';
@@ -12272,19 +12277,29 @@ function carRender(structural = true) {
       el.style.height = H + 'px';
       // tighter gap + joint marker inside a split image, so the seam reads as connected
       const next = slides[i + 1];
-      el.style.marginRight = (next ? (next.item === item ? CAR_JOINT_GAP : CAR_GAP) : 0) + 'px';
+      el.style.marginRight = (next && next.item === item ? CAR_JOINT_GAP : CAR_GAP) + 'px';
       const img = document.createElement('img');
       img.src = item.img.src;
       el.appendChild(img);
       if (sub > 0) el.appendChild(Object.assign(document.createElement('div'), { className: 'car-joint' }));
       carStrip.appendChild(el);
     });
+    for (let g = 0; g < ghostN; g++) {
+      const el = document.createElement('div');
+      el.className = 'car-slide car-ghost';
+      el.dataset.ghost = '1';
+      el.style.width = W + 'px';
+      el.style.height = H + 'px';
+      el.style.marginRight = (g < ghostN - 1 ? CAR_GAP : 0) + 'px';
+      if (g === 0) el.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
+      carStrip.appendChild(el);
+    }
   }
 
-  // position every img + current highlight
+  // position every img + current highlight (the first ghost is "current" when empty)
   [...carStrip.children].forEach((el, i) => {
     const { item, sub } = slides[i] || {};
-    if (!item) return;
+    if (!item) { el.classList.toggle('cur', !has && i === 0); return; }
     const img = el.querySelector('img');
     const b = carImgBox(item, sub, W, H);
     img.style.left = b.left + 'px';
@@ -12387,8 +12402,6 @@ carFileWide.addEventListener('change', () => {
   if (carFileWide.files.length) carImportFiles([carFileWide.files[0]], true);
   carFileWide.value = '';
 });
-document.getElementById('carEmptyPhotos').addEventListener('click', () => carFileMulti.click());
-document.getElementById('carEmptyWide').addEventListener('click', () => carFileWide.click());
 document.getElementById('carAddSlide').addEventListener('click', () => openBigModal(carAddModal));
 document.getElementById('carAddPhotos').addEventListener('click', () => { closeBigModal(carAddModal); carFileMulti.click(); });
 document.getElementById('carAddWide').addEventListener('click', () => { closeBigModal(carAddModal); carFileWide.click(); });
@@ -12501,11 +12514,12 @@ function carPtrEnd(e) {
 carStage.addEventListener('pointerup', carPtrEnd);
 carStage.addEventListener('pointercancel', carPtrEnd);
 
-// tap a dimmed side slide → navigate to it
+// tap a dimmed side slide → navigate to it; tap a ghost frame → add media
 carStage.addEventListener('click', e => {
   const wasDrag = _carDragged; _carDragged = false;
   const slideEl = e.target.closest('.car-slide');
   if (!slideEl || wasDrag) return;
+  if (slideEl.dataset.ghost) { openBigModal(carAddModal); return; }
   const i = +slideEl.dataset.i;
   if (i !== car.cur) {
     car.cur = i; carRender(false); carRenderFilmSel();

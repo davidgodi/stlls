@@ -4353,7 +4353,6 @@
 </div>
 
 <input type="file" id="carFileMulti" accept="image/*" multiple hidden>
-<input type="file" id="carFileWide" accept="image/*" hidden>
 
 <!-- Export choice modal (multi-board projects) -->
 <div id="exportChoiceModal" hidden>
@@ -12206,7 +12205,6 @@ const carViewer  = document.getElementById('carViewer');
 const carViewerScroll = document.getElementById('carViewerScroll');
 const carViewerDots   = document.getElementById('carViewerDots');
 const carFileMulti = document.getElementById('carFileMulti');
-const carFileWide  = document.getElementById('carFileWide');
 const carRatioBtn  = document.getElementById('carRatioBtn');
 const carExportBtn = document.getElementById('carExportBtn');
 
@@ -12396,13 +12394,26 @@ carFileMulti.addEventListener('change', () => {
   if (carFileMulti.files.length) carImportFiles(carFileMulti.files, false);
   carFileMulti.value = '';
 });
-carFileWide.addEventListener('change', () => {
-  if (carFileWide.files.length) carImportFiles([carFileWide.files[0]], true);
-  carFileWide.value = '';
-});
+// Wide image: a FRESH single-select input per pick. iOS has been seen offering
+// multi-select from a reused hidden input despite `multiple` being absent —
+// a new element each time guarantees the picker opens with selection limit 1,
+// and the handler takes exactly one file regardless.
+function carPickWideImage() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.multiple = false;
+  inp.hidden = true;
+  document.body.appendChild(inp);
+  inp.addEventListener('change', () => {
+    if (inp.files.length) carImportFiles([inp.files[0]], true);
+    inp.remove();
+  });
+  inp.click();
+}
 document.getElementById('carAddSlide').addEventListener('click', () => openBigModal(carAddModal));
 document.getElementById('carAddPhotos').addEventListener('click', () => { closeBigModal(carAddModal); carFileMulti.click(); });
-document.getElementById('carAddWide').addEventListener('click', () => { closeBigModal(carAddModal); carFileWide.click(); });
+document.getElementById('carAddWide').addEventListener('click', () => { closeBigModal(carAddModal); carPickWideImage(); });
 carAddModal.addEventListener('pointerdown', e => { if (e.target === carAddModal) closeBigModal(carAddModal); });
 carAddModal.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(carAddModal));
 

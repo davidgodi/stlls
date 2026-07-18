@@ -12310,12 +12310,7 @@ function carRender(structural = true) {
   });
 
   // strip offset: center the current slide
-  let x = 0;
-  for (let i = 0; i < car.cur; i++) {
-    const s = slides[i], n = slides[i + 1];
-    x += W + (n && n.item === s.item ? CAR_JOINT_GAP : CAR_GAP);
-  }
-  carStrip.style.transform = `translateX(${(carStage.clientWidth - W) / 2 - x}px)`;
+  carStrip.style.transform = `translateX(${carStripX()}px)`;
 
   carCount.textContent = `${car.cur + 1} / ${slides.length}`;
   carRenderTools(slides);
@@ -12458,53 +12453,129 @@ carRatioBtn.addEventListener('click', () => {
   carRender();
 });
 
-// ── Stage interaction: tap sides to navigate, drag/pinch the current slide ──
+// ── Stage interaction ───────────────────────────────────────────────────────
+// Touch: one finger swipes between slides (live follow, rubber-band ends,
+// flick detection); two fingers pinch-zoom AND pan the current image — the
+// IG-editor reframe gesture. Mouse: drag the current slide to reframe, click
+// a side slide to navigate, wheel to zoom.
 
-let _carPtr = null;   // { id, x, y, moved, startFx, startFy }
-let _carPinch = null; // { d0, s0 }
+let _carPtr = null;    // mouse reframe drag
+let _carSwipe = null;  // one-finger swipe navigation
+let _carPinch = null;  // two-finger zoom+pan
+
+// resting strip offset that centres slide `cur`
+function carStripX(cur = car.cur) {
+  const slides = carSlides();
+  const [W] = carSlideDims();
+  let x = 0;
+  for (let i = 0; i < cur; i++) {
+    const s = slides[i], n = slides[i + 1];
+    x += W + (n && n.item === s.item ? CAR_JOINT_GAP : CAR_GAP);
+  }
+  return (carStage.clientWidth - W) / 2 - x;
+}
 
 carStage.addEventListener('pointerdown', e => {
-  const slideEl = e.target.closest('.car-slide');
-  if (!slideEl) return;
-  const i = +slideEl.dataset.i;
-  if (i !== car.cur) return;   // side slides: navigation handled on click
-  const it = carCurItem(); if (!it) return;
-  if (_carPtr && _carPtr.id !== e.pointerId) {
-    // second finger → pinch
-    _carPinch = { d0: Math.hypot(e.clientX - _carPtr.lastX, e.clientY - _carPtr.lastY), s0: it.t.scale };
-    _carPinch.id2 = e.pointerId;
+  if (!car) return;
+  if (e.pointerType === 'touch') {
+    if (_carSwipe && !_carPinch && e.pointerId !== _carSwipe.id) {
+      // second finger lands → become a reframe gesture on the current image
+      const it = carCurItem(); if (!it) return;
+      _carPinch = {
+        id1: _carSwipe.id, id2: e.pointerId,
+        x1: _carSwipe.lastX, y1: _carSwipe.lastY, x2: e.clientX, y2: e.clientY,
+        s0: it.t.scale, fx0: it.t.fx, fy0: it.t.fy,
+      };
+      _carPinch.d0 = Math.hypot(_carPinch.x2 - _carPinch.x1, _carPinch.y2 - _carPinch.y1) || 1;
+      _carPinch.mx0 = (_carPinch.x1 + _carPinch.x2) / 2;
+      _carPinch.my0 = (_carPinch.y1 + _carPinch.y2) / 2;
+      _carSwipe.cancelled = true;
+      carStrip.classList.remove('no-anim');
+      carStrip.style.transform = `translateX(${carStripX()}px)`;   // undo any part-swipe
+      return;
+    }
+    if (!carSlides().length) return;   // empty: ghost taps go through click
+    _carSwipe = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                  t: performance.now(), vx: 0, moved: false, base: carStripX() };
     return;
   }
-  _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
-              moved: false, fx: it.t.fx, fy: it.t.fy };
+  // mouse — reframe the current slide
+  const slideEl = e.target.closest('.car-slide');
+  if (!slideEl || slideEl.dataset.ghost || +slideEl.dataset.i !== car.cur) return;
+  const it = carCurItem(); if (!it) return;
+  _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, fx: it.t.fx, fy: it.t.fy };
   carStage.setPointerCapture(e.pointerId);
 });
+
 carStage.addEventListener('pointermove', e => {
-  const it = carCurItem(); if (!it || !_carPtr) return;
+  if (!car) return;
   const [W, H] = carSlideDims();
   if (_carPinch) {
-    if (e.pointerId === _carPinch.id2) { _carPinch.x2 = e.clientX; _carPinch.y2 = e.clientY; }
-    else { _carPtr.lastX = e.clientX; _carPtr.lastY = e.clientY; }
-    if (_carPinch.x2 != null) {
-      const d = Math.hypot(_carPinch.x2 - _carPtr.lastX, _carPinch.y2 - _carPtr.lastY);
-      it.t.scale = Math.min(4, Math.max(1, _carPinch.s0 * d / (_carPinch.d0 || 1)));
-      carClampT(it, W, H);
-      carRender(false);
+    const it = carCurItem(); if (!it) return;
+    if (e.pointerId === _carPinch.id1) { _carPinch.x1 = e.clientX; _carPinch.y1 = e.clientY; }
+    else if (e.pointerId === _carPinch.id2) { _carPinch.x2 = e.clientX; _carPinch.y2 = e.clientY; }
+    else return;
+    const d = Math.hypot(_carPinch.x2 - _carPinch.x1, _carPinch.y2 - _carPinch.y1);
+    it.t.scale = Math.min(4, Math.max(1, _carPinch.s0 * d / _carPinch.d0));
+    const mx = (_carPinch.x1 + _carPinch.x2) / 2, my = (_carPinch.y1 + _carPinch.y2) / 2;
+    it.t.fx = _carPinch.fx0 + (mx - _carPinch.mx0) / (it.span * W);
+    it.t.fy = _carPinch.fy0 + (my - _carPinch.my0) / H;
+    carClampT(it, W, H);
+    carRender(false);
+    return;
+  }
+  if (_carSwipe && e.pointerId === _carSwipe.id && !_carSwipe.cancelled) {
+    const now = performance.now();
+    const dx = e.clientX - _carSwipe.x;
+    if (Math.abs(dx) + Math.abs(e.clientY - _carSwipe.y) > 6) _carSwipe.moved = true;
+    _carSwipe.vx = (e.clientX - _carSwipe.lastX) / Math.max(1, now - _carSwipe.t);
+    _carSwipe.lastX = e.clientX; _carSwipe.lastY = e.clientY; _carSwipe.t = now;
+    const slides = carSlides();
+    let eff = dx;
+    if ((car.cur === 0 && dx > 0) || (car.cur === slides.length - 1 && dx < 0)) eff = dx * 0.35;
+    carStrip.classList.add('no-anim');
+    carStrip.style.transform = `translateX(${_carSwipe.base + eff}px)`;
+    return;
+  }
+  if (_carPtr && e.pointerId === _carPtr.id) {
+    const it = carCurItem(); if (!it) return;
+    const dx = e.clientX - _carPtr.x, dy = e.clientY - _carPtr.y;
+    if (Math.abs(dx) + Math.abs(dy) > 4) _carPtr.moved = true;
+    it.t.fx = _carPtr.fx + dx / (it.span * W);
+    it.t.fy = _carPtr.fy + dy / H;
+    carClampT(it, W, H);
+    carRender(false);
+  }
+});
+
+let _carDragged = false;   // suppresses the click that follows a drag/swipe
+function carPtrEnd(e) {
+  if (_carPinch && (e.pointerId === _carPinch.id1 || e.pointerId === _carPinch.id2)) {
+    _carPinch = null; _carSwipe = null; _carDragged = true;
+    carStrip.classList.remove('no-anim');
+    carRender(false);
+    carRenderFilm(carSlides(), ...carSlideDims());
+    return;
+  }
+  if (_carSwipe && e.pointerId === _carSwipe.id) {
+    const s = _carSwipe; _carSwipe = null;
+    if (s.cancelled) return;
+    _carDragged = s.moved;
+    carStrip.classList.remove('no-anim');
+    if (s.moved) {
+      const [W] = carSlideDims();
+      const dx = s.lastX - s.x;
+      let target = Math.round(car.cur - dx / (W + CAR_GAP));
+      // a quick flick always moves at least one slide in its direction
+      if (s.vx < -0.35) target = Math.max(target, car.cur + 1);
+      else if (s.vx > 0.35) target = Math.min(target, car.cur - 1);
+      car.cur = Math.max(0, Math.min(carSlides().length - 1, target));
+      carRender(false); carRenderFilmSel();
+    } else {
+      carRender(false);   // snap back; an unmoved tap falls through to click
     }
     return;
   }
-  if (e.pointerId !== _carPtr.id) return;
-  const dx = e.clientX - _carPtr.x, dy = e.clientY - _carPtr.y;
-  if (Math.abs(dx) + Math.abs(dy) > 4) _carPtr.moved = true;
-  _carPtr.lastX = e.clientX; _carPtr.lastY = e.clientY;
-  it.t.fx = _carPtr.fx + dx / (it.span * W);
-  it.t.fy = _carPtr.fy + dy / H;
-  carClampT(it, W, H);
-  carRender(false);
-});
-let _carDragged = false;   // suppresses the click that follows a reframe drag
-function carPtrEnd(e) {
-  if (_carPinch && (e.pointerId === _carPinch.id2 || e.pointerId === _carPtr?.id)) _carPinch = null;
   if (_carPtr && e.pointerId === _carPtr.id) {
     _carDragged = _carPtr.moved;
     if (_carPtr.moved) carRenderFilm(carSlides(), ...carSlideDims());

@@ -1213,42 +1213,58 @@
   .car-chip svg { display: block; }
 
   #carStage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
+  /* The strip is one continuous seamless canvas `frames` slides wide; images
+     float freely on it (tap to select, drag to move, handle to scale). */
   #carStrip {
-    position: absolute; top: 0; left: 0; height: 100%;
-    display: flex; align-items: center;
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
     transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
   }
   #carStrip.no-anim { transition: none; }
-  .car-slide {
-    position: relative; flex-shrink: 0; overflow: hidden; border-radius: 10px;
-    background: var(--surface2); border: 1px solid var(--border2); box-sizing: border-box;
-    filter: brightness(0.42); transition: filter 0.3s ease;
-    cursor: pointer;
+  .car-clip {
+    position: absolute; left: 0; top: 0; overflow: hidden;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 10px; box-sizing: border-box;
   }
-  .car-slide.cur { filter: none; cursor: grab; }
-  .car-slide img {
-    position: absolute; max-width: none; pointer-events: none;
-    user-select: none; -webkit-user-drag: none;
+  .car-obj { position: absolute; cursor: pointer; }
+  .car-obj img {
+    width: 100%; height: 100%; display: block; max-width: none;
+    pointer-events: none; user-select: none; -webkit-user-drag: none;
   }
-  /* subtle joint marker between sub-slides of one split image */
-  .car-slide .car-joint {
-    position: absolute; left: 0; top: 50%; margin-top: -9px; width: 3px; height: 18px;
-    border-radius: 0 3px 3px 0; background: var(--accent); opacity: 0.55; pointer-events: none;
+  .car-obj.sel { outline: 2px solid var(--accent); cursor: grab; }
+  .car-handle {
+    display: none; position: absolute; right: -11px; bottom: -11px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); border: 2px solid var(--accent-fg);
+    cursor: nwse-resize; transform-origin: 100% 100%;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.4);
+  }
+  .car-obj.sel .car-handle { display: block; }
+  .car-frameline {
+    position: absolute; top: 0; bottom: 0; width: 1px;
+    background: var(--border2); opacity: 0.85; pointer-events: none;
+  }
+  .car-framedim {
+    position: absolute; top: 0; height: 100%;
+    background: rgba(0, 0, 0, 0.42); pointer-events: none;
+    transition: background 0.3s ease;
+  }
+  .car-framedim.off { background: transparent; }
+  .car-ghostadd {
+    position: absolute; top: 0; box-sizing: border-box;
+    border: 1.5px dashed var(--border2); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .car-emptyplus {
+    position: absolute; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
   }
   .car-count {
     position: absolute; top: 10px; right: 12px; z-index: 3;
     font-size: 11px; color: var(--text-mid); background: var(--surface);
     border: 1px solid var(--border2); border-radius: 999px; padding: 4px 10px;
     font-variant-numeric: tabular-nums; pointer-events: none;
-  }
-  /* Ghost frames: the strip always ends in an empty outlined frame with a +,
-     so the carousel shape is visible before (and while) anything is added */
-  .car-slide.car-ghost {
-    background: none; border: 1.5px dashed var(--border2);
-    display: flex; align-items: center; justify-content: center;
-    filter: none;   /* no image to dim — keep the outline readable at the edges */
-    cursor: pointer;
   }
   .cg-plus {
     width: 40px; height: 40px; border-radius: 50%;
@@ -1267,33 +1283,21 @@
   .car-tool:disabled { opacity: 0.3; pointer-events: none; }
   .car-tool[hidden] { display: none !important; }
   .car-tool.on { border-color: var(--accent); color: var(--accent); }
-  /* floating chips on the frame's top corners + the frame-count row under it */
-  .car-corner {
-    position: absolute; z-index: 4;
-    display: flex; align-items: center; gap: 5px;
-    padding: 7px 10px; border-radius: 9px;
-    background: var(--surface); border: 1px solid var(--border2); color: var(--text-mid);
-    font-family: inherit; font-size: 10.5px; font-weight: 500; cursor: pointer;
-    box-shadow: var(--btn-shadow); -webkit-tap-highlight-color: transparent;
-    transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), right 0.45s cubic-bezier(0.4, 0, 0.2, 1),
-                top 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .car-corner:active { transform: scale(0.94); }
-  .car-corner.on { border-color: var(--accent); color: var(--accent); }
-  .car-corner[hidden] { display: none !important; }
-  .car-corner svg { display: block; }
-  #carSpanRow {
+  /* contextual rows pinned under the preview */
+  .car-underrow {
     position: absolute; z-index: 4; display: flex; gap: 7px;
-    left: 50%; transform: translateX(-50%);
-    transition: top 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    bottom: 10px; left: 50%; transform: translateX(-50%);
   }
-  #carSpanRow[hidden] { display: none !important; }
-  /* ratio toggle morphs frames + crops smoothly instead of snapping */
-  #carStrip.ratio-anim .car-slide { transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
-  #carStrip.ratio-anim .car-slide img {
+  .car-underrow[hidden] { display: none !important; }
+  /* ratio toggle morphs the canvas, frame grid and images smoothly */
+  #carStrip.ratio-anim .car-clip { transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
+  #carStrip.ratio-anim .car-obj {
     transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), top 0.45s cubic-bezier(0.4, 0, 0.2, 1),
                 width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  #carStrip.ratio-anim .car-frameline { transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
+  #carStrip.ratio-anim .car-framedim,
+  #carStrip.ratio-anim .car-ghostadd { transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
   /* board-editor chrome (header, workspace, its fixed bars) stays out of the way
      while the carousel editor is open */
   body.car-open header, body.car-open .workspace, body.car-open #timelineBar,
@@ -4334,15 +4338,14 @@
   </div>
   <div id="carStage">
     <div id="carStrip"></div>
-    <button class="car-corner" id="carReframe" hidden title="One-finger reframe">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
-      Reframe
-    </button>
-    <button class="car-corner" id="carReset" hidden>Reset crop</button>
-    <div id="carSpanRow" hidden>
-      <button class="car-tool" id="carSpanDn" title="Fewer frames">− frame</button>
-      <button class="car-tool" id="carSpanUp" title="More frames">+ frame</button>
-      <button class="car-tool" id="carDup">Duplicate</button>
+    <div class="car-underrow" id="carFrameRow" hidden>
+      <button class="car-tool" id="carFrameDn" title="Fewer frames">− frame</button>
+      <button class="car-tool" id="carFrameUp" title="More frames">+ frame</button>
+    </div>
+    <div class="car-underrow" id="carSelRow" hidden>
+      <button class="car-tool danger" id="carSelDelete">Delete</button>
+      <button class="car-tool" id="carSelFwd">Forward</button>
+      <button class="car-tool" id="carSelBack">Behind</button>
     </div>
     <div class="car-count" id="carCount" hidden>1 / 1</div>
   </div>
@@ -12208,16 +12211,21 @@ async function doVideoExport() {
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CAROUSEL EDITOR
-// A carousel is a list of items; each item holds one image spanning `span`
-// consecutive slides (span 1 = a normal frame, span ≥ 2 = a wide image split
-// across frames so the picture flows seamlessly through the swipe). Transforms
-// {scale, fx, fy} pan/zoom the image over its full span, exactly like board
-// slot transforms but with the span width as the reference area.
+// CAROUSEL EDITOR — seamless canvas
+// A carousel is ONE continuous canvas `frames` slides wide. Images float
+// freely on it in canonical units (slide height = 1000) and stack in array
+// order (later = on top). Tap selects an image — accent outline + corner
+// handle to scale, drag to move. With nothing selected one finger swipes
+// between frames; two fingers pinch-zoom the editor view (mouse: wheel).
+// The frame grid is just where the canvas gets sliced on export.
 // ═══════════════════════════════════════════════════════════════════════════
 
-let car = null;          // { ratio:'4:5'|'1:1', items:[{id, src, img, span, t}], cur }
+let car = null;          // { ratio:'4:5'|'1:1', frames, imgs:[{id,src,img,x,y,w}], cur, sel }
 let _carOpen = false;
+let _carView = 1;        // editor zoom
+
+const CAR_CH = 1000;     // canonical slide height
+const CAR_MINV = 0.35, CAR_MAXV = 2.5;
 
 const carouselScreen = document.getElementById('carouselScreen');
 const carStage   = document.getElementById('carStage');
@@ -12232,168 +12240,163 @@ const carFileMulti = document.getElementById('carFileMulti');
 const carRatioBtn  = document.getElementById('carRatioBtn');
 const carExportBtn = document.getElementById('carExportBtn');
 
-const CAR_GAP = 14;          // editor gap between items' slides
-const CAR_JOINT_GAP = 4;     // gap between sub-slides of one split image
-
 function carRatioWH() { return car.ratio === '1:1' ? [1, 1] : [4, 5]; }
-
-// Flat slide list: [{ item, sub }] — sub is the slide's index within its item's span
-function carSlides() {
-  const out = [];
-  for (const item of car.items)
-    for (let s = 0; s < item.span; s++) out.push({ item, sub: s });
-  return out;
-}
+function carCW() { const [rw, rh] = carRatioWH(); return CAR_CH * rw / rh; }   // canonical slide width
 
 function carSlideDims() {
   const [rw, rh] = carRatioWH();
   const stW = carStage.clientWidth, stH = carStage.clientHeight;
-  let h = stH - 88;   // leaves room for the −/+ frame row under the frame
+  let h = stH - 88;   // leaves room for the rows under the frame
   let w = h * rw / rh;
   const maxW = stW * 0.68;
   if (w > maxW) { w = maxW; h = w * rh / rw; }
   return [Math.round(w), Math.round(h)];
 }
 
-// Cover-fit `item.img` over its full span area, return the img box for one sub-slide
-function carImgBox(item, sub, W, H) {
-  const spanW = item.span * W;
-  const iw = item.img.naturalWidth, ih = item.img.naturalHeight;
-  const s = Math.max(spanW / iw, H / ih) * item.t.scale;
-  const left = (spanW - iw * s) / 2 + item.t.fx * spanW;
-  const top  = (H - ih * s) / 2 + item.t.fy * H;
-  return { left: left - sub * W, top, w: iw * s, h: ih * s, s, spanW };
-}
-
-function carClampT(item, W, H) {
-  const spanW = item.span * W;
-  const iw = item.img.naturalWidth, ih = item.img.naturalHeight;
-  const s = Math.max(spanW / iw, H / ih) * item.t.scale;
-  const mx = Math.max(0, (iw * s - spanW) / 2) / spanW;
-  const my = Math.max(0, (ih * s - H) / 2) / H;
-  item.t.fx = Math.min(mx, Math.max(-mx, item.t.fx));
-  item.t.fy = Math.min(my, Math.max(-my, item.t.fy));
-}
+function carK() { return carSlideDims()[1] / CAR_CH; }   // canonical → display px
+function carSel() { return car.imgs.find(o => o.id === car.sel) || null; }
 
 // ── Rendering ───────────────────────────────────────────────────────────────
 
+// Strip transform: centres the current frame, scaled by the view zoom.
+function carApplyView(dx = 0) {
+  const [W, H] = carSlideDims();
+  const cx = carStage.clientWidth / 2, cy = carStage.clientHeight / 2;
+  const fc = (car.cur + 0.5) * W;
+  carStrip.style.transform =
+    `translate(${cx - fc * _carView + dx}px, ${cy - (H / 2) * _carView}px) scale(${_carView})`;
+  // the scale handle keeps its screen size regardless of zoom
+  carStrip.querySelectorAll('.car-handle').forEach(h => h.style.transform = `scale(${1 / _carView})`);
+}
+
 function carRender(structural = true) {
-  const slides = carSlides();
-  const has = slides.length > 0;
-  carCount.hidden = !has;
+  const has = car.imgs.length > 0;
   document.getElementById('carFullBtn').disabled = !has;
   carExportBtn.disabled = !has;
   carRatioBtn.textContent = car.ratio;
-  if (car.cur > slides.length - 1) car.cur = Math.max(0, slides.length - 1);
+  car.cur = Math.max(0, Math.min(car.frames - 1, car.cur));
+  carCount.hidden = false;
+  carCount.textContent = `${car.cur + 1} / ${car.frames}`;
 
   const [W, H] = carSlideDims();
-  // the strip always trails off into empty scaffold frames — one while building,
-  // two on an empty carousel so the swipe shape reads immediately
-  const ghostN = has ? 1 : 2;
+  const k = carK();
+  const totalW = car.frames * W;
 
   if (structural) {
     carStrip.innerHTML = '';
-    slides.forEach(({ item, sub }, i) => {
-      const el = document.createElement('div');
-      el.className = 'car-slide';
-      el.dataset.i = i;
-      el.style.width = W + 'px';
-      el.style.height = H + 'px';
-      // tighter gap + joint marker inside a split image, so the seam reads as connected
-      const next = slides[i + 1];
-      el.style.marginRight = (next && next.item === item ? CAR_JOINT_GAP : CAR_GAP) + 'px';
-      const img = document.createElement('img');
-      img.src = item.img.src;
-      el.appendChild(img);
-      if (sub > 0) el.appendChild(Object.assign(document.createElement('div'), { className: 'car-joint' }));
-      carStrip.appendChild(el);
+    const clip = document.createElement('div');
+    clip.className = 'car-clip';
+    car.imgs.forEach(o => {
+      const d = document.createElement('div');
+      d.className = 'car-obj';
+      d.dataset.id = o.id;
+      const im = document.createElement('img');
+      im.src = o.img.src;
+      d.appendChild(im);
+      d.appendChild(Object.assign(document.createElement('div'), { className: 'car-handle' }));
+      clip.appendChild(d);
     });
-    for (let g = 0; g < ghostN; g++) {
-      const el = document.createElement('div');
-      el.className = 'car-slide car-ghost';
-      el.dataset.ghost = '1';
-      el.style.width = W + 'px';
-      el.style.height = H + 'px';
-      el.style.marginRight = (g < ghostN - 1 ? CAR_GAP : 0) + 'px';
-      if (g === 0) el.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
-      carStrip.appendChild(el);
+    for (let i = 1; i < car.frames; i++) {
+      const l = document.createElement('div');
+      l.className = 'car-frameline';
+      l.dataset.b = i;
+      clip.appendChild(l);
+    }
+    for (let i = 0; i < car.frames; i++) {
+      const d = document.createElement('div');
+      d.className = 'car-framedim';
+      d.dataset.f = i;
+      clip.appendChild(d);
+    }
+    carStrip.appendChild(clip);
+    const g = document.createElement('div');
+    g.className = 'car-ghostadd';
+    g.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
+    carStrip.appendChild(g);
+    if (!has) {
+      const ep = document.createElement('div');
+      ep.className = 'car-emptyplus';
+      ep.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
+      carStrip.appendChild(ep);
     }
   }
 
-  // position every img + current highlight (the first ghost is "current" when empty).
-  // Sizes are (re)applied here too so a ratio toggle can morph in place.
-  [...carStrip.children].forEach((el, i) => {
-    el.style.width = W + 'px';
-    el.style.height = H + 'px';
-    const { item, sub } = slides[i] || {};
-    if (!item) { el.classList.toggle('cur', !has && i === 0); return; }
-    const img = el.querySelector('img');
-    const b = carImgBox(item, sub, W, H);
-    img.style.left = b.left + 'px';
-    img.style.top = b.top + 'px';
-    img.style.width = b.w + 'px';
-    img.style.height = b.h + 'px';
-    el.classList.toggle('cur', i === car.cur);
+  // geometry pass — runs every render so the ratio toggle can morph in place
+  const clip = carStrip.querySelector('.car-clip');
+  clip.style.width = totalW + 'px';
+  clip.style.height = H + 'px';
+  const objEls = clip.querySelectorAll('.car-obj');
+  car.imgs.forEach((o, i) => {
+    const d = objEls[i]; if (!d) return;
+    const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+    d.style.left   = (o.x * k) + 'px';
+    d.style.top    = (o.y * k) + 'px';
+    d.style.width  = (o.w * k) + 'px';
+    d.style.height = (oh * k) + 'px';
+    d.classList.toggle('sel', o.id === car.sel);
   });
+  clip.querySelectorAll('.car-frameline').forEach(l => { l.style.left = (l.dataset.b * W) + 'px'; });
+  clip.querySelectorAll('.car-framedim').forEach(d => {
+    d.style.left = (d.dataset.f * W) + 'px';
+    d.style.width = W + 'px';
+    d.classList.toggle('off', +d.dataset.f === car.cur);
+  });
+  const g = carStrip.querySelector('.car-ghostadd');
+  g.style.left = (totalW + 12) + 'px';
+  g.style.top = '0px';
+  g.style.width = W + 'px';
+  g.style.height = H + 'px';
+  const ep = carStrip.querySelector('.car-emptyplus');
+  if (ep) {
+    ep.style.left = (car.cur * W) + 'px'; ep.style.top = '0px';
+    ep.style.width = W + 'px'; ep.style.height = H + 'px';
+  }
 
-  // strip offset: center the current slide
-  carStrip.style.transform = `translateX(${carStripX()}px)`;
-
-  // chips sit just ABOVE the frame, flush with its left/right edges;
-  // the −/+ row goes just below it
-  const fl = (carStage.clientWidth - W) / 2;
-  const ft = (carStage.clientHeight - H) / 2;
-  const rf = document.getElementById('carReframe');
-  const rs = document.getElementById('carReset');
-  rf.hidden = !has; rs.hidden = !has;
-  rf.style.left  = fl + 'px'; rf.style.top = (ft - 38) + 'px';
-  rs.style.right = fl + 'px'; rs.style.top = (ft - 38) + 'px';
-  document.getElementById('carSpanRow').style.top = (ft + H + 12) + 'px';
-
-  carCount.textContent = `${car.cur + 1} / ${slides.length}`;
-  carRenderTools(slides);
-  if (structural) carRenderFilm(slides, W, H);
+  carApplyView();
+  carRenderTools();
+  if (structural) carRenderFilm();
 }
 
-function carRenderTools(slides) {
-  const s = slides[car.cur];
-  const spanRow = document.getElementById('carSpanRow');
-  spanRow.hidden = !s;
-  if (!s) return;
-  const isSpan = s.item.span > 1;
-  document.getElementById('carSpanDn').hidden = !isSpan;
-  document.getElementById('carSpanUp').hidden = !isSpan;
-  document.getElementById('carSpanDn').disabled = s.item.span <= 2;
-  document.getElementById('carSpanUp').disabled = s.item.span >= 10;
-  document.getElementById('carDup').hidden = isSpan;
+function carRenderTools() {
+  const sel = carSel();
+  document.getElementById('carSelRow').hidden = !sel;
+  document.getElementById('carFrameRow').hidden = !!sel;
+  document.getElementById('carFrameDn').disabled = car.frames <= 1;
+  document.getElementById('carFrameUp').disabled = car.frames >= 10;
+  if (sel) {
+    const i = car.imgs.indexOf(sel);
+    document.getElementById('carSelFwd').disabled = i === car.imgs.length - 1;
+    document.getElementById('carSelBack').disabled = i === 0;
+  }
 }
 
-function carRenderFilm(slides, W, H) {
+// Draw one frame's slice of the canvas into a 2d context (k: canonical→target px)
+function carDrawFrame(ctx, f, k) {
+  const cw = carCW();
+  for (const o of car.imgs) {
+    const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+    ctx.drawImage(o.img, (o.x - f * cw) * k, o.y * k, o.w * k, oh * k);
+  }
+}
+
+function carRenderFilm() {
   carFilm.innerHTML = '';
+  const [W, H] = carSlideDims();
   const th = 78, tw = Math.round(th * W / H);
-  slides.forEach(({ item, sub }, i) => {
+  const kk = th / CAR_CH;
+  for (let f = 0; f < car.frames; f++) {
     const b = document.createElement('button');
-    b.className = 'car-thumb' + (i === car.cur ? ' cur' : '');
+    b.className = 'car-thumb' + (f === car.cur ? ' cur' : '');
     const cv = document.createElement('canvas');
     cv.width = tw; cv.height = th;
     const ctx = cv.getContext('2d');
-    const box = carImgBox(item, sub, tw, th);
-    ctx.drawImage(item.img, box.left, box.top, box.w, box.h);
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, tw, th);
+    carDrawFrame(ctx, f, kk);
     b.appendChild(cv);
-    const n = Object.assign(document.createElement('span'), { className: 'ct-n', textContent: i + 1 });
-    b.appendChild(n);
-    if (item.span > 1) b.appendChild(Object.assign(document.createElement('span'), { className: 'ct-link', textContent: '⛓' }));
-    // corner ✕ removes the image — for a split image that's all of its frames
-    const xb = Object.assign(document.createElement('span'), { className: 'ct-x', textContent: '✕' });
-    xb.addEventListener('click', ev => {
-      ev.stopPropagation();
-      const idx = car.items.indexOf(item);
-      if (idx >= 0) { car.items.splice(idx, 1); carRender(); }
-    });
-    b.appendChild(xb);
-    b.addEventListener('click', () => { car.cur = i; carRender(false); carRenderFilmSel(); });
+    b.appendChild(Object.assign(document.createElement('span'), { className: 'ct-n', textContent: f + 1 }));
+    b.addEventListener('click', () => { car.cur = f; carRender(false); carRenderFilmSel(); });
     carFilm.appendChild(b);
-  });
+  }
 }
 
 function carRenderFilmSel() {
@@ -12402,11 +12405,6 @@ function carRenderFilmSel() {
 }
 
 // ── Import ──────────────────────────────────────────────────────────────────
-
-function carAutoSpan(item) {
-  const [rw, rh] = carRatioWH();
-  return Math.max(2, Math.min(10, Math.round((item.img.naturalWidth / item.img.naturalHeight) / (rw / rh))));
-}
 
 function carReadFile(file) {
   return new Promise(resolve => {
@@ -12425,13 +12423,29 @@ function carReadFile(file) {
 async function carImportFiles(files, wide) {
   const loaded = (await Promise.all([...files].map(carReadFile))).filter(Boolean);
   if (!loaded.length) return;
-  const firstNew = carSlides().length;   // land on the first slide we're about to add
-  for (const { src, img } of loaded) {
-    const item = { id: genId(), src, img, span: 1, t: { scale: 1, fx: 0, fy: 0 } };
-    if (wide) item.span = carAutoSpan(item);
-    car.items.push(item);
+  const cw = carCW();
+  if (wide) {
+    // one wide image fills the slide height and runs across as many frames as it needs
+    const { src, img } = loaded[0];
+    const w = CAR_CH * img.naturalWidth / img.naturalHeight;
+    const x = car.imgs.length ? car.frames * cw : 0;
+    car.imgs.push({ id: genId(), src, img, x, y: 0, w });
+    car.frames = Math.min(10, Math.max(car.frames, Math.ceil((x + w) / cw - 0.02)));
+    car.cur = Math.min(car.frames - 1, Math.floor(x / cw));
+  } else {
+    // photos stack on the current frame, each offset 30% of its width to the right
+    let x = car.cur * cw + cw * 0.08;
+    let right = x;
+    for (const { src, img } of loaded) {
+      const w = cw * 0.72;
+      const oh = w * img.naturalHeight / img.naturalWidth;
+      car.imgs.push({ id: genId(), src, img, x, y: (CAR_CH - oh) / 2, w });
+      right = x + w;
+      x += w * 0.3;
+    }
+    car.frames = Math.min(10, Math.max(car.frames, Math.ceil(right / cw - 0.02)));
   }
-  car.cur = firstNew;
+  car.sel = null;
   carRender();
 }
 
@@ -12462,223 +12476,220 @@ document.getElementById('carAddWide').addEventListener('click', () => { closeBig
 carAddModal.addEventListener('pointerdown', e => { if (e.target === carAddModal) closeBigModal(carAddModal); });
 carAddModal.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(carAddModal));
 
-// ── Tools ───────────────────────────────────────────────────────────────────
+// ── Frame count + selection tools ───────────────────────────────────────────
 
-function carCurItem() { return carSlides()[car.cur]?.item || null; }
-
-document.getElementById('carReframe').addEventListener('click', e => {
-  _carReframeMode = !_carReframeMode;
-  e.currentTarget.classList.toggle('on', _carReframeMode);
-});
-
-document.getElementById('carSpanDn').addEventListener('click', () => {
-  const it = carCurItem(); if (!it || it.span <= 2) return;
-  it.span--; carClampT(it, ...carSlideDims()); carRender();
-});
-document.getElementById('carSpanUp').addEventListener('click', () => {
-  const it = carCurItem(); if (!it || it.span >= 10) return;
-  it.span++; carRender();
-});
-document.getElementById('carDup').addEventListener('click', () => {
-  const it = carCurItem(); if (!it) return;
-  const copy = { id: genId(), src: it.src, img: it.img, span: it.span, t: { ...it.t } };
-  car.items.splice(car.items.indexOf(it) + 1, 0, copy);
-  car.cur = carSlides().findIndex(s => s.item === copy);
+document.getElementById('carFrameDn').addEventListener('click', () => {
+  if (car.frames <= 1) return;
+  car.frames--;
   carRender();
 });
-document.getElementById('carReset').addEventListener('click', () => {
-  const it = carCurItem(); if (!it) return;
-  it.t = { scale: 1, fx: 0, fy: 0 };
-  carRender(false); carRenderFilm(carSlides(), ...carSlideDims());
+document.getElementById('carFrameUp').addEventListener('click', () => {
+  if (car.frames >= 10) return;
+  car.frames++;
+  carRender();
+});
+document.getElementById('carSelDelete').addEventListener('click', () => {
+  const o = carSel(); if (!o) return;
+  car.imgs.splice(car.imgs.indexOf(o), 1);
+  car.sel = null;
+  carRender();
+});
+document.getElementById('carSelFwd').addEventListener('click', () => {
+  const o = carSel(); if (!o) return;
+  const i = car.imgs.indexOf(o);
+  if (i >= car.imgs.length - 1) return;
+  car.imgs.splice(i, 1); car.imgs.splice(i + 1, 0, o);
+  carRender();
+});
+document.getElementById('carSelBack').addEventListener('click', () => {
+  const o = carSel(); if (!o) return;
+  const i = car.imgs.indexOf(o);
+  if (i <= 0) return;
+  car.imgs.splice(i, 1); car.imgs.splice(i - 1, 0, o);
+  carRender();
 });
 
 let _carRatioT = null;
 carRatioBtn.addEventListener('click', () => {
   car.ratio = car.ratio === '4:5' ? '1:1' : '4:5';
-  const [W, H] = carSlideDims();
-  car.items.forEach(it => carClampT(it, W, H));
-  // morph frames + crops in place (no structural rebuild, so transitions can run)
   carStrip.classList.add('ratio-anim');
   carRender(false);
-  carRenderFilm(carSlides(), W, H);
+  carRenderFilm();
   clearTimeout(_carRatioT);
   _carRatioT = setTimeout(() => carStrip.classList.remove('ratio-anim'), 500);
 });
 
 // ── Stage interaction ───────────────────────────────────────────────────────
-// Touch: one finger swipes between slides (live follow, rubber-band ends,
-// flick detection); two fingers pinch-zoom AND pan the current image — the
-// IG-editor reframe gesture. Mouse: drag the current slide to reframe, click
-// a side slide to navigate, wheel to zoom.
+// One finger: drag the SELECTED image to move it, drag its corner handle to
+// scale it, otherwise swipe between frames. Tap: select image / deselect /
+// jump to a tapped frame. Two fingers anywhere: pinch-zoom the editor view.
 
-let _carPtr = null;    // mouse reframe drag
-let _carSwipe = null;  // one-finger swipe navigation
-let _carPinch = null;  // two-finger zoom+pan
-
-// resting strip offset that centres slide `cur`
-function carStripX(cur = car.cur) {
-  const slides = carSlides();
-  const [W] = carSlideDims();
-  let x = 0;
-  for (let i = 0; i < cur; i++) {
-    const s = slides[i], n = slides[i + 1];
-    x += W + (n && n.item === s.item ? CAR_JOINT_GAP : CAR_GAP);
-  }
-  return (carStage.clientWidth - W) / 2 - x;
+let _carSwipe = null, _carPinch = null, _carMove = null, _carScale = null;
+let _carDragged = false, _carDragT = null;
+// A gesture's own trailing click must be suppressed, but touch gestures often
+// produce NO click at all — auto-clear so the user's next real tap still lands.
+function carMarkDragged() {
+  _carDragged = true;
+  clearTimeout(_carDragT);
+  _carDragT = setTimeout(() => { _carDragged = false; }, 120);
 }
 
-let _carReframeMode = false;   // toolbar toggle: one finger repositions instead of swiping
+function carPt(e) {   // screen point → canonical canvas coords
+  const [W, H] = carSlideDims();
+  const r = carStage.getBoundingClientRect();
+  const cx = carStage.clientWidth / 2, cy = carStage.clientHeight / 2;
+  const fc = (car.cur + 0.5) * W;
+  const px = (e.clientX - r.left - (cx - fc * _carView)) / _carView;
+  const py = (e.clientY - r.top - (cy - (H / 2) * _carView)) / _carView;
+  const k = carK();
+  return [px / k, py / k];
+}
 
 carStage.addEventListener('pointerdown', e => {
   if (!car) return;
-  if (e.pointerType === 'touch') {
-    const first = _carSwipe || _carPtr;
-    if (first && !_carPinch && e.pointerId !== first.id) {
-      // second finger lands → become a reframe gesture on the current image
-      const it = carCurItem(); if (!it) return;
-      _carPinch = {
-        id1: first.id, id2: e.pointerId,
-        x1: first.lastX, y1: first.lastY, x2: e.clientX, y2: e.clientY,
-        s0: it.t.scale, fx0: it.t.fx, fy0: it.t.fy,
-      };
-      _carPinch.d0 = Math.hypot(_carPinch.x2 - _carPinch.x1, _carPinch.y2 - _carPinch.y1) || 1;
-      _carPinch.mx0 = (_carPinch.x1 + _carPinch.x2) / 2;
-      _carPinch.my0 = (_carPinch.y1 + _carPinch.y2) / 2;
-      if (_carSwipe) {
-        _carSwipe.cancelled = true;
-        carStrip.classList.remove('no-anim');
-        carStrip.style.transform = `translateX(${carStripX()}px)`;   // undo any part-swipe
-      }
-      _carPtr = null;
-      return;
-    }
-    if (!carSlides().length) return;   // empty: ghost taps go through click
-    if (_carReframeMode) {
-      // reframe mode: one finger pans the current image — every frame of a
-      // split image follows, since the transform belongs to the whole image
-      const it = carCurItem(); if (!it) return;
-      _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
-                  moved: false, fx: it.t.fx, fy: it.t.fy };
-      return;
-    }
-    _carSwipe = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
-                  t: performance.now(), vx: 0, moved: false, base: carStripX() };
+  if (e.target.closest('.car-underrow')) return;   // the rows' buttons handle themselves
+  const first = _carSwipe || _carMove || _carScale;
+  if (first && !_carPinch && e.pointerId !== first.id) {
+    // second finger → pinch-zoom the editor view
+    _carPinch = { id1: first.id, id2: e.pointerId,
+      x1: first.lastX, y1: first.lastY, x2: e.clientX, y2: e.clientY, v0: _carView };
+    _carPinch.d0 = Math.hypot(_carPinch.x2 - _carPinch.x1, _carPinch.y2 - _carPinch.y1) || 1;
+    carStrip.classList.remove('no-anim');
+    _carSwipe = _carMove = _carScale = null;
+    carApplyView();
     return;
   }
-  // mouse — reframe the current slide
-  const slideEl = e.target.closest('.car-slide');
-  if (!slideEl || slideEl.dataset.ghost || +slideEl.dataset.i !== car.cur) return;
-  const it = carCurItem(); if (!it) return;
-  _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
-              moved: false, fx: it.t.fx, fy: it.t.fy };
-  carStage.setPointerCapture(e.pointerId);
+  if (_carPinch) return;
+  if (e.target.closest('.car-ghostadd')) return;   // handled on click
+  const sel = carSel();
+  const objEl = e.target.closest('.car-obj');
+  if (sel && e.target.classList.contains('car-handle')) {
+    const [px, py] = carPt(e);
+    _carScale = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY, o: sel,
+                  w0: sel.w, d0: Math.hypot(px - sel.x, py - sel.y) || 1, moved: false };
+    return;
+  }
+  if (sel && objEl && objEl.dataset.id === car.sel) {
+    const [px, py] = carPt(e);
+    _carMove = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                 o: sel, x0: sel.x, y0: sel.y, px, py, moved: false };
+    return;
+  }
+  // nothing (relevant) under the finger → swipe navigation
+  _carSwipe = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                t: performance.now(), vx: 0, moved: false };
 });
 
 carStage.addEventListener('pointermove', e => {
   if (!car) return;
-  const [W, H] = carSlideDims();
   if (_carPinch) {
-    const it = carCurItem(); if (!it) return;
     if (e.pointerId === _carPinch.id1) { _carPinch.x1 = e.clientX; _carPinch.y1 = e.clientY; }
     else if (e.pointerId === _carPinch.id2) { _carPinch.x2 = e.clientX; _carPinch.y2 = e.clientY; }
     else return;
     const d = Math.hypot(_carPinch.x2 - _carPinch.x1, _carPinch.y2 - _carPinch.y1);
-    it.t.scale = Math.min(4, Math.max(1, _carPinch.s0 * d / _carPinch.d0));
-    const mx = (_carPinch.x1 + _carPinch.x2) / 2, my = (_carPinch.y1 + _carPinch.y2) / 2;
-    it.t.fx = _carPinch.fx0 + (mx - _carPinch.mx0) / (it.span * W);
-    it.t.fy = _carPinch.fy0 + (my - _carPinch.my0) / H;
-    carClampT(it, W, H);
+    _carView = Math.min(CAR_MAXV, Math.max(CAR_MINV, _carPinch.v0 * d / _carPinch.d0));
+    carStrip.classList.add('no-anim');
+    carApplyView();
+    return;
+  }
+  if (_carScale && e.pointerId === _carScale.id) {
+    _carScale.lastX = e.clientX; _carScale.lastY = e.clientY;
+    const [px, py] = carPt(e);
+    const o = _carScale.o;
+    const d = Math.hypot(px - o.x, py - o.y);
+    o.w = Math.min(carCW() * 10, Math.max(80, _carScale.w0 * d / _carScale.d0));
+    _carScale.moved = true;
     carRender(false);
     return;
   }
-  if (_carSwipe && e.pointerId === _carSwipe.id && !_carSwipe.cancelled) {
+  if (_carMove && e.pointerId === _carMove.id) {
+    const m = _carMove;
+    m.lastX = e.clientX; m.lastY = e.clientY;
+    if (Math.abs(e.clientX - m.sx) + Math.abs(e.clientY - m.sy) > 4) m.moved = true;
+    const [px, py] = carPt(e);
+    m.o.x = m.x0 + px - m.px;
+    m.o.y = m.y0 + py - m.py;
+    carRender(false);
+    return;
+  }
+  if (_carSwipe && e.pointerId === _carSwipe.id) {
     const now = performance.now();
     const dx = e.clientX - _carSwipe.x;
     if (Math.abs(dx) + Math.abs(e.clientY - _carSwipe.y) > 6) _carSwipe.moved = true;
     _carSwipe.vx = (e.clientX - _carSwipe.lastX) / Math.max(1, now - _carSwipe.t);
     _carSwipe.lastX = e.clientX; _carSwipe.lastY = e.clientY; _carSwipe.t = now;
-    const slides = carSlides();
     let eff = dx;
-    if ((car.cur === 0 && dx > 0) || (car.cur === slides.length - 1 && dx < 0)) eff = dx * 0.35;
+    if ((car.cur === 0 && dx > 0) || (car.cur === car.frames - 1 && dx < 0)) eff = dx * 0.35;
     carStrip.classList.add('no-anim');
-    carStrip.style.transform = `translateX(${_carSwipe.base + eff}px)`;
-    return;
-  }
-  if (_carPtr && e.pointerId === _carPtr.id) {
-    const it = carCurItem(); if (!it) return;
-    const dx = e.clientX - _carPtr.x, dy = e.clientY - _carPtr.y;
-    if (Math.abs(dx) + Math.abs(dy) > 4) _carPtr.moved = true;
-    _carPtr.lastX = e.clientX; _carPtr.lastY = e.clientY;   // pinch anchor if a 2nd finger lands
-    it.t.fx = _carPtr.fx + dx / (it.span * W);
-    it.t.fy = _carPtr.fy + dy / H;
-    carClampT(it, W, H);
-    carRender(false);
+    carApplyView(eff);
   }
 });
 
-let _carDragged = false;   // suppresses the click that follows a drag/swipe
 function carPtrEnd(e) {
   if (_carPinch && (e.pointerId === _carPinch.id1 || e.pointerId === _carPinch.id2)) {
-    _carPinch = null; _carSwipe = null; _carPtr = null; _carDragged = true;
-    carStrip.classList.remove('no-anim');
-    carRender(false);
-    carRenderFilm(carSlides(), ...carSlideDims());
+    _carPinch = null; carMarkDragged();
+    return;
+  }
+  if (_carScale && e.pointerId === _carScale.id) {
+    if (_carScale.moved) { carMarkDragged(); carRenderFilm(); }
+    _carScale = null;
+    return;
+  }
+  if (_carMove && e.pointerId === _carMove.id) {
+    if (_carMove.moved) { carMarkDragged(); carRenderFilm(); }
+    _carMove = null;
     return;
   }
   if (_carSwipe && e.pointerId === _carSwipe.id) {
     const s = _carSwipe; _carSwipe = null;
-    if (s.cancelled) return;
-    _carDragged = s.moved;
+    if (s.moved) carMarkDragged();
     carStrip.classList.remove('no-anim');
     if (s.moved) {
       const [W] = carSlideDims();
       const dx = s.lastX - s.x;
-      let target = Math.round(car.cur - dx / (W + CAR_GAP));
-      // a quick flick always moves at least one slide in its direction
+      let target = Math.round(car.cur - dx / (W * _carView));
+      // a quick flick always moves at least one frame in its direction
       if (s.vx < -0.35) target = Math.max(target, car.cur + 1);
       else if (s.vx > 0.35) target = Math.min(target, car.cur - 1);
-      car.cur = Math.max(0, Math.min(carSlides().length - 1, target));
+      car.cur = Math.max(0, Math.min(car.frames - 1, target));
       carRender(false); carRenderFilmSel();
     } else {
-      carRender(false);   // snap back; an unmoved tap falls through to click
+      carApplyView();   // snap back; an unmoved tap falls through to click
     }
-    return;
-  }
-  if (_carPtr && e.pointerId === _carPtr.id) {
-    _carDragged = _carPtr.moved;
-    if (_carPtr.moved) carRenderFilm(carSlides(), ...carSlideDims());
-    _carPtr = null;
   }
 }
 carStage.addEventListener('pointerup', carPtrEnd);
 carStage.addEventListener('pointercancel', carPtrEnd);
 
-// tap a dimmed side slide → navigate to it; tap a ghost frame → add media
 carStage.addEventListener('click', e => {
+  if (e.target.closest('.car-underrow')) return;   // row buttons handle themselves
   const wasDrag = _carDragged; _carDragged = false;
-  const slideEl = e.target.closest('.car-slide');
-  if (!slideEl || wasDrag) return;
-  if (slideEl.dataset.ghost) { openBigModal(carAddModal); return; }
-  const i = +slideEl.dataset.i;
-  if (i !== car.cur) {
-    car.cur = i; carRender(false); carRenderFilmSel();
+  if (!car || wasDrag) return;
+  if (e.target.closest('.car-ghostadd')) { openBigModal(carAddModal); return; }
+  const objEl = e.target.closest('.car-obj');
+  if (objEl) {
+    if (car.sel !== objEl.dataset.id) { car.sel = objEl.dataset.id; carRender(false); }
+    return;
   }
+  if (car.sel) { car.sel = null; carRender(false); return; }
+  if (!car.imgs.length) { openBigModal(carAddModal); return; }
+  const [px] = carPt(e);
+  const f = Math.floor(px / carCW());
+  if (f >= 0 && f < car.frames && f !== car.cur) { car.cur = f; carRender(false); carRenderFilmSel(); }
 });
 
-// wheel zoom (desktop)
+// mouse: wheel zooms the editor view
 carStage.addEventListener('wheel', e => {
-  const it = carCurItem(); if (!it || !_carOpen) return;
+  if (!car || !_carOpen) return;
   e.preventDefault();
-  const [W, H] = carSlideDims();
-  it.t.scale = Math.min(4, Math.max(1, it.t.scale * (e.deltaY < 0 ? 1.05 : 0.95)));
-  carClampT(it, W, H);
-  carRender(false);
+  _carView = Math.min(CAR_MAXV, Math.max(CAR_MINV, _carView * (e.deltaY < 0 ? 1.06 : 0.94)));
+  carApplyView();
 }, { passive: false });
 
 document.addEventListener('keydown', e => {
-  if (!_carOpen || carouselScreen.hidden || !carViewer.hidden) return;
+  if (!_carOpen || carouselScreen.hidden || !carViewer.hidden || !car) return;
   if (e.key === 'ArrowLeft'  && car.cur > 0) { car.cur--; carRender(false); carRenderFilmSel(); }
-  if (e.key === 'ArrowRight' && car.cur < carSlides().length - 1) { car.cur++; carRender(false); carRenderFilmSel(); }
+  if (e.key === 'ArrowRight' && car.cur < car.frames - 1) { car.cur++; carRender(false); carRenderFilmSel(); }
 });
 
 window.addEventListener('resize', () => { if (_carOpen && !carouselScreen.hidden) carRender(); });
@@ -12686,30 +12697,25 @@ window.addEventListener('resize', () => { if (_carOpen && !carouselScreen.hidden
 // ── Fullscreen test viewer ──────────────────────────────────────────────────
 
 document.getElementById('carFullBtn').addEventListener('click', () => {
-  const slides = carSlides();
-  if (!slides.length) return;
+  if (!car.imgs.length) return;
   const [rw, rh] = carRatioWH();
   carViewerScroll.innerHTML = '';
   carViewerDots.innerHTML = '';
   const vw = window.innerWidth, vh = window.innerHeight;
-  let fw = Math.min(vw, (vh - 40) * rw / rh);
+  const fw = Math.min(vw, (vh - 40) * rw / rh);
   const fh = fw * rh / rw;
-  slides.forEach(({ item, sub }, i) => {
+  for (let f = 0; f < car.frames; f++) {
     const sl = document.createElement('div');
     sl.className = 'cv-slide';
-    const fr = document.createElement('div');
-    fr.className = 'cv-frame';
-    fr.style.width = fw + 'px'; fr.style.height = fh + 'px';
-    const img = document.createElement('img');
-    img.src = item.img.src;
-    const b = carImgBox(item, sub, fw, fh);
-    img.style.left = b.left + 'px'; img.style.top = b.top + 'px';
-    img.style.width = b.w + 'px'; img.style.height = b.h + 'px';
-    fr.appendChild(img);
-    sl.appendChild(fr);
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(fw * 2); cv.height = Math.round(fh * 2);   // 2× for sharpness
+    cv.style.width = fw + 'px'; cv.style.height = fh + 'px';
+    cv.style.display = 'block'; cv.style.background = '#111';
+    carDrawFrame(cv.getContext('2d'), f, (fw * 2) / carCW());
+    sl.appendChild(cv);
     carViewerScroll.appendChild(sl);
     carViewerDots.appendChild(document.createElement('i'));
-  });
+  }
   carViewer.hidden = false;
   carViewerScroll.scrollLeft = car.cur * vw;
   carViewerUpdateDots();
@@ -12720,33 +12726,30 @@ function carViewerUpdateDots() {
 }
 carViewerScroll.addEventListener('scroll', () => requestAnimationFrame(carViewerUpdateDots));
 document.getElementById('carViewerClose').addEventListener('click', () => {
-  // leave the editor on the slide the test ended on
-  car.cur = Math.max(0, Math.min(carSlides().length - 1,
+  // leave the editor on the frame the test ended on
+  car.cur = Math.max(0, Math.min(car.frames - 1,
     Math.round(carViewerScroll.scrollLeft / carViewerScroll.clientWidth)));
   carViewer.hidden = true;
   carRender(false); carRenderFilmSel();
 });
 
-// ── Export: one image per slide, in posting order ───────────────────────────
+// ── Export: one image per frame, in posting order ───────────────────────────
 
 carExportBtn.addEventListener('click', async () => {
-  const slides = carSlides();
-  if (!slides.length || carExportBtn.disabled) return;
+  if (!car.imgs.length || carExportBtn.disabled) return;
   const [rw, rh] = carRatioWH();
   const W = 1080, H = Math.round(1080 * rh / rw);
   carExportBtn.disabled = true;
   const label = carExportBtn.textContent;
   try {
-    for (let i = 0; i < slides.length; i++) {
-      carExportBtn.textContent = `${i + 1} / ${slides.length}…`;
-      const { item, sub } = slides[i];
+    for (let f = 0; f < car.frames; f++) {
+      carExportBtn.textContent = `${f + 1} / ${car.frames}…`;
       const cvs = document.createElement('canvas');
       cvs.width = W; cvs.height = H;
       const ctx = cvs.getContext('2d');
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, W, H);
-      const b = carImgBox(item, sub, W, H);
-      ctx.drawImage(item.img, b.left, b.top, b.w, b.h);
+      carDrawFrame(ctx, f, W / carCW());
       await new Promise(resolve => {
         cvs.toBlob(blob => {
           if (window.webkit?.messageHandlers?.exportImage) {
@@ -12756,14 +12759,14 @@ carExportBtn.addEventListener('click', async () => {
           } else {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = `carousel-${String(i + 1).padStart(2, '0')}.jpg`; a.click();
+            a.href = url; a.download = `carousel-${String(f + 1).padStart(2, '0')}.jpg`; a.click();
             setTimeout(() => URL.revokeObjectURL(url), 5000);
             resolve();
           }
         }, 'image/jpeg', 0.93);
       });
       // native Photos saves need breathing room between messages
-      if (i < slides.length - 1) await new Promise(r => setTimeout(r, 350));
+      if (f < car.frames - 1) await new Promise(r => setTimeout(r, 350));
     }
     carExportBtn.textContent = 'Saved ✓';
     setTimeout(() => { carExportBtn.textContent = label; carExportBtn.disabled = false; }, 1600);
@@ -12776,28 +12779,24 @@ carExportBtn.addEventListener('click', async () => {
 // ── Persistence + open/close ────────────────────────────────────────────────
 
 function carThumbnail() {
-  const slides = carSlides();
-  if (!slides.length) return null;
+  if (!car.imgs.length) return null;
   const SIZE = 320;
   const cvs = document.createElement('canvas');
   cvs.width = SIZE; cvs.height = SIZE;
   const ctx = cvs.getContext('2d');
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SIZE, SIZE);
-  const [rw, rh] = carRatioWH();
-  // cover-fill the square with slide 1
-  const w = Math.max(SIZE, SIZE * rw / rh), h = w * rh / rw;
-  const { item, sub } = slides[0];
-  const b = carImgBox(item, sub, w, h);
+  const cw = carCW();
+  const k = Math.max(SIZE / cw, SIZE / CAR_CH);   // cover-fill the square
   ctx.save();
-  ctx.translate((SIZE - w) / 2, (SIZE - h) / 2);
-  ctx.drawImage(item.img, b.left, b.top, b.w, b.h);
+  ctx.translate((SIZE - cw * k) / 2, (SIZE - CAR_CH * k) / 2);
+  ctx.beginPath(); ctx.rect(0, 0, cw * k, CAR_CH * k); ctx.clip();
+  carDrawFrame(ctx, car.cur, k);
   ctx.restore();
   return cvs.toDataURL('image/jpeg', 0.82);
 }
 
 function saveCarouselToDB() {
-  if (!_currentProjectId || !car) return;
-  if (!car.items.length) return;
+  if (!_currentProjectId || !car || !car.imgs.length) return;
   const meta = projects.find(p => p.id === _currentProjectId);
   if (meta) {
     const th = carThumbnail();
@@ -12808,13 +12807,14 @@ function saveCarouselToDB() {
   }
   const serial = {
     id: _currentProjectId, kind: 'carousel',
-    carousel: { ratio: car.ratio, items: car.items.map(it => ({ id: it.id, src: it.src, span: it.span, t: { ...it.t } })) }
+    carousel: { ratio: car.ratio, frames: car.frames,
+      imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w })) }
   };
   dbPut(_currentProjectId, serial).catch(err => console.warn('IDB save failed', err));
 }
 
 function closeCarouselAndGoHome() {
-  if (car && car.items.length) {
+  if (car && car.imgs.length) {
     saveCarouselToDB();
   } else if (_currentProjectId) {
     projects = projects.filter(p => p.id !== _currentProjectId);
@@ -12847,32 +12847,64 @@ function createNewCarouselProject() {
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, kind: 'carousel', updatedAt: Date.now(), thumbnail: null });
   saveProjects();
-  car = { ratio: '4:5', items: [], cur: 0 };
-  _carOpen = true;
+  car = { ratio: '4:5', frames: 1, imgs: [], cur: 0, sel: null };
+  _carOpen = true; _carView = 1;
   document.body.classList.add('car-open');
   carouselScreen.hidden = false;
   carRender();
   leaveHomeToCarousel();
 }
 
+// Legacy carousels (one image per frame / span items) → free canvas objects:
+// each item lands exactly where its cover-fit crop used to sit.
+function carFromLegacy(data, loaded) {
+  const cw = data.ratio === '1:1' ? 1000 : 800;
+  const imgs = []; let slide = 0;
+  for (const it of loaded) {
+    const span = it.span || 1;
+    const spanW = span * cw;
+    const iw = it.img.naturalWidth, ih = it.img.naturalHeight;
+    const t = it.t || { scale: 1, fx: 0, fy: 0 };
+    const s = Math.max(spanW / iw, CAR_CH / ih) * (t.scale || 1);
+    imgs.push({ id: it.id, src: it.src, img: it.img,
+      x: slide * cw + (spanW - iw * s) / 2 + (t.fx || 0) * spanW,
+      y: (CAR_CH - ih * s) / 2 + (t.fy || 0) * CAR_CH,
+      w: iw * s });
+    slide += span;
+  }
+  return { imgs, frames: Math.max(1, Math.min(10, slide)) };
+}
+
 function openCarouselProject(id) {
   _currentProjectId = id;
-  _carOpen = true;
+  _carOpen = true; _carView = 1;
   document.body.classList.add('car-open');
-  const dataP = dbGet(id).then(saved => saved?.carousel || { ratio: '4:5', items: [] }).catch(() => ({ ratio: '4:5', items: [] }));
+  const dataP = dbGet(id).then(saved => saved?.carousel || null).catch(() => null);
   leaveHomeToCarousel(async () => {
     const data = await dataP;
-    const items = await Promise.all((data.items || []).map(si => new Promise(resolve => {
+    const loadOne = si => new Promise(resolve => {
       const img = new Image();
-      img.onload = () => resolve({ id: si.id || genId(), src: si.src, img, span: si.span || 1, t: si.t || { scale: 1, fx: 0, fy: 0 } });
+      img.onload = () => resolve({ ...si, id: si.id || genId(), img });
       img.onerror = () => resolve(null);
       img.src = si.src;
-    })));
-    car = { ratio: data.ratio === '1:1' ? '1:1' : '4:5', items: items.filter(Boolean), cur: 0 };
+    });
+    let imgs = [], frames = 1;
+    const ratio = data?.ratio === '1:1' ? '1:1' : '4:5';
+    if (data?.imgs) {
+      imgs = (await Promise.all(data.imgs.map(loadOne))).filter(Boolean)
+        .map(o => ({ id: o.id, src: o.src, img: o.img, x: o.x || 0, y: o.y || 0, w: o.w || 500 }));
+      frames = Math.max(1, Math.min(10, data.frames || 1));
+    } else if (data?.items) {
+      const loaded = (await Promise.all(data.items.map(loadOne))).filter(Boolean);
+      const conv = carFromLegacy(data, loaded);
+      imgs = conv.imgs; frames = conv.frames;
+    }
+    car = { ratio, frames, imgs, cur: 0, sel: null };
     carouselScreen.hidden = false;
     carRender();
   });
 }
+
 </script>
 </body>
 </html>

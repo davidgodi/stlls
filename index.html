@@ -1147,6 +1147,16 @@
   .nt-card {
     flex: 0 0 38px; height: 100%; box-sizing: border-box;
     border: 1.5px solid var(--text-mid); border-radius: 7px; position: relative;
+    /* The card entering at the right edge glows subtly as the + pops — the
+       "image being added". The loop snaps back exactly two cards, so a 3.6s
+       highlight staggered by half a period between neighbours stays seamless. */
+    animation: ntCardHi 3.6s ease-in-out infinite;
+  }
+  .nt-card:nth-child(odd) { animation-delay: -1.8s; }
+  @keyframes ntCardHi {
+    0%, 10%   { border-color: var(--text-mid); box-shadow: none; }
+    16%, 29%  { border-color: var(--accent); box-shadow: 0 0 9px -2px var(--accent); }
+    40%, 100% { border-color: var(--text-mid); box-shadow: none; }
   }
   .nt-card::before {
     content: ''; position: absolute; top: 6px; left: 6px; width: 8px; height: 8px;
@@ -1174,7 +1184,7 @@
     74%, 100% { opacity: 0; transform: scale(0.4); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .nt-board i, .nt-track, .nt-add { animation: none; }
+    .nt-board i, .nt-track, .nt-add, .nt-card { animation: none; }
   }
   .rc-cancel { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid); }
 

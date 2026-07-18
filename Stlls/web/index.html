@@ -1108,6 +1108,74 @@
   }
   .rc-accept { background: var(--accent); color: var(--accent-fg); border: none; font-weight: 600; }
   .rc-accept:disabled { opacity: 0.35; cursor: default; }
+
+  /* ── New-project type chooser (Board vs Carousel) ──────────────────────── */
+  #newTypeModal .bm-card { width: min(360px, calc(100vw - 36px)); }
+  .nt-btn {
+    width: 100%; display: flex; align-items: center; gap: 16px;
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: 14px;
+    padding: 16px; margin-top: 10px; cursor: pointer; font-family: inherit;
+    text-align: left; color: var(--text);
+    transition: transform 0.2s ease, border-color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nt-btn:hover { border-color: var(--accent); }
+  .nt-btn:active { transform: scale(0.97); }
+  .nt-txt b { display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
+  .nt-txt span { display: block; font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
+  .nt-art { flex-shrink: 0; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; }
+
+  /* Board mini-animation: 4 stacked frames gently trading height */
+  .nt-board {
+    width: 46px; height: 72px; border: 1.5px solid var(--text-mid); border-radius: 8px;
+    padding: 4px; display: flex; flex-direction: column; gap: 3px; box-sizing: border-box;
+  }
+  .nt-board i {
+    display: block; border-radius: 3px; background: var(--text-dim); opacity: 0.55;
+    flex: 1 1 0; min-height: 0;
+    animation: ntFrame 3.2s ease-in-out infinite;
+  }
+  .nt-board i:nth-child(2) { animation-delay: -0.8s; }
+  .nt-board i:nth-child(3) { animation-delay: -1.6s; }
+  .nt-board i:nth-child(4) { animation-delay: -2.4s; }
+  @keyframes ntFrame { 0%, 100% { flex-grow: 1; } 50% { flex-grow: 1.9; } }
+
+  /* Carousel mini-animation: cards swiping left, a new one "added" each pause.
+     Cards are identical so the loop's snap back to 0 is invisible. */
+  .nt-carousel { width: 74px; height: 58px; overflow: hidden; position: relative; }
+  .nt-track { display: flex; gap: 5px; height: 100%; animation: ntSwipe 3.6s cubic-bezier(0.4,0,0.2,1) infinite; }
+  .nt-card {
+    flex: 0 0 38px; height: 100%; box-sizing: border-box;
+    border: 1.5px solid var(--text-mid); border-radius: 7px; position: relative;
+  }
+  .nt-card::before {
+    content: ''; position: absolute; top: 6px; left: 6px; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--text-dim); opacity: 0.5;
+  }
+  .nt-card::after {
+    content: ''; position: absolute; left: 5px; right: 5px; bottom: 5px; height: 15px;
+    border-radius: 4px; background: var(--text-dim); opacity: 0.35;
+  }
+  @keyframes ntSwipe {
+    0%, 32%  { transform: translateX(0); }
+    46%, 82% { transform: translateX(-43px); }   /* one card + gap */
+    96%, 100% { transform: translateX(-86px); }
+  }
+  .nt-add {
+    position: absolute; right: 3px; top: 50%; margin-top: -8px; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--accent); color: var(--accent-fg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; line-height: 1; font-weight: 500;
+    animation: ntAdd 1.8s ease-in-out infinite;   /* one pop per swipe pause */
+  }
+  @keyframes ntAdd {
+    0%, 12%   { opacity: 0; transform: scale(0.4); }
+    28%, 58%  { opacity: 1; transform: scale(1); }
+    74%, 100% { opacity: 0; transform: scale(0.4); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .nt-board i, .nt-track, .nt-add { animation: none; }
+  }
   .rc-cancel { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid); }
 
   /* ── Background settings — covers the tools panel; the board stays visible ── */
@@ -4040,6 +4108,31 @@
 
 <div id="layoutPeek" hidden aria-hidden="true"></div>
 
+<!-- NEW PROJECT TYPE CHOOSER — Board vs Carousel, full window -->
+<div id="newTypeModal" class="big-modal" hidden>
+  <div class="bm-card">
+    <div class="bm-head">
+      <span class="bm-title">New Project</span>
+      <button class="bm-close" data-bm-close>Close</button>
+    </div>
+    <div class="bm-body">
+      <button class="nt-btn" id="ntBoard">
+        <span class="nt-art"><span class="nt-board" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+        <span class="nt-txt"><b>Board</b><span>Compose stills and clips in one layout</span></span>
+      </button>
+      <button class="nt-btn" id="ntCarousel">
+        <span class="nt-art">
+          <span class="nt-carousel" aria-hidden="true">
+            <span class="nt-track"><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span></span>
+            <span class="nt-add">+</span>
+          </span>
+        </span>
+        <span class="nt-txt"><b>Carousel</b><span>A swipeable set of slides for your post</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Export choice modal (multi-board projects) -->
 <div id="exportChoiceModal" hidden>
   <div class="export-choice-box">
@@ -5552,7 +5645,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', writeCurrentProjectToDB);
 
-homeNewBtn.addEventListener('click', () => {
+function createNewBoardProject() {
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, updatedAt: Date.now(), thumbnail: null });
   saveProjects();
@@ -5562,7 +5655,11 @@ homeNewBtn.addEventListener('click', () => {
   loadBoardState(_projectBoards[0]);
   updateBoardNav();
   leaveHome();
-});
+}
+
+// + opens the project-type chooser; Board runs the standard flow, Carousel is
+// the (not yet built) carousel editor.
+homeNewBtn.addEventListener('click', () => openBigModal(newTypeModal));
 
 // Board menu actions
 document.addEventListener('click', e => {
@@ -7318,18 +7415,26 @@ function hideLibPop(pop) {
 
 // ── Full-window choosers (ratio + layouts): shared open/close ───────────────
 // The backdrop blurs + darkens the app so the line-art previews read clearly.
-const ratioModal  = document.getElementById('ratioModal');
-const layoutModal = document.getElementById('layoutModal');
+const ratioModal   = document.getElementById('ratioModal');
+const layoutModal  = document.getElementById('layoutModal');
+const newTypeModal = document.getElementById('newTypeModal');
 function openBigModal(m)  { m.classList.remove('bm-leaving'); m.hidden = false; }
 function closeBigModal(m) {
   if (m.hidden) return;
   m.classList.add('bm-leaving');
   setTimeout(() => { m.hidden = true; m.classList.remove('bm-leaving'); }, 180);
 }
-[ratioModal, layoutModal].forEach(m => {
+[ratioModal, layoutModal, newTypeModal].forEach(m => {
   m.addEventListener('pointerdown', e => { if (e.target === m) closeBigModal(m); });
   m.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(m));
 });
+
+// ── New-project type chooser ────────────────────────────────────────────────
+document.getElementById('ntBoard').addEventListener('click', () => {
+  closeBigModal(newTypeModal);
+  createNewBoardProject();
+});
+// #ntCarousel intentionally does nothing yet — the carousel editor comes next.
 
 // ── Canvas-ratio chooser ─────────────────────────────────────────────────────
 const RATIO_PRESETS = ['16:9', '17:9', '4:3', '3:2', '2.4:1', '2.39:1', '5:4'];

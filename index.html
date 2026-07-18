@@ -1210,6 +1210,7 @@
   .car-chip:active { transform: scale(0.95); }
   .car-chip:disabled { opacity: 0.35; pointer-events: none; }
   .car-chip.accent { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 600; }
+  .car-chip.on { border-color: var(--accent); color: var(--accent); }
   .car-chip svg { display: block; }
 
   #carStage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
@@ -1234,13 +1235,23 @@
   }
   .car-obj.sel { outline: 2px solid var(--accent); cursor: grab; }
   .car-handle {
-    display: none; position: absolute; right: -11px; bottom: -11px;
+    position: absolute; right: -11px; bottom: -11px;
     width: 22px; height: 22px; border-radius: 50%;
     background: var(--accent); border: 2px solid var(--accent-fg);
     cursor: nwse-resize; transform-origin: 100% 100%;
     box-shadow: 0 1px 6px rgba(0,0,0,0.4);
   }
-  .car-obj.sel .car-handle { display: block; }
+  /* Selection overlay lives OUTSIDE the canvas clip, above the frame dims —
+     so the outline and handle stay visible (and grabbable) even when the
+     image is behind another one or hangs outside the preview frame. */
+  .car-selbox {
+    position: absolute; display: none;
+    outline: 2px solid var(--accent); opacity: 0.92;
+    cursor: grab;
+  }
+  .car-selbox.show { display: block; }
+  /* smooth-scroll mode: no per-frame dimming, just the hairline grid */
+  #carStrip.smooth .car-framedim { background: transparent !important; }
   .car-frameline {
     position: absolute; top: 0; bottom: 0; width: 1px;
     background: var(--border2); opacity: 0.85; pointer-events: none;
@@ -4331,6 +4342,12 @@
     </button>
     <span class="car-title">CAROUSEL</span>
     <button class="car-chip" id="carRatioBtn">4:5</button>
+    <button class="car-chip on" id="carSnapBtn" aria-label="Snap to edges" title="Snap to edges">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v8a7 7 0 0 0 14 0V3"/><path d="M5 3h4.7v5H5zM14.3 3H19v5h-4.7z"/></svg>
+    </button>
+    <button class="car-chip" id="carSmoothBtn" aria-label="Smooth scrolling" title="Smooth scrolling">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c2.5-3.5 5-3.5 7.5 0s5 3.5 7.5 0 3.5-2.5 5-1"/></svg>
+    </button>
     <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
     </button>
@@ -12223,6 +12240,9 @@ async function doVideoExport() {
 let car = null;          // { ratio:'4:5'|'1:1', frames, imgs:[{id,src,img,x,y,w}], cur, sel }
 let _carOpen = false;
 let _carView = 1;        // editor zoom
+let _carSnap = true;     // magnet: snap moving images to edges/centres
+let _carSmooth = false;  // smooth-scroll navigation instead of per-frame paging
+let _carScrollCanon = 0; // canvas x (canonical units) at stage centre — smooth mode
 
 const CAR_CH = 1000;     // canonical slide height
 const CAR_MINV = 0.35, CAR_MAXV = 2.5;
@@ -12258,15 +12278,24 @@ function carSel() { return car.imgs.find(o => o.id === car.sel) || null; }
 
 // ── Rendering ───────────────────────────────────────────────────────────────
 
-// Strip transform: centres the current frame, scaled by the view zoom.
+// Strip transform: centres the current frame (or the free scroll position in
+// smooth mode), scaled by the view zoom.
 function carApplyView(dx = 0) {
   const [W, H] = carSlideDims();
   const cx = carStage.clientWidth / 2, cy = carStage.clientHeight / 2;
-  const fc = (car.cur + 0.5) * W;
+  const cc = _carSmooth ? _carScrollCanon * carK() : (car.cur + 0.5) * W;
   carStrip.style.transform =
-    `translate(${cx - fc * _carView + dx}px, ${cy - (H / 2) * _carView}px) scale(${_carView})`;
+    `translate(${cx - cc * _carView + dx}px, ${cy - (H / 2) * _carView}px) scale(${_carView})`;
   // the scale handle keeps its screen size regardless of zoom
   carStrip.querySelectorAll('.car-handle').forEach(h => h.style.transform = `scale(${1 / _carView})`);
+}
+
+// One shared navigation entry so count/filmstrip/scroll stay in sync
+function carGoFrame(f) {
+  car.cur = Math.max(0, Math.min(car.frames - 1, f));
+  if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();
+  carRender(false);
+  carRenderFilmSel();
 }
 
 function carRender(structural = true) {
@@ -12293,7 +12322,6 @@ function carRender(structural = true) {
       const im = document.createElement('img');
       im.src = o.img.src;
       d.appendChild(im);
-      d.appendChild(Object.assign(document.createElement('div'), { className: 'car-handle' }));
       clip.appendChild(d);
     });
     for (let i = 1; i < car.frames; i++) {
@@ -12319,6 +12347,11 @@ function carRender(structural = true) {
       ep.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
       carStrip.appendChild(ep);
     }
+    // selection overlay: outline + handle above everything, outside the clip
+    const sb = document.createElement('div');
+    sb.className = 'car-selbox';
+    sb.appendChild(Object.assign(document.createElement('div'), { className: 'car-handle' }));
+    carStrip.appendChild(sb);
   }
 
   // geometry pass — runs every render so the ratio toggle can morph in place
@@ -12350,6 +12383,16 @@ function carRender(structural = true) {
   if (ep) {
     ep.style.left = (car.cur * W) + 'px'; ep.style.top = '0px';
     ep.style.width = W + 'px'; ep.style.height = H + 'px';
+  }
+  const sb = carStrip.querySelector('.car-selbox');
+  const selO = carSel();
+  sb.classList.toggle('show', !!selO);
+  if (selO) {
+    const oh = selO.w * selO.img.naturalHeight / selO.img.naturalWidth;
+    sb.style.left   = (selO.x * k) + 'px';
+    sb.style.top    = (selO.y * k) + 'px';
+    sb.style.width  = (selO.w * k) + 'px';
+    sb.style.height = (oh * k) + 'px';
   }
 
   carApplyView();
@@ -12394,7 +12437,7 @@ function carRenderFilm() {
     carDrawFrame(ctx, f, kk);
     b.appendChild(cv);
     b.appendChild(Object.assign(document.createElement('span'), { className: 'ct-n', textContent: f + 1 }));
-    b.addEventListener('click', () => { car.cur = f; carRender(false); carRenderFilmSel(); });
+    b.addEventListener('click', () => carGoFrame(f));
     carFilm.appendChild(b);
   }
 }
@@ -12512,11 +12555,26 @@ document.getElementById('carSelBack').addEventListener('click', () => {
 let _carRatioT = null;
 carRatioBtn.addEventListener('click', () => {
   car.ratio = car.ratio === '4:5' ? '1:1' : '4:5';
+  if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();   // slide width changed
   carStrip.classList.add('ratio-anim');
   carRender(false);
   carRenderFilm();
   clearTimeout(_carRatioT);
   _carRatioT = setTimeout(() => carStrip.classList.remove('ratio-anim'), 500);
+});
+
+document.getElementById('carSnapBtn').addEventListener('click', e => {
+  _carSnap = !_carSnap;
+  e.currentTarget.classList.toggle('on', _carSnap);
+});
+document.getElementById('carSmoothBtn').addEventListener('click', e => {
+  _carSmooth = !_carSmooth;
+  e.currentTarget.classList.toggle('on', _carSmooth);
+  carStrip.classList.toggle('smooth', _carSmooth);
+  if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();
+  else car.cur = Math.max(0, Math.min(car.frames - 1, Math.round(_carScrollCanon / carCW() - 0.5)));
+  carRender(false);
+  carRenderFilmSel();
 });
 
 // ── Stage interaction ───────────────────────────────────────────────────────
@@ -12532,6 +12590,38 @@ function carMarkDragged() {
   _carDragged = true;
   clearTimeout(_carDragT);
   _carDragT = setTimeout(() => { _carDragged = false; }, 120);
+}
+
+// Magnet: snap a moving image's edges/centre to frame boundaries, frame
+// centres, the canvas top/bottom/middle, and other images' edges/centres.
+// Threshold is ~8 screen px, so it feels the same at any zoom.
+function carSnapObj(o) {
+  const th = 8 / (carK() * _carView);
+  const cw = carCW();
+  const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+  const xCand = [], yCand = [0, CAR_CH, CAR_CH / 2];
+  for (let i = 0; i <= car.frames; i++) xCand.push(i * cw);
+  for (let i = 0; i < car.frames; i++) xCand.push((i + 0.5) * cw);
+  for (const p of car.imgs) {
+    if (p === o) continue;
+    const ph = p.w * p.img.naturalHeight / p.img.naturalWidth;
+    xCand.push(p.x, p.x + p.w, p.x + p.w / 2);
+    yCand.push(p.y, p.y + ph, p.y + ph / 2);
+  }
+  let best = th, nx = null;
+  for (const off of [0, o.w / 2, o.w])
+    for (const c of xCand) {
+      const d = Math.abs(o.x + off - c);
+      if (d < best) { best = d; nx = c - off; }
+    }
+  if (nx !== null) o.x = nx;
+  best = th; let ny = null;
+  for (const off of [0, oh / 2, oh])
+    for (const c of yCand) {
+      const d = Math.abs(o.y + off - c);
+      if (d < best) { best = d; ny = c - off; }
+    }
+  if (ny !== null) o.y = ny;
 }
 
 function carPt(e) {   // screen point → canonical canvas coords
@@ -12562,14 +12652,15 @@ carStage.addEventListener('pointerdown', e => {
   if (_carPinch) return;
   if (e.target.closest('.car-ghostadd')) return;   // handled on click
   const sel = carSel();
-  const objEl = e.target.closest('.car-obj');
   if (sel && e.target.classList.contains('car-handle')) {
     const [px, py] = carPt(e);
     _carScale = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY, o: sel,
                   w0: sel.w, d0: Math.hypot(px - sel.x, py - sel.y) || 1, moved: false };
     return;
   }
-  if (sel && objEl && objEl.dataset.id === car.sel) {
+  // the selection overlay covers the selected image (even where it's behind
+  // another image or outside the frame) — dragging it moves the image
+  if (sel && e.target.closest('.car-selbox')) {
     const [px, py] = carPt(e);
     _carMove = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lastX: e.clientX, lastY: e.clientY,
                  o: sel, x0: sel.x, y0: sel.y, px, py, moved: false };
@@ -12609,6 +12700,7 @@ carStage.addEventListener('pointermove', e => {
     const [px, py] = carPt(e);
     m.o.x = m.x0 + px - m.px;
     m.o.y = m.y0 + py - m.py;
+    if (_carSnap) carSnapObj(m.o);
     carRender(false);
     return;
   }
@@ -12644,7 +12736,15 @@ function carPtrEnd(e) {
     const s = _carSwipe; _carSwipe = null;
     if (s.moved) carMarkDragged();
     carStrip.classList.remove('no-anim');
-    if (s.moved) {
+    if (s.moved && _carSmooth) {
+      // free scrolling with a bit of momentum, clamped to the frame centres
+      const dxc = (s.lastX - s.x + s.vx * 260) / (_carView * carK());
+      const cw = carCW();
+      _carScrollCanon = Math.min((car.frames - 0.5) * cw,
+                        Math.max(0.5 * cw, _carScrollCanon - dxc));
+      car.cur = Math.max(0, Math.min(car.frames - 1, Math.round(_carScrollCanon / cw - 0.5)));
+      carRender(false); carRenderFilmSel();
+    } else if (s.moved) {
       const [W] = carSlideDims();
       const dx = s.lastX - s.x;
       let target = Math.round(car.cur - dx / (W * _carView));
@@ -12666,6 +12766,7 @@ carStage.addEventListener('click', e => {
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag) return;
   if (e.target.closest('.car-ghostadd')) { openBigModal(carAddModal); return; }
+  if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
   const objEl = e.target.closest('.car-obj');
   if (objEl) {
     if (car.sel !== objEl.dataset.id) { car.sel = objEl.dataset.id; carRender(false); }
@@ -12675,7 +12776,7 @@ carStage.addEventListener('click', e => {
   if (!car.imgs.length) { openBigModal(carAddModal); return; }
   const [px] = carPt(e);
   const f = Math.floor(px / carCW());
-  if (f >= 0 && f < car.frames && f !== car.cur) { car.cur = f; carRender(false); carRenderFilmSel(); }
+  if (f >= 0 && f < car.frames && f !== car.cur) carGoFrame(f);
 });
 
 // mouse: wheel zooms the editor view
@@ -12688,8 +12789,8 @@ carStage.addEventListener('wheel', e => {
 
 document.addEventListener('keydown', e => {
   if (!_carOpen || carouselScreen.hidden || !carViewer.hidden || !car) return;
-  if (e.key === 'ArrowLeft'  && car.cur > 0) { car.cur--; carRender(false); carRenderFilmSel(); }
-  if (e.key === 'ArrowRight' && car.cur < car.frames - 1) { car.cur++; carRender(false); carRenderFilmSel(); }
+  if (e.key === 'ArrowLeft'  && car.cur > 0) carGoFrame(car.cur - 1);
+  if (e.key === 'ArrowRight' && car.cur < car.frames - 1) carGoFrame(car.cur + 1);
 });
 
 window.addEventListener('resize', () => { if (_carOpen && !carouselScreen.hidden) carRender(); });
@@ -12727,10 +12828,8 @@ function carViewerUpdateDots() {
 carViewerScroll.addEventListener('scroll', () => requestAnimationFrame(carViewerUpdateDots));
 document.getElementById('carViewerClose').addEventListener('click', () => {
   // leave the editor on the frame the test ended on
-  car.cur = Math.max(0, Math.min(car.frames - 1,
-    Math.round(carViewerScroll.scrollLeft / carViewerScroll.clientWidth)));
   carViewer.hidden = true;
-  carRender(false); carRenderFilmSel();
+  carGoFrame(Math.round(carViewerScroll.scrollLeft / carViewerScroll.clientWidth));
 });
 
 // ── Export: one image per frame, in posting order ───────────────────────────

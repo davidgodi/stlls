@@ -1250,6 +1250,30 @@
     cursor: grab;
   }
   .car-selbox.show { display: block; }
+  /* minimal snap guides — hairlines at whatever the magnet grabbed */
+  .car-snapline { position: absolute; background: var(--accent); opacity: 0.5; pointer-events: none; display: none; }
+  .car-snapline.v { width: 1px; }
+  .car-snapline.h { height: 1px; }
+  /* per-image rounding + white inner border (border drawn on top: no distortion) */
+  .car-obj { overflow: hidden; border-radius: var(--orad, 0px); }
+  .car-obj::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    border: var(--obw, 0px) solid #fff; border-radius: var(--orad, 0px);
+  }
+  /* floating sliders panel for the selected image */
+  .car-selpanel {
+    position: absolute; z-index: 4; bottom: 52px; left: 50%; transform: translateX(-50%);
+    width: min(320px, calc(100vw - 40px));
+    display: flex; flex-direction: column; gap: 4px;
+    background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
+    padding: 10px 14px; box-shadow: var(--btn-shadow);
+  }
+  .car-selpanel[hidden] { display: none !important; }
+  /* canvas background layers (under every image) */
+  .car-bgcolor { position: absolute; inset: 0; pointer-events: none; }
+  .car-bgphoto { position: absolute; pointer-events: none; max-width: none; }
+  #carBgSliders { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 2px; }
+  #carBgSliders[hidden] { display: none !important; }
   /* smooth-scroll mode: no per-frame dimming, just the hairline grid */
   #carStrip.smooth .car-framedim { background: transparent !important; }
   .car-frameline {
@@ -4342,6 +4366,9 @@
     </button>
     <span class="car-title">CAROUSEL</span>
     <button class="car-chip" id="carRatioBtn">4:5</button>
+    <button class="car-chip" id="carBgBtn" aria-label="Background" title="Background">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/><circle cx="8.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/></svg>
+    </button>
     <button class="car-chip on" id="carSnapBtn" aria-label="Snap to edges" title="Snap to edges">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v8a7 7 0 0 0 14 0V3"/><path d="M5 3h4.7v5H5zM14.3 3H19v5h-4.7z"/></svg>
     </button>
@@ -4363,6 +4390,10 @@
       <button class="car-tool danger" id="carSelDelete">Delete</button>
       <button class="car-tool" id="carSelFwd">Forward</button>
       <button class="car-tool" id="carSelBack">Behind</button>
+    </div>
+    <div class="car-selpanel" id="carSelPanel" hidden>
+      <div class="slider-row"><label>Round</label><input type="range" id="carObjRound" min="0" max="150" step="2" value="0"><span class="slider-val" id="carObjRoundVal">0</span></div>
+      <div class="slider-row"><label>Border</label><input type="range" id="carObjBorder" min="0" max="50" step="1" value="0"><span class="slider-val" id="carObjBorderVal">0</span></div>
     </div>
     <div class="car-count" id="carCount" hidden>1 / 1</div>
   </div>
@@ -4386,6 +4417,32 @@
       <button class="nt-btn" id="carAddWide">
         <span class="nt-txt"><b>Wide image</b><span>One large image split across frames for a seamless swipe</span></span>
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Carousel background: photo (blur/opacity/scale) or colour -->
+<div id="carBgModal" class="big-modal" hidden>
+  <div class="bm-card">
+    <div class="bm-head">
+      <span class="bm-title">Background</span>
+      <button class="bm-close" data-bm-close>Close</button>
+    </div>
+    <div class="bm-body">
+      <div class="bm-sec">Photo</div>
+      <div class="bgp-upload">
+        <button class="bgp-upload-btn" id="carBgUpload">Upload photo</button>
+        <img class="bgp-thumb" id="carBgThumb" hidden alt="">
+        <button class="bgp-remove" id="carBgRemove" hidden aria-label="Remove background photo">×</button>
+      </div>
+      <div id="carBgSliders" hidden>
+        <div class="slider-row"><label>Blur</label><input type="range" id="carBgBlur" min="0" max="40" step="1" value="0"><span class="slider-val" id="carBgBlurVal">0</span></div>
+        <div class="slider-row"><label>Opacity</label><input type="range" id="carBgOpacity" min="0" max="100" step="5" value="100"><span class="slider-val" id="carBgOpacityVal">100</span></div>
+        <div class="slider-row"><label>Scale</label><input type="range" id="carBgScale" min="100" max="300" step="5" value="100"><span class="slider-val" id="carBgScaleVal">100</span></div>
+      </div>
+      <div class="bm-sec">Color</div>
+      <div class="bgp-swatches" id="carBgSwatches"></div>
+      <input type="color" id="carBgWheel" value="#000000" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
     </div>
   </div>
 </div>
@@ -12315,6 +12372,14 @@ function carRender(structural = true) {
     carStrip.innerHTML = '';
     const clip = document.createElement('div');
     clip.className = 'car-clip';
+    // background layers sit under every image
+    clip.appendChild(Object.assign(document.createElement('div'), { className: 'car-bgcolor' }));
+    if (car.bg?.photo?.img) {
+      const bp = document.createElement('img');
+      bp.className = 'car-bgphoto';
+      bp.src = car.bg.photo.img.src;
+      clip.appendChild(bp);
+    }
     car.imgs.forEach(o => {
       const d = document.createElement('div');
       d.className = 'car-obj';
@@ -12352,12 +12417,27 @@ function carRender(structural = true) {
     sb.className = 'car-selbox';
     sb.appendChild(Object.assign(document.createElement('div'), { className: 'car-handle' }));
     carStrip.appendChild(sb);
+    carStrip.appendChild(Object.assign(document.createElement('div'), { className: 'car-snapline v' }));
+    carStrip.appendChild(Object.assign(document.createElement('div'), { className: 'car-snapline h' }));
   }
 
   // geometry pass — runs every render so the ratio toggle can morph in place
   const clip = carStrip.querySelector('.car-clip');
   clip.style.width = totalW + 'px';
   clip.style.height = H + 'px';
+  clip.querySelector('.car-bgcolor').style.background = car.bg?.color || '#000000';
+  const bpEl = clip.querySelector('.car-bgphoto');
+  if (bpEl && car.bg?.photo) {
+    const bp = car.bg.photo;
+    const s = bp.scale || 1;
+    const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
+    bpEl.style.left = '0px';
+    bpEl.style.top = ((CAR_CH - bh) / 2 * k) + 'px';
+    bpEl.style.width = (bw2 * k) + 'px';
+    bpEl.style.height = (bh * k) + 'px';
+    bpEl.style.filter = bp.blur ? `blur(${bp.blur * k}px)` : 'none';
+    bpEl.style.opacity = bp.opacity ?? 1;
+  }
   const objEls = clip.querySelectorAll('.car-obj');
   car.imgs.forEach((o, i) => {
     const d = objEls[i]; if (!d) return;
@@ -12366,6 +12446,8 @@ function carRender(structural = true) {
     d.style.top    = (o.y * k) + 'px';
     d.style.width  = (o.w * k) + 'px';
     d.style.height = (oh * k) + 'px';
+    d.style.setProperty('--orad', ((o.r || 0) * k) + 'px');
+    d.style.setProperty('--obw', ((o.bw || 0) * k) + 'px');
     d.classList.toggle('sel', o.id === car.sel);
   });
   clip.querySelectorAll('.car-frameline').forEach(l => { l.style.left = (l.dataset.b * W) + 'px'; });
@@ -12393,6 +12475,23 @@ function carRender(structural = true) {
     sb.style.top    = (selO.y * k) + 'px';
     sb.style.width  = (selO.w * k) + 'px';
     sb.style.height = (oh * k) + 'px';
+    sb.style.borderRadius = ((selO.r || 0) * k) + 'px';
+  }
+  // snap guides — shown only while a drag is actually snapped
+  const lv = carStrip.querySelector('.car-snapline.v');
+  const lh = carStrip.querySelector('.car-snapline.h');
+  const guides = _carMove && _carSnapL;
+  lv.style.display = (guides && _carSnapL.x !== null) ? 'block' : 'none';
+  lh.style.display = (guides && _carSnapL.y !== null) ? 'block' : 'none';
+  if (guides && _carSnapL.x !== null) {
+    lv.style.left = (_carSnapL.x * k) + 'px';
+    lv.style.top = '-24px';
+    lv.style.height = (H + 48) + 'px';
+  }
+  if (guides && _carSnapL.y !== null) {
+    lh.style.top = (_carSnapL.y * k) + 'px';
+    lh.style.left = '-24px';
+    lh.style.width = (totalW + 48) + 'px';
   }
 
   carApplyView();
@@ -12403,6 +12502,7 @@ function carRender(structural = true) {
 function carRenderTools() {
   const sel = carSel();
   document.getElementById('carSelRow').hidden = !sel;
+  document.getElementById('carSelPanel').hidden = !sel;
   document.getElementById('carFrameRow').hidden = !!sel;
   document.getElementById('carFrameDn').disabled = car.frames <= 1;
   document.getElementById('carFrameUp').disabled = car.frames >= 10;
@@ -12410,15 +12510,89 @@ function carRenderTools() {
     const i = car.imgs.indexOf(sel);
     document.getElementById('carSelFwd').disabled = i === car.imgs.length - 1;
     document.getElementById('carSelBack').disabled = i === 0;
+    document.getElementById('carObjRound').value = sel.r || 0;
+    document.getElementById('carObjRoundVal').textContent = sel.r || 0;
+    document.getElementById('carObjBorder').value = sel.bw || 0;
+    document.getElementById('carObjBorderVal').textContent = sel.bw || 0;
   }
+}
+
+document.getElementById('carObjRound').addEventListener('input', e => {
+  const o = carSel(); if (!o) return;
+  o.r = +e.target.value;
+  document.getElementById('carObjRoundVal').textContent = o.r;
+  carRender(false);
+});
+document.getElementById('carObjBorder').addEventListener('input', e => {
+  const o = carSel(); if (!o) return;
+  o.bw = +e.target.value;
+  document.getElementById('carObjBorderVal').textContent = o.bw;
+  carRender(false);
+});
+['carObjRound', 'carObjBorder'].forEach(id =>
+  document.getElementById(id).addEventListener('change', () => carRenderFilm()));
+
+function carRoundRectPath(ctx, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Blurred image draw with a WKWebView-safe fallback (downscale → upscale)
+function carDrawBlurredImg(ctx, img, x, y, w, h, blurPx, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha ?? 1;
+  if (blurPx > 0 && _CTX_FILTER_OK) {
+    ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
+    ctx.drawImage(img, x, y, w, h);
+  } else if (blurPx > 0) {
+    const f = Math.max(2, blurPx * 0.8);
+    const tw = Math.max(8, Math.round(w / f)), th = Math.max(8, Math.round(h / f));
+    const t = document.createElement('canvas');
+    t.width = tw; t.height = th;
+    t.getContext('2d').drawImage(img, 0, 0, tw, th);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(t, x, y, w, h);
+  } else {
+    ctx.drawImage(img, x, y, w, h);
+  }
+  ctx.restore();
 }
 
 // Draw one frame's slice of the canvas into a 2d context (k: canonical→target px)
 function carDrawFrame(ctx, f, k) {
   const cw = carCW();
+  // background: colour, then the (blurred/faded/scaled) photo
+  ctx.fillStyle = car.bg?.color || '#000000';
+  ctx.fillRect(0, 0, cw * k, CAR_CH * k);
+  const bp = car.bg?.photo;
+  if (bp?.img) {
+    const s = bp.scale || 1;
+    const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
+    carDrawBlurredImg(ctx, bp.img, (0 - f * cw) * k, (CAR_CH - bh) / 2 * k,
+                      bw2 * k, bh * k, (bp.blur || 0) * k, bp.opacity ?? 1);
+  }
   for (const o of car.imgs) {
     const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
-    ctx.drawImage(o.img, (o.x - f * cw) * k, o.y * k, o.w * k, oh * k);
+    const x = (o.x - f * cw) * k, y = o.y * k, w = o.w * k, h = oh * k;
+    const r = (o.r || 0) * k, bw = (o.bw || 0) * k;
+    ctx.save();
+    carRoundRectPath(ctx, x, y, w, h, r);
+    ctx.clip();
+    ctx.drawImage(o.img, x, y, w, h);
+    if (bw > 0) {
+      // stroke centred on the edge, clipped → a clean inner border like the DOM
+      carRoundRectPath(ctx, x, y, w, h, r);
+      ctx.lineWidth = bw * 2;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 
@@ -12577,6 +12751,94 @@ document.getElementById('carSmoothBtn').addEventListener('click', e => {
   carRenderFilmSel();
 });
 
+// ── Background: colour or photo (blur / opacity / scale) ────────────────────
+
+const carBgModal = document.getElementById('carBgModal');
+const carBgWheel = document.getElementById('carBgWheel');
+
+function carBgSync() {
+  const bg = car.bg || (car.bg = { color: '#000000', photo: null });
+  const p = bg.photo;
+  document.getElementById('carBgThumb').hidden = !p;
+  if (p) document.getElementById('carBgThumb').src = p.src;
+  document.getElementById('carBgRemove').hidden = !p;
+  document.getElementById('carBgSliders').hidden = !p;
+  if (p) {
+    document.getElementById('carBgBlur').value = p.blur || 0;
+    document.getElementById('carBgBlurVal').textContent = p.blur || 0;
+    document.getElementById('carBgOpacity').value = Math.round((p.opacity ?? 1) * 100);
+    document.getElementById('carBgOpacityVal').textContent = Math.round((p.opacity ?? 1) * 100);
+    document.getElementById('carBgScale').value = Math.round((p.scale || 1) * 100);
+    document.getElementById('carBgScaleVal').textContent = Math.round((p.scale || 1) * 100);
+  }
+  document.querySelectorAll('#carBgSwatches .bgp-sw[data-c]').forEach(b =>
+    b.classList.toggle('active', b.dataset.c.toLowerCase() === (bg.color || '').toLowerCase()));
+}
+
+document.getElementById('carBgBtn').addEventListener('click', () => { carBgSync(); openBigModal(carBgModal); });
+carBgModal.addEventListener('pointerdown', e => { if (e.target === carBgModal) closeBigModal(carBgModal); });
+carBgModal.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(carBgModal));
+
+{
+  const sw = document.getElementById('carBgSwatches');
+  BG_PALETTE.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'bgp-sw'; b.dataset.c = c; b.style.background = c;
+    b.setAttribute('aria-label', 'Background ' + c);
+    b.addEventListener('click', () => { car.bg.color = c; carBgSync(); carRender(false); carRenderFilm(); });
+    sw.appendChild(b);
+  });
+  const custom = document.createElement('button');
+  custom.className = 'bgp-sw bgp-custom';
+  custom.title = 'Custom colour';
+  custom.addEventListener('click', () => carBgWheel.click());
+  sw.appendChild(custom);
+  carBgWheel.addEventListener('input', () => { car.bg.color = carBgWheel.value; carBgSync(); carRender(false); carRenderFilm(); });
+}
+
+document.getElementById('carBgUpload').addEventListener('click', () => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = false; inp.hidden = true;
+  document.body.appendChild(inp);
+  inp.addEventListener('change', async () => {
+    if (inp.files.length) {
+      const loaded = await carReadFile(inp.files[0]);
+      if (loaded) {
+        // fit the slide height — the photo's own aspect makes it bleed into
+        // the next frame; the Scale slider bleeds it across more
+        car.bg.photo = { src: loaded.src, img: loaded.img, blur: 0, opacity: 1, scale: 1 };
+        carBgSync(); carRender(); carRenderFilm();
+      }
+    }
+    inp.remove();
+  });
+  inp.click();
+});
+document.getElementById('carBgRemove').addEventListener('click', () => {
+  car.bg.photo = null;
+  carBgSync(); carRender(); carRenderFilm();
+});
+document.getElementById('carBgBlur').addEventListener('input', e => {
+  if (!car.bg.photo) return;
+  car.bg.photo.blur = +e.target.value;
+  document.getElementById('carBgBlurVal').textContent = e.target.value;
+  carRender(false);
+});
+document.getElementById('carBgOpacity').addEventListener('input', e => {
+  if (!car.bg.photo) return;
+  car.bg.photo.opacity = +e.target.value / 100;
+  document.getElementById('carBgOpacityVal').textContent = e.target.value;
+  carRender(false);
+});
+document.getElementById('carBgScale').addEventListener('input', e => {
+  if (!car.bg.photo) return;
+  car.bg.photo.scale = +e.target.value / 100;
+  document.getElementById('carBgScaleVal').textContent = e.target.value;
+  carRender(false);
+});
+['carBgBlur', 'carBgOpacity', 'carBgScale'].forEach(id =>
+  document.getElementById(id).addEventListener('change', () => carRenderFilm()));
+
 // ── Stage interaction ───────────────────────────────────────────────────────
 // One finger: drag the SELECTED image to move it, drag its corner handle to
 // scale it, otherwise swipe between frames. Tap: select image / deselect /
@@ -12594,7 +12856,9 @@ function carMarkDragged() {
 
 // Magnet: snap a moving image's edges/centre to frame boundaries, frame
 // centres, the canvas top/bottom/middle, and other images' edges/centres.
-// Threshold is ~8 screen px, so it feels the same at any zoom.
+// Threshold is ~8 screen px, so it feels the same at any zoom. Records the
+// grabbed line positions in _carSnapL so the render can draw minimal guides.
+let _carSnapL = null;   // { x: canonical|null, y: canonical|null }
 function carSnapObj(o) {
   const th = 8 / (carK() * _carView);
   const cw = carCW();
@@ -12608,20 +12872,21 @@ function carSnapObj(o) {
     xCand.push(p.x, p.x + p.w, p.x + p.w / 2);
     yCand.push(p.y, p.y + ph, p.y + ph / 2);
   }
-  let best = th, nx = null;
+  let best = th, nx = null, lineX = null;
   for (const off of [0, o.w / 2, o.w])
     for (const c of xCand) {
       const d = Math.abs(o.x + off - c);
-      if (d < best) { best = d; nx = c - off; }
+      if (d < best) { best = d; nx = c - off; lineX = c; }
     }
   if (nx !== null) o.x = nx;
-  best = th; let ny = null;
+  best = th; let ny = null, lineY = null;
   for (const off of [0, oh / 2, oh])
     for (const c of yCand) {
       const d = Math.abs(o.y + off - c);
-      if (d < best) { best = d; ny = c - off; }
+      if (d < best) { best = d; ny = c - off; lineY = c; }
     }
   if (ny !== null) o.y = ny;
+  _carSnapL = (lineX !== null || lineY !== null) ? { x: lineX, y: lineY } : null;
 }
 
 function carPt(e) {   // screen point → canonical canvas coords
@@ -12637,7 +12902,7 @@ function carPt(e) {   // screen point → canonical canvas coords
 
 carStage.addEventListener('pointerdown', e => {
   if (!car) return;
-  if (e.target.closest('.car-underrow')) return;   // the rows' buttons handle themselves
+  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
   const first = _carSwipe || _carMove || _carScale;
   if (first && !_carPinch && e.pointerId !== first.id) {
     // second finger → pinch-zoom the editor view
@@ -12730,6 +12995,8 @@ function carPtrEnd(e) {
   if (_carMove && e.pointerId === _carMove.id) {
     if (_carMove.moved) { carMarkDragged(); carRenderFilm(); }
     _carMove = null;
+    _carSnapL = null;
+    carRender(false);   // hide the snap guides
     return;
   }
   if (_carSwipe && e.pointerId === _carSwipe.id) {
@@ -12762,7 +13029,7 @@ carStage.addEventListener('pointerup', carPtrEnd);
 carStage.addEventListener('pointercancel', carPtrEnd);
 
 carStage.addEventListener('click', e => {
-  if (e.target.closest('.car-underrow')) return;   // row buttons handle themselves
+  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag) return;
   if (e.target.closest('.car-ghostadd')) { openBigModal(carAddModal); return; }
@@ -12907,7 +13174,10 @@ function saveCarouselToDB() {
   const serial = {
     id: _currentProjectId, kind: 'carousel',
     carousel: { ratio: car.ratio, frames: car.frames,
-      imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w })) }
+      bg: { color: car.bg?.color || '#000000',
+            photo: car.bg?.photo ? { src: car.bg.photo.src, blur: car.bg.photo.blur || 0,
+                                     opacity: car.bg.photo.opacity ?? 1, scale: car.bg.photo.scale || 1 } : null },
+      imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w, r: o.r || 0, bw: o.bw || 0 })) }
   };
   dbPut(_currentProjectId, serial).catch(err => console.warn('IDB save failed', err));
 }
@@ -12946,7 +13216,7 @@ function createNewCarouselProject() {
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, kind: 'carousel', updatedAt: Date.now(), thumbnail: null });
   saveProjects();
-  car = { ratio: '4:5', frames: 1, imgs: [], cur: 0, sel: null };
+  car = { ratio: '4:5', frames: 1, imgs: [], cur: 0, sel: null, bg: { color: '#000000', photo: null } };
   _carOpen = true; _carView = 1;
   document.body.classList.add('car-open');
   carouselScreen.hidden = false;
@@ -12991,14 +13261,20 @@ function openCarouselProject(id) {
     const ratio = data?.ratio === '1:1' ? '1:1' : '4:5';
     if (data?.imgs) {
       imgs = (await Promise.all(data.imgs.map(loadOne))).filter(Boolean)
-        .map(o => ({ id: o.id, src: o.src, img: o.img, x: o.x || 0, y: o.y || 0, w: o.w || 500 }));
+        .map(o => ({ id: o.id, src: o.src, img: o.img, x: o.x || 0, y: o.y || 0, w: o.w || 500,
+                     r: o.r || 0, bw: o.bw || 0 }));
       frames = Math.max(1, Math.min(10, data.frames || 1));
     } else if (data?.items) {
       const loaded = (await Promise.all(data.items.map(loadOne))).filter(Boolean);
       const conv = carFromLegacy(data, loaded);
       imgs = conv.imgs; frames = conv.frames;
     }
-    car = { ratio, frames, imgs, cur: 0, sel: null };
+    const bg = { color: data?.bg?.color || '#000000', photo: null };
+    if (data?.bg?.photo?.src) {
+      const p = await loadOne(data.bg.photo);
+      if (p) bg.photo = { src: p.src, img: p.img, blur: p.blur || 0, opacity: p.opacity ?? 1, scale: p.scale || 1 };
+    }
+    car = { ratio, frames, imgs, cur: 0, sel: null, bg };
     carouselScreen.hidden = false;
     carRender();
   });

@@ -1268,6 +1268,13 @@
   .car-tool:active { transform: scale(0.94); }
   .car-tool:disabled { opacity: 0.3; pointer-events: none; }
   .car-tool[hidden] { display: none !important; }
+  .car-tool.on { border-color: var(--accent); color: var(--accent); }
+  /* ratio toggle morphs frames + crops smoothly instead of snapping */
+  #carStrip.ratio-anim .car-slide { transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
+  #carStrip.ratio-anim .car-slide img {
+    transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), top 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
   /* board-editor chrome (header, workspace, its fixed bars) stays out of the way
      while the carousel editor is open */
   body.car-open header, body.car-open .workspace, body.car-open #timelineBar,
@@ -4304,6 +4311,10 @@
     <div class="car-count" id="carCount" hidden>1 / 1</div>
   </div>
   <div class="car-tools" id="carTools" hidden>
+    <button class="car-tool" id="carReframe" title="One-finger reframe">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+      Reframe
+    </button>
     <button class="car-tool" id="carMoveL" title="Move frame left">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       Move
@@ -12296,8 +12307,11 @@ function carRender(structural = true) {
     }
   }
 
-  // position every img + current highlight (the first ghost is "current" when empty)
+  // position every img + current highlight (the first ghost is "current" when empty).
+  // Sizes are (re)applied here too so a ratio toggle can morph in place.
   [...carStrip.children].forEach((el, i) => {
+    el.style.width = W + 'px';
+    el.style.height = H + 'px';
     const { item, sub } = slides[i] || {};
     if (!item) { el.classList.toggle('cur', !has && i === 0); return; }
     const img = el.querySelector('img');
@@ -12407,6 +12421,11 @@ carAddModal.querySelector('[data-bm-close]').addEventListener('click', () => clo
 
 function carCurItem() { return carSlides()[car.cur]?.item || null; }
 
+document.getElementById('carReframe').addEventListener('click', e => {
+  _carReframeMode = !_carReframeMode;
+  e.currentTarget.classList.toggle('on', _carReframeMode);
+});
+
 document.getElementById('carMoveL').addEventListener('click', () => {
   const it = carCurItem(); const i = car.items.indexOf(it);
   if (i <= 0) return;
@@ -12447,10 +12466,17 @@ document.getElementById('carDelete').addEventListener('click', () => {
   carRender();
 });
 
+let _carRatioT = null;
 carRatioBtn.addEventListener('click', () => {
   car.ratio = car.ratio === '4:5' ? '1:1' : '4:5';
-  car.items.forEach(it => carClampT(it, ...carSlideDims()));
-  carRender();
+  const [W, H] = carSlideDims();
+  car.items.forEach(it => carClampT(it, W, H));
+  // morph frames + crops in place (no structural rebuild, so transitions can run)
+  carStrip.classList.add('ratio-anim');
+  carRender(false);
+  carRenderFilm(carSlides(), W, H);
+  clearTimeout(_carRatioT);
+  _carRatioT = setTimeout(() => carStrip.classList.remove('ratio-anim'), 500);
 });
 
 // ── Stage interaction ───────────────────────────────────────────────────────
@@ -12475,26 +12501,40 @@ function carStripX(cur = car.cur) {
   return (carStage.clientWidth - W) / 2 - x;
 }
 
+let _carReframeMode = false;   // toolbar toggle: one finger repositions instead of swiping
+
 carStage.addEventListener('pointerdown', e => {
   if (!car) return;
   if (e.pointerType === 'touch') {
-    if (_carSwipe && !_carPinch && e.pointerId !== _carSwipe.id) {
+    const first = _carSwipe || _carPtr;
+    if (first && !_carPinch && e.pointerId !== first.id) {
       // second finger lands → become a reframe gesture on the current image
       const it = carCurItem(); if (!it) return;
       _carPinch = {
-        id1: _carSwipe.id, id2: e.pointerId,
-        x1: _carSwipe.lastX, y1: _carSwipe.lastY, x2: e.clientX, y2: e.clientY,
+        id1: first.id, id2: e.pointerId,
+        x1: first.lastX, y1: first.lastY, x2: e.clientX, y2: e.clientY,
         s0: it.t.scale, fx0: it.t.fx, fy0: it.t.fy,
       };
       _carPinch.d0 = Math.hypot(_carPinch.x2 - _carPinch.x1, _carPinch.y2 - _carPinch.y1) || 1;
       _carPinch.mx0 = (_carPinch.x1 + _carPinch.x2) / 2;
       _carPinch.my0 = (_carPinch.y1 + _carPinch.y2) / 2;
-      _carSwipe.cancelled = true;
-      carStrip.classList.remove('no-anim');
-      carStrip.style.transform = `translateX(${carStripX()}px)`;   // undo any part-swipe
+      if (_carSwipe) {
+        _carSwipe.cancelled = true;
+        carStrip.classList.remove('no-anim');
+        carStrip.style.transform = `translateX(${carStripX()}px)`;   // undo any part-swipe
+      }
+      _carPtr = null;
       return;
     }
     if (!carSlides().length) return;   // empty: ghost taps go through click
+    if (_carReframeMode) {
+      // reframe mode: one finger pans the current image — every frame of a
+      // split image follows, since the transform belongs to the whole image
+      const it = carCurItem(); if (!it) return;
+      _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                  moved: false, fx: it.t.fx, fy: it.t.fy };
+      return;
+    }
     _carSwipe = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
                   t: performance.now(), vx: 0, moved: false, base: carStripX() };
     return;
@@ -12503,7 +12543,8 @@ carStage.addEventListener('pointerdown', e => {
   const slideEl = e.target.closest('.car-slide');
   if (!slideEl || slideEl.dataset.ghost || +slideEl.dataset.i !== car.cur) return;
   const it = carCurItem(); if (!it) return;
-  _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false, fx: it.t.fx, fy: it.t.fy };
+  _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
+              moved: false, fx: it.t.fx, fy: it.t.fy };
   carStage.setPointerCapture(e.pointerId);
 });
 
@@ -12541,6 +12582,7 @@ carStage.addEventListener('pointermove', e => {
     const it = carCurItem(); if (!it) return;
     const dx = e.clientX - _carPtr.x, dy = e.clientY - _carPtr.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) _carPtr.moved = true;
+    _carPtr.lastX = e.clientX; _carPtr.lastY = e.clientY;   // pinch anchor if a 2nd finger lands
     it.t.fx = _carPtr.fx + dx / (it.span * W);
     it.t.fy = _carPtr.fy + dy / H;
     carClampT(it, W, H);
@@ -12551,7 +12593,7 @@ carStage.addEventListener('pointermove', e => {
 let _carDragged = false;   // suppresses the click that follows a drag/swipe
 function carPtrEnd(e) {
   if (_carPinch && (e.pointerId === _carPinch.id1 || e.pointerId === _carPinch.id2)) {
-    _carPinch = null; _carSwipe = null; _carDragged = true;
+    _carPinch = null; _carSwipe = null; _carPtr = null; _carDragged = true;
     carStrip.classList.remove('no-anim');
     carRender(false);
     carRenderFilm(carSlides(), ...carSlideDims());

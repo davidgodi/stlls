@@ -4315,14 +4315,6 @@
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
       Reframe
     </button>
-    <button class="car-tool" id="carMoveL" title="Move frame left">
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      Move
-    </button>
-    <button class="car-tool" id="carMoveR" title="Move frame right">
-      Move
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </button>
     <button class="car-tool" id="carSpanDn" title="Fewer frames">− frame</button>
     <button class="car-tool" id="carSpanUp" title="More frames">+ frame</button>
     <button class="car-tool" id="carDup">Duplicate</button>
@@ -12334,9 +12326,6 @@ function carRender(structural = true) {
 function carRenderTools(slides) {
   const s = slides[car.cur];
   if (!s) return;
-  const idx = car.items.indexOf(s.item);
-  document.getElementById('carMoveL').disabled = idx === 0;
-  document.getElementById('carMoveR').disabled = idx === car.items.length - 1;
   document.getElementById('carSpanDn').hidden = s.item.span <= 1;
   document.getElementById('carSpanDn').disabled = s.item.span <= 2;
   document.getElementById('carSpanUp').hidden = s.item.span <= 1;
@@ -12426,20 +12415,6 @@ document.getElementById('carReframe').addEventListener('click', e => {
   e.currentTarget.classList.toggle('on', _carReframeMode);
 });
 
-document.getElementById('carMoveL').addEventListener('click', () => {
-  const it = carCurItem(); const i = car.items.indexOf(it);
-  if (i <= 0) return;
-  car.items.splice(i, 1); car.items.splice(i - 1, 0, it);
-  car.cur = carSlides().findIndex(s => s.item === it);
-  carRender();
-});
-document.getElementById('carMoveR').addEventListener('click', () => {
-  const it = carCurItem(); const i = car.items.indexOf(it);
-  if (i < 0 || i >= car.items.length - 1) return;
-  car.items.splice(i, 1); car.items.splice(i + 1, 0, it);
-  car.cur = carSlides().findIndex(s => s.item === it);
-  carRender();
-});
 document.getElementById('carSpanDn').addEventListener('click', () => {
   const it = carCurItem(); if (!it || it.span <= 2) return;
   it.span--; carClampT(it, ...carSlideDims()); carRender();

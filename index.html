@@ -1257,7 +1257,7 @@
     font-size: 22px; font-weight: 300; line-height: 1; pointer-events: none;
   }
 
-  .car-tools { display: flex; gap: 7px; justify-content: center; align-items: center; padding: 9px 12px 2px; flex-shrink: 0; flex-wrap: wrap; min-height: 44px; }
+  .car-tools { display: flex; gap: 7px; justify-content: center; align-items: center; padding: 4px 12px calc(12px + env(safe-area-inset-bottom)); flex-shrink: 0; flex-wrap: wrap; }
   .car-tools[hidden] { display: none !important; }
   .car-tool {
     display: flex; align-items: center; gap: 5px; padding: 8px 11px; border-radius: 9px;
@@ -1269,6 +1269,27 @@
   .car-tool:disabled { opacity: 0.3; pointer-events: none; }
   .car-tool[hidden] { display: none !important; }
   .car-tool.on { border-color: var(--accent); color: var(--accent); }
+  /* floating chips on the frame's top corners + the frame-count row under it */
+  .car-corner {
+    position: absolute; z-index: 4;
+    display: flex; align-items: center; gap: 5px;
+    padding: 7px 10px; border-radius: 9px;
+    background: var(--surface); border: 1px solid var(--border2); color: var(--text-mid);
+    font-family: inherit; font-size: 10.5px; font-weight: 500; cursor: pointer;
+    box-shadow: var(--btn-shadow); -webkit-tap-highlight-color: transparent;
+    transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), right 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                top 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .car-corner:active { transform: scale(0.94); }
+  .car-corner.on { border-color: var(--accent); color: var(--accent); }
+  .car-corner[hidden] { display: none !important; }
+  .car-corner svg { display: block; }
+  #carSpanRow {
+    position: absolute; z-index: 4; display: flex; gap: 7px;
+    left: 50%; transform: translateX(-50%);
+    transition: top 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #carSpanRow[hidden] { display: none !important; }
   /* ratio toggle morphs frames + crops smoothly instead of snapping */
   #carStrip.ratio-anim .car-slide { transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
   #carStrip.ratio-anim .car-slide img {
@@ -1284,7 +1305,7 @@
 
   .car-film {
     display: flex; gap: 6px; align-items: center;
-    padding: 9px 14px calc(12px + env(safe-area-inset-bottom));
+    padding: 9px 14px;
     overflow-x: auto; flex-shrink: 0; -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
@@ -4308,22 +4329,24 @@
   </div>
   <div id="carStage">
     <div id="carStrip"></div>
-    <div class="car-count" id="carCount" hidden>1 / 1</div>
-  </div>
-  <div class="car-tools" id="carTools" hidden>
-    <button class="car-tool" id="carReframe" title="One-finger reframe">
+    <button class="car-corner" id="carReframe" hidden title="One-finger reframe">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
       Reframe
     </button>
-    <button class="car-tool" id="carSpanDn" title="Fewer frames">− frame</button>
-    <button class="car-tool" id="carSpanUp" title="More frames">+ frame</button>
-    <button class="car-tool" id="carDup">Duplicate</button>
-    <button class="car-tool" id="carReset">Reset crop</button>
-    <button class="car-tool danger" id="carDelete">Delete</button>
+    <button class="car-corner" id="carReset" hidden>Reset crop</button>
+    <div id="carSpanRow" hidden>
+      <button class="car-tool" id="carSpanDn" title="Fewer frames">− frame</button>
+      <button class="car-tool" id="carSpanUp" title="More frames">+ frame</button>
+    </div>
+    <div class="car-count" id="carCount" hidden>1 / 1</div>
   </div>
   <div class="car-film" id="carFilmRow">
     <div style="display:flex;gap:6px;align-items:center;" id="carFilm"></div>
     <button id="carAddSlide" aria-label="Add media">+</button>
+  </div>
+  <div class="car-tools" id="carTools" hidden>
+    <button class="car-tool" id="carDup">Duplicate</button>
+    <button class="car-tool danger" id="carDelete">Delete</button>
   </div>
 </div>
 
@@ -12224,7 +12247,7 @@ function carSlides() {
 function carSlideDims() {
   const [rw, rh] = carRatioWH();
   const stW = carStage.clientWidth, stH = carStage.clientHeight;
-  let h = stH - 36;
+  let h = stH - 88;   // leaves room for the −/+ frame row under the frame
   let w = h * rw / rh;
   const maxW = stW * 0.68;
   if (w > maxW) { w = maxW; h = w * rh / rw; }
@@ -12316,6 +12339,16 @@ function carRender(structural = true) {
   // strip offset: center the current slide
   carStrip.style.transform = `translateX(${carStripX()}px)`;
 
+  // pin the corner chips to the frame's top corners, the −/+ row just below it
+  const fl = (carStage.clientWidth - W) / 2;
+  const ft = (carStage.clientHeight - H) / 2;
+  const rf = document.getElementById('carReframe');
+  const rs = document.getElementById('carReset');
+  rf.hidden = !has; rs.hidden = !has;
+  rf.style.left  = (fl + 8) + 'px'; rf.style.top = (ft + 8) + 'px';
+  rs.style.right = (fl + 8) + 'px'; rs.style.top = (ft + 8) + 'px';
+  document.getElementById('carSpanRow').style.top = (ft + H + 12) + 'px';
+
   carCount.textContent = `${car.cur + 1} / ${slides.length}`;
   carRenderTools(slides);
   if (structural) carRenderFilm(slides, W, H);
@@ -12323,10 +12356,10 @@ function carRender(structural = true) {
 
 function carRenderTools(slides) {
   const s = slides[car.cur];
-  if (!s) return;
-  document.getElementById('carSpanDn').hidden = s.item.span <= 1;
+  const spanRow = document.getElementById('carSpanRow');
+  if (!s) { spanRow.hidden = true; return; }
+  spanRow.hidden = s.item.span <= 1;
   document.getElementById('carSpanDn').disabled = s.item.span <= 2;
-  document.getElementById('carSpanUp').hidden = s.item.span <= 1;
   document.getElementById('carSpanUp').disabled = s.item.span >= 10;
   document.getElementById('carDup').hidden = s.item.span > 1;
 }

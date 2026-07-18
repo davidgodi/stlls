@@ -12339,14 +12339,15 @@ function carRender(structural = true) {
   // strip offset: center the current slide
   carStrip.style.transform = `translateX(${carStripX()}px)`;
 
-  // pin the corner chips to the frame's top corners, the −/+ row just below it
+  // chips sit just ABOVE the frame, flush with its left/right edges;
+  // the −/+ row goes just below it
   const fl = (carStage.clientWidth - W) / 2;
   const ft = (carStage.clientHeight - H) / 2;
   const rf = document.getElementById('carReframe');
   const rs = document.getElementById('carReset');
   rf.hidden = !has; rs.hidden = !has;
-  rf.style.left  = (fl + 8) + 'px'; rf.style.top = (ft + 8) + 'px';
-  rs.style.right = (fl + 8) + 'px'; rs.style.top = (ft + 8) + 'px';
+  rf.style.left  = fl + 'px'; rf.style.top = (ft - 38) + 'px';
+  rs.style.right = fl + 'px'; rs.style.top = (ft - 38) + 'px';
   document.getElementById('carSpanRow').style.top = (ft + H + 12) + 'px';
 
   carCount.textContent = `${car.cur + 1} / ${slides.length}`;

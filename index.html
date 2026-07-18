@@ -1272,8 +1272,34 @@
   /* canvas background layers (under every image) */
   .car-bgcolor { position: absolute; inset: 0; pointer-events: none; }
   .car-bgphoto { position: absolute; pointer-events: none; max-width: none; }
-  #carBgSliders { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 2px; }
+  #carBgSliders { display: flex; flex-direction: column; gap: 4px; }
   #carBgSliders[hidden] { display: none !important; }
+  /* Background edit mode: panel docks under the preview, foreground fades */
+  #carBgPanel {
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+    background: var(--surface); border-top: 1px solid var(--border2);
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 10px;
+    animation: popUpIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #carBgPanel[hidden] { display: none !important; }
+  #carBgPanel .bgp-swatches {
+    display: flex; overflow-x: auto; gap: 7px; padding: 2px;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  #carBgPanel .bgp-swatches::-webkit-scrollbar { display: none; }
+  #carBgPanel .bgp-sw { flex: 0 0 30px; width: 30px; height: 30px; aspect-ratio: auto; }
+  #carBgOk {
+    margin-left: auto; flex: 0 0 auto; padding: 10px 24px; border-radius: 10px;
+    background: var(--accent); color: var(--accent-fg); border: none;
+    font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #carBgOk:active { transform: scale(0.96); }
+  #carStrip.bgmode .car-obj { opacity: 0.25; }
+  #carStrip.bgmode .car-selbox, #carStrip.bgmode .car-snapline { display: none !important; }
+  #carouselScreen.bgmode-ui .car-underrow,
+  #carouselScreen.bgmode-ui .car-selpanel { display: none !important; }
   /* smooth-scroll mode: no per-frame dimming, just the hairline grid */
   #carStrip.smooth .car-framedim { background: transparent !important; }
   .car-frameline {
@@ -4401,6 +4427,22 @@
     <div style="display:flex;gap:8px;align-items:center;" id="carFilm"></div>
     <button id="carAddSlide" aria-label="Add media">+</button>
   </div>
+  <!-- Background edit mode: docked under the preview so changes are visible live -->
+  <div id="carBgPanel" hidden>
+    <div class="bgp-swatches" id="carBgSwatches"></div>
+    <div class="bgp-upload">
+      <button class="bgp-upload-btn" id="carBgUpload">Upload photo</button>
+      <img class="bgp-thumb" id="carBgThumb" hidden alt="">
+      <button class="bgp-remove" id="carBgRemove" hidden aria-label="Remove background photo">×</button>
+      <button id="carBgOk">Okay</button>
+    </div>
+    <div id="carBgSliders" hidden>
+      <div class="slider-row"><label>Blur</label><input type="range" id="carBgBlur" min="0" max="40" step="1" value="0"><span class="slider-val" id="carBgBlurVal">0</span></div>
+      <div class="slider-row"><label>Opacity</label><input type="range" id="carBgOpacity" min="0" max="100" step="5" value="100"><span class="slider-val" id="carBgOpacityVal">100</span></div>
+      <div class="slider-row"><label>Scale</label><input type="range" id="carBgScale" min="100" max="300" step="5" value="100"><span class="slider-val" id="carBgScaleVal">100</span></div>
+    </div>
+    <input type="color" id="carBgWheel" value="#000000" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
+  </div>
 </div>
 
 <!-- Carousel add-media chooser -->
@@ -4421,31 +4463,6 @@
   </div>
 </div>
 
-<!-- Carousel background: photo (blur/opacity/scale) or colour -->
-<div id="carBgModal" class="big-modal" hidden>
-  <div class="bm-card">
-    <div class="bm-head">
-      <span class="bm-title">Background</span>
-      <button class="bm-close" data-bm-close>Close</button>
-    </div>
-    <div class="bm-body">
-      <div class="bm-sec">Photo</div>
-      <div class="bgp-upload">
-        <button class="bgp-upload-btn" id="carBgUpload">Upload photo</button>
-        <img class="bgp-thumb" id="carBgThumb" hidden alt="">
-        <button class="bgp-remove" id="carBgRemove" hidden aria-label="Remove background photo">×</button>
-      </div>
-      <div id="carBgSliders" hidden>
-        <div class="slider-row"><label>Blur</label><input type="range" id="carBgBlur" min="0" max="40" step="1" value="0"><span class="slider-val" id="carBgBlurVal">0</span></div>
-        <div class="slider-row"><label>Opacity</label><input type="range" id="carBgOpacity" min="0" max="100" step="5" value="100"><span class="slider-val" id="carBgOpacityVal">100</span></div>
-        <div class="slider-row"><label>Scale</label><input type="range" id="carBgScale" min="100" max="300" step="5" value="100"><span class="slider-val" id="carBgScaleVal">100</span></div>
-      </div>
-      <div class="bm-sec">Color</div>
-      <div class="bgp-swatches" id="carBgSwatches"></div>
-      <input type="color" id="carBgWheel" value="#000000" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none;">
-    </div>
-  </div>
-</div>
 
 <!-- Carousel fullscreen test viewer -->
 <div id="carViewer" hidden>
@@ -12431,8 +12448,8 @@ function carRender(structural = true) {
     const bp = car.bg.photo;
     const s = bp.scale || 1;
     const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
-    bpEl.style.left = '0px';
-    bpEl.style.top = ((CAR_CH - bh) / 2 * k) + 'px';
+    bpEl.style.left = ((bp.x || 0) * k) + 'px';
+    bpEl.style.top = ((bp.y || 0) * k) + 'px';
     bpEl.style.width = (bw2 * k) + 'px';
     bpEl.style.height = (bh * k) + 'px';
     bpEl.style.filter = bp.blur ? `blur(${bp.blur * k}px)` : 'none';
@@ -12574,7 +12591,7 @@ function carDrawFrame(ctx, f, k) {
   if (bp?.img) {
     const s = bp.scale || 1;
     const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
-    carDrawBlurredImg(ctx, bp.img, (0 - f * cw) * k, (CAR_CH - bh) / 2 * k,
+    carDrawBlurredImg(ctx, bp.img, ((bp.x || 0) - f * cw) * k, (bp.y || 0) * k,
                       bw2 * k, bh * k, (bp.blur || 0) * k, bp.opacity ?? 1);
   }
   for (const o of car.imgs) {
@@ -12751,10 +12768,51 @@ document.getElementById('carSmoothBtn').addEventListener('click', e => {
   carRenderFilmSel();
 });
 
-// ── Background: colour or photo (blur / opacity / scale) ────────────────────
+// ── Background edit mode ────────────────────────────────────────────────────
+// The bg chip docks a panel under the preview: colour swatches, photo upload
+// and blur/opacity/scale sliders stay visible while the canvas updates live.
+// Foreground images fade to 25% and the background photo becomes the only
+// movable/scalable object until Okay restores the normal UI.
 
-const carBgModal = document.getElementById('carBgModal');
+let _carBgMode = false;
+let _carBgDrag = null, _carBgPinch = null;
 const carBgWheel = document.getElementById('carBgWheel');
+
+function carBgEnter() {
+  _carBgMode = true;
+  car.sel = null;
+  carBgSync();
+  document.getElementById('carBgPanel').hidden = false;
+  document.getElementById('carBgBtn').classList.add('on');
+  carouselScreen.classList.add('bgmode-ui');
+  carStrip.classList.add('bgmode');
+  carRender(false);
+}
+function carBgExit() {
+  _carBgMode = false;
+  _carBgDrag = _carBgPinch = null;
+  document.getElementById('carBgPanel').hidden = true;
+  document.getElementById('carBgBtn').classList.remove('on');
+  carouselScreen.classList.remove('bgmode-ui');
+  carStrip.classList.remove('bgmode');
+  carRender(false);
+  carRenderFilm();
+}
+
+// scale about the photo's centre so it grows outward, not off to one side
+function carBgSetScale(ns) {
+  const bp = car.bg?.photo; if (!bp) return;
+  ns = Math.min(3, Math.max(1, ns));
+  const a = bp.img.naturalWidth / bp.img.naturalHeight;
+  const oh = CAR_CH * (bp.scale || 1), ow = oh * a;
+  const cx = (bp.x || 0) + ow / 2, cy = (bp.y || 0) + oh / 2;
+  bp.scale = ns;
+  const nh = CAR_CH * ns, nw = nh * a;
+  bp.x = cx - nw / 2;
+  bp.y = cy - nh / 2;
+  document.getElementById('carBgScale').value = Math.round(ns * 100);
+  document.getElementById('carBgScaleVal').textContent = Math.round(ns * 100);
+}
 
 function carBgSync() {
   const bg = car.bg || (car.bg = { color: '#000000', photo: null });
@@ -12775,9 +12833,8 @@ function carBgSync() {
     b.classList.toggle('active', b.dataset.c.toLowerCase() === (bg.color || '').toLowerCase()));
 }
 
-document.getElementById('carBgBtn').addEventListener('click', () => { carBgSync(); openBigModal(carBgModal); });
-carBgModal.addEventListener('pointerdown', e => { if (e.target === carBgModal) closeBigModal(carBgModal); });
-carBgModal.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(carBgModal));
+document.getElementById('carBgBtn').addEventListener('click', () => { _carBgMode ? carBgExit() : carBgEnter(); });
+document.getElementById('carBgOk').addEventListener('click', carBgExit);
 
 {
   const sw = document.getElementById('carBgSwatches');
@@ -12805,8 +12862,8 @@ document.getElementById('carBgUpload').addEventListener('click', () => {
       const loaded = await carReadFile(inp.files[0]);
       if (loaded) {
         // fit the slide height — the photo's own aspect makes it bleed into
-        // the next frame; the Scale slider bleeds it across more
-        car.bg.photo = { src: loaded.src, img: loaded.img, blur: 0, opacity: 1, scale: 1 };
+        // the next frame; drag moves it, Scale bleeds it across more
+        car.bg.photo = { src: loaded.src, img: loaded.img, blur: 0, opacity: 1, scale: 1, x: 0, y: 0 };
         carBgSync(); carRender(); carRenderFilm();
       }
     }
@@ -12832,8 +12889,7 @@ document.getElementById('carBgOpacity').addEventListener('input', e => {
 });
 document.getElementById('carBgScale').addEventListener('input', e => {
   if (!car.bg.photo) return;
-  car.bg.photo.scale = +e.target.value / 100;
-  document.getElementById('carBgScaleVal').textContent = e.target.value;
+  carBgSetScale(+e.target.value / 100);
   carRender(false);
 });
 ['carBgBlur', 'carBgOpacity', 'carBgScale'].forEach(id =>
@@ -12903,6 +12959,21 @@ function carPt(e) {   // screen point → canonical canvas coords
 carStage.addEventListener('pointerdown', e => {
   if (!car) return;
   if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
+  if (_carBgMode) {
+    // background mode: one finger moves the bg photo, two fingers scale it
+    const bp = car.bg?.photo;
+    if (_carBgDrag && !_carBgPinch && bp && e.pointerId !== _carBgDrag.id) {
+      _carBgPinch = { id1: _carBgDrag.id, id2: e.pointerId,
+        x1: _carBgDrag.lastX, y1: _carBgDrag.lastY, x2: e.clientX, y2: e.clientY, s0: bp.scale || 1 };
+      _carBgPinch.d0 = Math.hypot(_carBgPinch.x2 - _carBgPinch.x1, _carBgPinch.y2 - _carBgPinch.y1) || 1;
+      _carBgDrag = null;
+      return;
+    }
+    if (_carBgPinch || !bp) return;
+    const [px, py] = carPt(e);
+    _carBgDrag = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY, x0: bp.x || 0, y0: bp.y || 0, px, py };
+    return;
+  }
   const first = _carSwipe || _carMove || _carScale;
   if (first && !_carPinch && e.pointerId !== first.id) {
     // second finger → pinch-zoom the editor view
@@ -12938,6 +13009,26 @@ carStage.addEventListener('pointerdown', e => {
 
 carStage.addEventListener('pointermove', e => {
   if (!car) return;
+  if (_carBgMode) {
+    const bp = car.bg?.photo; if (!bp) return;
+    if (_carBgPinch) {
+      if (e.pointerId === _carBgPinch.id1) { _carBgPinch.x1 = e.clientX; _carBgPinch.y1 = e.clientY; }
+      else if (e.pointerId === _carBgPinch.id2) { _carBgPinch.x2 = e.clientX; _carBgPinch.y2 = e.clientY; }
+      else return;
+      const d = Math.hypot(_carBgPinch.x2 - _carBgPinch.x1, _carBgPinch.y2 - _carBgPinch.y1);
+      carBgSetScale(_carBgPinch.s0 * d / _carBgPinch.d0);
+      carRender(false);
+      return;
+    }
+    if (_carBgDrag && e.pointerId === _carBgDrag.id) {
+      _carBgDrag.lastX = e.clientX; _carBgDrag.lastY = e.clientY;
+      const [px, py] = carPt(e);
+      bp.x = _carBgDrag.x0 + px - _carBgDrag.px;
+      bp.y = _carBgDrag.y0 + py - _carBgDrag.py;
+      carRender(false);
+    }
+    return;
+  }
   if (_carPinch) {
     if (e.pointerId === _carPinch.id1) { _carPinch.x1 = e.clientX; _carPinch.y1 = e.clientY; }
     else if (e.pointerId === _carPinch.id2) { _carPinch.x2 = e.clientX; _carPinch.y2 = e.clientY; }
@@ -12983,6 +13074,12 @@ carStage.addEventListener('pointermove', e => {
 });
 
 function carPtrEnd(e) {
+  if (_carBgMode) {
+    if (_carBgPinch && (e.pointerId === _carBgPinch.id1 || e.pointerId === _carBgPinch.id2)) _carBgPinch = null;
+    if (_carBgDrag && e.pointerId === _carBgDrag.id) _carBgDrag = null;
+    carMarkDragged();
+    return;
+  }
   if (_carPinch && (e.pointerId === _carPinch.id1 || e.pointerId === _carPinch.id2)) {
     _carPinch = null; carMarkDragged();
     return;
@@ -13031,7 +13128,7 @@ carStage.addEventListener('pointercancel', carPtrEnd);
 carStage.addEventListener('click', e => {
   if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
   const wasDrag = _carDragged; _carDragged = false;
-  if (!car || wasDrag) return;
+  if (!car || wasDrag || _carBgMode) return;   // bg mode: canvas taps only move the bg
   if (e.target.closest('.car-ghostadd')) { openBigModal(carAddModal); return; }
   if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
   const objEl = e.target.closest('.car-obj');
@@ -13046,10 +13143,17 @@ carStage.addEventListener('click', e => {
   if (f >= 0 && f < car.frames && f !== car.cur) carGoFrame(f);
 });
 
-// mouse: wheel zooms the editor view
+// mouse: wheel zooms the editor view (bg mode: scales the background photo)
 carStage.addEventListener('wheel', e => {
   if (!car || !_carOpen) return;
   e.preventDefault();
+  if (_carBgMode) {
+    if (car.bg?.photo) {
+      carBgSetScale((car.bg.photo.scale || 1) * (e.deltaY < 0 ? 1.05 : 0.95));
+      carRender(false);
+    }
+    return;
+  }
   _carView = Math.min(CAR_MAXV, Math.max(CAR_MINV, _carView * (e.deltaY < 0 ? 1.06 : 0.94)));
   carApplyView();
 }, { passive: false });
@@ -13176,13 +13280,15 @@ function saveCarouselToDB() {
     carousel: { ratio: car.ratio, frames: car.frames,
       bg: { color: car.bg?.color || '#000000',
             photo: car.bg?.photo ? { src: car.bg.photo.src, blur: car.bg.photo.blur || 0,
-                                     opacity: car.bg.photo.opacity ?? 1, scale: car.bg.photo.scale || 1 } : null },
+                                     opacity: car.bg.photo.opacity ?? 1, scale: car.bg.photo.scale || 1,
+                                     x: car.bg.photo.x || 0, y: car.bg.photo.y || 0 } : null },
       imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w, r: o.r || 0, bw: o.bw || 0 })) }
   };
   dbPut(_currentProjectId, serial).catch(err => console.warn('IDB save failed', err));
 }
 
 function closeCarouselAndGoHome() {
+  if (_carBgMode) carBgExit();
   if (car && car.imgs.length) {
     saveCarouselToDB();
   } else if (_currentProjectId) {
@@ -13272,7 +13378,9 @@ function openCarouselProject(id) {
     const bg = { color: data?.bg?.color || '#000000', photo: null };
     if (data?.bg?.photo?.src) {
       const p = await loadOne(data.bg.photo);
-      if (p) bg.photo = { src: p.src, img: p.img, blur: p.blur || 0, opacity: p.opacity ?? 1, scale: p.scale || 1 };
+      if (p) bg.photo = { src: p.src, img: p.img, blur: p.blur || 0, opacity: p.opacity ?? 1,
+                          scale: p.scale || 1, x: p.x || 0,
+                          y: p.y ?? (CAR_CH - CAR_CH * (p.scale || 1)) / 2 };   // pre-x/y saves were centred
     }
     car = { ratio, frames, imgs, cur: 0, sel: null, bg };
     carouselScreen.hidden = false;

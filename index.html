@@ -1186,6 +1186,140 @@
   @media (prefers-reduced-motion: reduce) {
     .nt-board i, .nt-track, .nt-add, .nt-card { animation: none; }
   }
+
+  /* ── Carousel editor ───────────────────────────────────────────────────── */
+  #carouselScreen {
+    position: fixed; inset: 0; z-index: 150;   /* above board editor, below export bar (200) & home (300) */
+    display: flex; flex-direction: column;
+    background: var(--bg);
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+  #carouselScreen[hidden] { display: none !important; }
+  .car-top { display: flex; align-items: center; gap: 10px; padding: 6px 14px 8px; flex-shrink: 0; }
+  .car-back {
+    background: none; border: none; color: var(--text-mid); cursor: pointer; padding: 6px;
+    display: flex; align-items: center; -webkit-tap-highlight-color: transparent;
+  }
+  .car-title { font-size: 12px; letter-spacing: 0.16em; font-weight: 600; color: var(--text-mid); flex: 1; }
+  .car-chip {
+    display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 9px;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
+    font-family: inherit; font-size: 11.5px; font-weight: 500; cursor: pointer;
+    box-shadow: var(--btn-shadow); -webkit-tap-highlight-color: transparent;
+  }
+  .car-chip:active { transform: scale(0.95); }
+  .car-chip:disabled { opacity: 0.35; pointer-events: none; }
+  .car-chip.accent { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 600; }
+  .car-chip svg { display: block; }
+
+  #carStage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
+  #carStrip {
+    position: absolute; top: 0; left: 0; height: 100%;
+    display: flex; align-items: center;
+    transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  #carStrip.no-anim { transition: none; }
+  .car-slide {
+    position: relative; flex-shrink: 0; overflow: hidden; border-radius: 10px;
+    background: var(--surface2); border: 1px solid var(--border2); box-sizing: border-box;
+    filter: brightness(0.42); transition: filter 0.3s ease;
+    cursor: pointer;
+  }
+  .car-slide.cur { filter: none; cursor: grab; }
+  .car-slide img {
+    position: absolute; max-width: none; pointer-events: none;
+    user-select: none; -webkit-user-drag: none;
+  }
+  /* subtle joint marker between sub-slides of one split image */
+  .car-slide .car-joint {
+    position: absolute; left: 0; top: 50%; margin-top: -9px; width: 3px; height: 18px;
+    border-radius: 0 3px 3px 0; background: var(--accent); opacity: 0.55; pointer-events: none;
+  }
+  .car-count {
+    position: absolute; top: 10px; right: 12px; z-index: 3;
+    font-size: 11px; color: var(--text-mid); background: var(--surface);
+    border: 1px solid var(--border2); border-radius: 999px; padding: 4px 10px;
+    font-variant-numeric: tabular-nums; pointer-events: none;
+  }
+  .car-empty {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px; padding: 24px;
+  }
+  .car-empty[hidden] { display: none !important; }
+  .car-empty p { color: var(--text-dim); font-size: 12px; margin: 0 0 6px; text-align: center; }
+
+  .car-tools { display: flex; gap: 7px; justify-content: center; align-items: center; padding: 9px 12px 2px; flex-shrink: 0; flex-wrap: wrap; min-height: 44px; }
+  .car-tool {
+    display: flex; align-items: center; gap: 5px; padding: 8px 11px; border-radius: 9px;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
+    font-family: inherit; font-size: 11px; cursor: pointer; box-shadow: var(--btn-shadow);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .car-tool:active { transform: scale(0.94); }
+  .car-tool:disabled { opacity: 0.3; pointer-events: none; }
+  .car-tool[hidden] { display: none !important; }
+  /* board-editor chrome (header, workspace, its fixed bars) stays out of the way
+     while the carousel editor is open */
+  body.car-open header, body.car-open .workspace, body.car-open #timelineBar,
+  body.car-open #psExport { display: none !important; }
+  .car-tool.danger { color: #ff6b5e; }
+  .car-tool svg { display: block; }
+
+  .car-film {
+    display: flex; gap: 6px; align-items: center;
+    padding: 9px 14px calc(12px + env(safe-area-inset-bottom));
+    overflow-x: auto; flex-shrink: 0; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .car-film::-webkit-scrollbar { display: none; }
+  .car-thumb {
+    position: relative; flex: 0 0 auto; height: 54px; border-radius: 7px; overflow: hidden;
+    border: 1.5px solid var(--border2); background: var(--surface2); cursor: pointer;
+    padding: 0; -webkit-tap-highlight-color: transparent;
+  }
+  .car-thumb.cur { border-color: var(--accent); }
+  .car-thumb canvas { display: block; height: 100%; }
+  .car-thumb .ct-n {
+    position: absolute; left: 3px; bottom: 2px; font-size: 8px; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8); font-variant-numeric: tabular-nums;
+  }
+  .car-thumb .ct-link {
+    position: absolute; top: 2px; right: 3px; font-size: 8px; color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  #carAddSlide {
+    flex: 0 0 auto; width: 42px; height: 54px; border-radius: 7px;
+    border: 1.5px dashed var(--border2); background: none; color: var(--text-dim);
+    font-size: 18px; font-weight: 300; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  #carAddSlide:active { transform: scale(0.94); }
+
+  /* Fullscreen test viewer — IG-style swipe with scroll-snap */
+  #carViewer { position: fixed; inset: 0; z-index: 560; background: #000; display: flex; flex-direction: column; }
+  #carViewer[hidden] { display: none !important; }
+  #carViewerScroll {
+    flex: 1; display: flex; align-items: center;
+    overflow-x: auto; overflow-y: hidden;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  #carViewerScroll::-webkit-scrollbar { display: none; }
+  .cv-slide { flex: 0 0 100%; height: 100%; scroll-snap-align: center; display: flex; align-items: center; justify-content: center; }
+  .cv-frame { position: relative; overflow: hidden; background: #111; }
+  .cv-frame img { position: absolute; max-width: none; pointer-events: none; }
+  .cv-close {
+    position: absolute; top: max(14px, env(safe-area-inset-top)); right: 16px; z-index: 5;
+    width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(30,30,32,0.72); color: #eee; font-size: 15px;
+    display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent;
+  }
+  .cv-dots {
+    position: absolute; left: 0; right: 0; bottom: max(18px, env(safe-area-inset-bottom));
+    display: flex; gap: 5px; justify-content: center; pointer-events: none;
+  }
+  .cv-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.35); transition: background 0.2s, transform 0.2s; }
+  .cv-dots i.on { background: #fff; transform: scale(1.25); }
   .rc-cancel { background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid); }
 
   /* ── Background settings — covers the tools panel; the board stays visible ── */
@@ -4143,6 +4277,77 @@
   </div>
 </div>
 
+<!-- CAROUSEL EDITOR -->
+<div id="carouselScreen" hidden>
+  <div class="car-top">
+    <button class="car-back" id="carBack" aria-label="Back">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="car-title">CAROUSEL</span>
+    <button class="car-chip" id="carRatioBtn">4:5</button>
+    <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
+    <button class="car-chip accent" id="carExportBtn">Export</button>
+  </div>
+  <div id="carStage">
+    <div id="carStrip"></div>
+    <div class="car-count" id="carCount" hidden>1 / 1</div>
+    <div class="car-empty" id="carEmpty">
+      <p>Build a swipeable carousel for your post.<br>Start with photos, or split one wide image into frames.</p>
+      <button class="car-chip" id="carEmptyPhotos">Import photos</button>
+      <button class="car-chip" id="carEmptyWide">Split a wide image</button>
+    </div>
+  </div>
+  <div class="car-tools" id="carTools" hidden>
+    <button class="car-tool" id="carMoveL" title="Move frame left">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Move
+    </button>
+    <button class="car-tool" id="carMoveR" title="Move frame right">
+      Move
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <button class="car-tool" id="carSpanDn" title="Fewer frames">− frame</button>
+    <button class="car-tool" id="carSpanUp" title="More frames">+ frame</button>
+    <button class="car-tool" id="carDup">Duplicate</button>
+    <button class="car-tool" id="carReset">Reset crop</button>
+    <button class="car-tool danger" id="carDelete">Delete</button>
+  </div>
+  <div class="car-film" id="carFilmRow">
+    <div style="display:flex;gap:6px;align-items:center;" id="carFilm"></div>
+    <button id="carAddSlide" aria-label="Add media">+</button>
+  </div>
+</div>
+
+<!-- Carousel add-media chooser -->
+<div id="carAddModal" class="big-modal" hidden>
+  <div class="bm-card">
+    <div class="bm-head">
+      <span class="bm-title">Add to carousel</span>
+      <button class="bm-close" data-bm-close>Close</button>
+    </div>
+    <div class="bm-body">
+      <button class="nt-btn" id="carAddPhotos">
+        <span class="nt-txt"><b>Photos</b><span>Each photo becomes its own frame — scale and reposition it</span></span>
+      </button>
+      <button class="nt-btn" id="carAddWide">
+        <span class="nt-txt"><b>Wide image</b><span>One large image split across frames for a seamless swipe</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Carousel fullscreen test viewer -->
+<div id="carViewer" hidden>
+  <div id="carViewerScroll"></div>
+  <button class="cv-close" id="carViewerClose" aria-label="Close">✕</button>
+  <div class="cv-dots" id="carViewerDots"></div>
+</div>
+
+<input type="file" id="carFileMulti" accept="image/*" multiple hidden>
+<input type="file" id="carFileWide" accept="image/*" hidden>
+
 <!-- Export choice modal (multi-board projects) -->
 <div id="exportChoiceModal" hidden>
   <div class="export-choice-box">
@@ -5152,8 +5357,14 @@ function renderProjectsList() {
       thumb.appendChild(ph);
     }
 
-    // Board count badge (top-left corner, only when project has multiple boards)
-    if (board.boardCount > 1) {
+    // Board count badge (top-left corner, only when project has multiple boards);
+    // carousel projects get a swipe glyph instead
+    if (board.kind === 'carousel') {
+      const badge = document.createElement('span');
+      badge.className = 'board-count-badge';
+      badge.textContent = '⇆';
+      thumb.appendChild(badge);
+    } else if (board.boardCount > 1) {
       const badge = document.createElement('span');
       badge.className = 'board-count-badge';
       badge.textContent = board.boardCount;
@@ -5215,6 +5426,8 @@ function leaveHome(then) {
 }
 
 function openProject(id) {
+  const meta = projects.find(p => p.id === id);
+  if (meta?.kind === 'carousel') { openCarouselProject(id); return; }
   _currentProjectId = id;
   _boardSwitching   = false;
   _activeBoardIdx   = 0;
@@ -5634,6 +5847,7 @@ homeBtn.addEventListener('click', goHome);
 // backgrounded or closed, so video boards (and everything else) survive.
 function writeCurrentProjectToDB() {
   if (!_currentProjectId) return;
+  if (_carOpen) { saveCarouselToDB(); return; }   // carousel editor open — its own save path
   saveCurrentBoardSnapshot();
   if (!_projectBoards.some(b => b.images.length > 0)) return;
   const project = projects.find(p => p.id === _currentProjectId);
@@ -7444,7 +7658,10 @@ document.getElementById('ntBoard').addEventListener('click', () => {
   closeBigModal(newTypeModal);
   createNewBoardProject();
 });
-// #ntCarousel intentionally does nothing yet — the carousel editor comes next.
+document.getElementById('ntCarousel').addEventListener('click', () => {
+  closeBigModal(newTypeModal);
+  createNewCarouselProject();
+});
 
 // ── Canvas-ratio chooser ─────────────────────────────────────────────────────
 const RATIO_PRESETS = ['16:9', '17:9', '4:3', '3:2', '2.4:1', '2.39:1', '5:4'];
@@ -11958,6 +12175,551 @@ async function doVideoExport() {
     afterSplash();
   }
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CAROUSEL EDITOR
+// A carousel is a list of items; each item holds one image spanning `span`
+// consecutive slides (span 1 = a normal frame, span ≥ 2 = a wide image split
+// across frames so the picture flows seamlessly through the swipe). Transforms
+// {scale, fx, fy} pan/zoom the image over its full span, exactly like board
+// slot transforms but with the span width as the reference area.
+// ═══════════════════════════════════════════════════════════════════════════
+
+let car = null;          // { ratio:'4:5'|'1:1', items:[{id, src, img, span, t}], cur }
+let _carOpen = false;
+
+const carouselScreen = document.getElementById('carouselScreen');
+const carStage   = document.getElementById('carStage');
+const carStrip   = document.getElementById('carStrip');
+const carCount   = document.getElementById('carCount');
+const carEmpty   = document.getElementById('carEmpty');
+const carTools   = document.getElementById('carTools');
+const carFilm    = document.getElementById('carFilm');
+const carAddModal = document.getElementById('carAddModal');
+const carViewer  = document.getElementById('carViewer');
+const carViewerScroll = document.getElementById('carViewerScroll');
+const carViewerDots   = document.getElementById('carViewerDots');
+const carFileMulti = document.getElementById('carFileMulti');
+const carFileWide  = document.getElementById('carFileWide');
+const carRatioBtn  = document.getElementById('carRatioBtn');
+const carExportBtn = document.getElementById('carExportBtn');
+
+const CAR_GAP = 14;          // editor gap between items' slides
+const CAR_JOINT_GAP = 4;     // gap between sub-slides of one split image
+
+function carRatioWH() { return car.ratio === '1:1' ? [1, 1] : [4, 5]; }
+
+// Flat slide list: [{ item, sub }] — sub is the slide's index within its item's span
+function carSlides() {
+  const out = [];
+  for (const item of car.items)
+    for (let s = 0; s < item.span; s++) out.push({ item, sub: s });
+  return out;
+}
+
+function carSlideDims() {
+  const [rw, rh] = carRatioWH();
+  const stW = carStage.clientWidth, stH = carStage.clientHeight;
+  let h = stH - 36;
+  let w = h * rw / rh;
+  const maxW = stW * 0.68;
+  if (w > maxW) { w = maxW; h = w * rh / rw; }
+  return [Math.round(w), Math.round(h)];
+}
+
+// Cover-fit `item.img` over its full span area, return the img box for one sub-slide
+function carImgBox(item, sub, W, H) {
+  const spanW = item.span * W;
+  const iw = item.img.naturalWidth, ih = item.img.naturalHeight;
+  const s = Math.max(spanW / iw, H / ih) * item.t.scale;
+  const left = (spanW - iw * s) / 2 + item.t.fx * spanW;
+  const top  = (H - ih * s) / 2 + item.t.fy * H;
+  return { left: left - sub * W, top, w: iw * s, h: ih * s, s, spanW };
+}
+
+function carClampT(item, W, H) {
+  const spanW = item.span * W;
+  const iw = item.img.naturalWidth, ih = item.img.naturalHeight;
+  const s = Math.max(spanW / iw, H / ih) * item.t.scale;
+  const mx = Math.max(0, (iw * s - spanW) / 2) / spanW;
+  const my = Math.max(0, (ih * s - H) / 2) / H;
+  item.t.fx = Math.min(mx, Math.max(-mx, item.t.fx));
+  item.t.fy = Math.min(my, Math.max(-my, item.t.fy));
+}
+
+// ── Rendering ───────────────────────────────────────────────────────────────
+
+function carRender(structural = true) {
+  const slides = carSlides();
+  const has = slides.length > 0;
+  carEmpty.hidden = has;
+  carTools.hidden = !has;
+  carCount.hidden = !has;
+  document.getElementById('carFullBtn').disabled = !has;
+  carExportBtn.disabled = !has;
+  carRatioBtn.textContent = car.ratio;
+  if (car.cur > slides.length - 1) car.cur = Math.max(0, slides.length - 1);
+
+  const [W, H] = carSlideDims();
+
+  if (structural) {
+    carStrip.innerHTML = '';
+    slides.forEach(({ item, sub }, i) => {
+      const el = document.createElement('div');
+      el.className = 'car-slide';
+      el.dataset.i = i;
+      el.style.width = W + 'px';
+      el.style.height = H + 'px';
+      // tighter gap + joint marker inside a split image, so the seam reads as connected
+      const next = slides[i + 1];
+      el.style.marginRight = (next ? (next.item === item ? CAR_JOINT_GAP : CAR_GAP) : 0) + 'px';
+      const img = document.createElement('img');
+      img.src = item.img.src;
+      el.appendChild(img);
+      if (sub > 0) el.appendChild(Object.assign(document.createElement('div'), { className: 'car-joint' }));
+      carStrip.appendChild(el);
+    });
+  }
+
+  // position every img + current highlight
+  [...carStrip.children].forEach((el, i) => {
+    const { item, sub } = slides[i] || {};
+    if (!item) return;
+    const img = el.querySelector('img');
+    const b = carImgBox(item, sub, W, H);
+    img.style.left = b.left + 'px';
+    img.style.top = b.top + 'px';
+    img.style.width = b.w + 'px';
+    img.style.height = b.h + 'px';
+    el.classList.toggle('cur', i === car.cur);
+  });
+
+  // strip offset: center the current slide
+  let x = 0;
+  for (let i = 0; i < car.cur; i++) {
+    const s = slides[i], n = slides[i + 1];
+    x += W + (n && n.item === s.item ? CAR_JOINT_GAP : CAR_GAP);
+  }
+  carStrip.style.transform = `translateX(${(carStage.clientWidth - W) / 2 - x}px)`;
+
+  carCount.textContent = `${car.cur + 1} / ${slides.length}`;
+  carRenderTools(slides);
+  if (structural) carRenderFilm(slides, W, H);
+}
+
+function carRenderTools(slides) {
+  const s = slides[car.cur];
+  if (!s) return;
+  const idx = car.items.indexOf(s.item);
+  document.getElementById('carMoveL').disabled = idx === 0;
+  document.getElementById('carMoveR').disabled = idx === car.items.length - 1;
+  document.getElementById('carSpanDn').hidden = s.item.span <= 1;
+  document.getElementById('carSpanDn').disabled = s.item.span <= 2;
+  document.getElementById('carSpanUp').hidden = s.item.span <= 1;
+  document.getElementById('carSpanUp').disabled = s.item.span >= 10;
+  document.getElementById('carDup').hidden = s.item.span > 1;
+}
+
+function carRenderFilm(slides, W, H) {
+  carFilm.innerHTML = '';
+  const th = 54, tw = Math.round(th * W / H);
+  slides.forEach(({ item, sub }, i) => {
+    const b = document.createElement('button');
+    b.className = 'car-thumb' + (i === car.cur ? ' cur' : '');
+    const cv = document.createElement('canvas');
+    cv.width = tw; cv.height = th;
+    const ctx = cv.getContext('2d');
+    const box = carImgBox(item, sub, tw, th);
+    ctx.drawImage(item.img, box.left, box.top, box.w, box.h);
+    b.appendChild(cv);
+    const n = Object.assign(document.createElement('span'), { className: 'ct-n', textContent: i + 1 });
+    b.appendChild(n);
+    if (item.span > 1) b.appendChild(Object.assign(document.createElement('span'), { className: 'ct-link', textContent: '⛓' }));
+    b.addEventListener('click', () => { car.cur = i; carRender(false); carRenderFilmSel(); });
+    carFilm.appendChild(b);
+  });
+}
+
+function carRenderFilmSel() {
+  [...carFilm.children].forEach((b, i) => b.classList.toggle('cur', i === car.cur));
+  carFilm.children[car.cur]?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+}
+
+// ── Import ──────────────────────────────────────────────────────────────────
+
+function carAutoSpan(item) {
+  const [rw, rh] = carRatioWH();
+  return Math.max(2, Math.min(10, Math.round((item.img.naturalWidth / item.img.naturalHeight) / (rw / rh))));
+}
+
+function carReadFile(file) {
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => resolve({ src: r.result, img });
+      img.onerror = () => resolve(null);
+      img.src = r.result;
+    };
+    r.onerror = () => resolve(null);
+    r.readAsDataURL(file);
+  });
+}
+
+async function carImportFiles(files, wide) {
+  const loaded = (await Promise.all([...files].map(carReadFile))).filter(Boolean);
+  if (!loaded.length) return;
+  const firstNew = carSlides().length;   // land on the first slide we're about to add
+  for (const { src, img } of loaded) {
+    const item = { id: genId(), src, img, span: 1, t: { scale: 1, fx: 0, fy: 0 } };
+    if (wide) item.span = carAutoSpan(item);
+    car.items.push(item);
+  }
+  car.cur = firstNew;
+  carRender();
+}
+
+carFileMulti.addEventListener('change', () => {
+  if (carFileMulti.files.length) carImportFiles(carFileMulti.files, false);
+  carFileMulti.value = '';
+});
+carFileWide.addEventListener('change', () => {
+  if (carFileWide.files.length) carImportFiles([carFileWide.files[0]], true);
+  carFileWide.value = '';
+});
+document.getElementById('carEmptyPhotos').addEventListener('click', () => carFileMulti.click());
+document.getElementById('carEmptyWide').addEventListener('click', () => carFileWide.click());
+document.getElementById('carAddSlide').addEventListener('click', () => openBigModal(carAddModal));
+document.getElementById('carAddPhotos').addEventListener('click', () => { closeBigModal(carAddModal); carFileMulti.click(); });
+document.getElementById('carAddWide').addEventListener('click', () => { closeBigModal(carAddModal); carFileWide.click(); });
+carAddModal.addEventListener('pointerdown', e => { if (e.target === carAddModal) closeBigModal(carAddModal); });
+carAddModal.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(carAddModal));
+
+// ── Tools ───────────────────────────────────────────────────────────────────
+
+function carCurItem() { return carSlides()[car.cur]?.item || null; }
+
+document.getElementById('carMoveL').addEventListener('click', () => {
+  const it = carCurItem(); const i = car.items.indexOf(it);
+  if (i <= 0) return;
+  car.items.splice(i, 1); car.items.splice(i - 1, 0, it);
+  car.cur = carSlides().findIndex(s => s.item === it);
+  carRender();
+});
+document.getElementById('carMoveR').addEventListener('click', () => {
+  const it = carCurItem(); const i = car.items.indexOf(it);
+  if (i < 0 || i >= car.items.length - 1) return;
+  car.items.splice(i, 1); car.items.splice(i + 1, 0, it);
+  car.cur = carSlides().findIndex(s => s.item === it);
+  carRender();
+});
+document.getElementById('carSpanDn').addEventListener('click', () => {
+  const it = carCurItem(); if (!it || it.span <= 2) return;
+  it.span--; carClampT(it, ...carSlideDims()); carRender();
+});
+document.getElementById('carSpanUp').addEventListener('click', () => {
+  const it = carCurItem(); if (!it || it.span >= 10) return;
+  it.span++; carRender();
+});
+document.getElementById('carDup').addEventListener('click', () => {
+  const it = carCurItem(); if (!it) return;
+  const copy = { id: genId(), src: it.src, img: it.img, span: it.span, t: { ...it.t } };
+  car.items.splice(car.items.indexOf(it) + 1, 0, copy);
+  car.cur = carSlides().findIndex(s => s.item === copy);
+  carRender();
+});
+document.getElementById('carReset').addEventListener('click', () => {
+  const it = carCurItem(); if (!it) return;
+  it.t = { scale: 1, fx: 0, fy: 0 };
+  carRender(false); carRenderFilm(carSlides(), ...carSlideDims());
+});
+document.getElementById('carDelete').addEventListener('click', () => {
+  const it = carCurItem(); if (!it) return;
+  car.items.splice(car.items.indexOf(it), 1);
+  carRender();
+});
+
+carRatioBtn.addEventListener('click', () => {
+  car.ratio = car.ratio === '4:5' ? '1:1' : '4:5';
+  car.items.forEach(it => carClampT(it, ...carSlideDims()));
+  carRender();
+});
+
+// ── Stage interaction: tap sides to navigate, drag/pinch the current slide ──
+
+let _carPtr = null;   // { id, x, y, moved, startFx, startFy }
+let _carPinch = null; // { d0, s0 }
+
+carStage.addEventListener('pointerdown', e => {
+  const slideEl = e.target.closest('.car-slide');
+  if (!slideEl) return;
+  const i = +slideEl.dataset.i;
+  if (i !== car.cur) return;   // side slides: navigation handled on click
+  const it = carCurItem(); if (!it) return;
+  if (_carPtr && _carPtr.id !== e.pointerId) {
+    // second finger → pinch
+    _carPinch = { d0: Math.hypot(e.clientX - _carPtr.lastX, e.clientY - _carPtr.lastY), s0: it.t.scale };
+    _carPinch.id2 = e.pointerId;
+    return;
+  }
+  _carPtr = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
+              moved: false, fx: it.t.fx, fy: it.t.fy };
+  carStage.setPointerCapture(e.pointerId);
+});
+carStage.addEventListener('pointermove', e => {
+  const it = carCurItem(); if (!it || !_carPtr) return;
+  const [W, H] = carSlideDims();
+  if (_carPinch) {
+    if (e.pointerId === _carPinch.id2) { _carPinch.x2 = e.clientX; _carPinch.y2 = e.clientY; }
+    else { _carPtr.lastX = e.clientX; _carPtr.lastY = e.clientY; }
+    if (_carPinch.x2 != null) {
+      const d = Math.hypot(_carPinch.x2 - _carPtr.lastX, _carPinch.y2 - _carPtr.lastY);
+      it.t.scale = Math.min(4, Math.max(1, _carPinch.s0 * d / (_carPinch.d0 || 1)));
+      carClampT(it, W, H);
+      carRender(false);
+    }
+    return;
+  }
+  if (e.pointerId !== _carPtr.id) return;
+  const dx = e.clientX - _carPtr.x, dy = e.clientY - _carPtr.y;
+  if (Math.abs(dx) + Math.abs(dy) > 4) _carPtr.moved = true;
+  _carPtr.lastX = e.clientX; _carPtr.lastY = e.clientY;
+  it.t.fx = _carPtr.fx + dx / (it.span * W);
+  it.t.fy = _carPtr.fy + dy / H;
+  carClampT(it, W, H);
+  carRender(false);
+});
+let _carDragged = false;   // suppresses the click that follows a reframe drag
+function carPtrEnd(e) {
+  if (_carPinch && (e.pointerId === _carPinch.id2 || e.pointerId === _carPtr?.id)) _carPinch = null;
+  if (_carPtr && e.pointerId === _carPtr.id) {
+    _carDragged = _carPtr.moved;
+    if (_carPtr.moved) carRenderFilm(carSlides(), ...carSlideDims());
+    _carPtr = null;
+  }
+}
+carStage.addEventListener('pointerup', carPtrEnd);
+carStage.addEventListener('pointercancel', carPtrEnd);
+
+// tap a dimmed side slide → navigate to it
+carStage.addEventListener('click', e => {
+  const wasDrag = _carDragged; _carDragged = false;
+  const slideEl = e.target.closest('.car-slide');
+  if (!slideEl || wasDrag) return;
+  const i = +slideEl.dataset.i;
+  if (i !== car.cur) {
+    car.cur = i; carRender(false); carRenderFilmSel();
+  }
+});
+
+// wheel zoom (desktop)
+carStage.addEventListener('wheel', e => {
+  const it = carCurItem(); if (!it || !_carOpen) return;
+  e.preventDefault();
+  const [W, H] = carSlideDims();
+  it.t.scale = Math.min(4, Math.max(1, it.t.scale * (e.deltaY < 0 ? 1.05 : 0.95)));
+  carClampT(it, W, H);
+  carRender(false);
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if (!_carOpen || carouselScreen.hidden || !carViewer.hidden) return;
+  if (e.key === 'ArrowLeft'  && car.cur > 0) { car.cur--; carRender(false); carRenderFilmSel(); }
+  if (e.key === 'ArrowRight' && car.cur < carSlides().length - 1) { car.cur++; carRender(false); carRenderFilmSel(); }
+});
+
+window.addEventListener('resize', () => { if (_carOpen && !carouselScreen.hidden) carRender(); });
+
+// ── Fullscreen test viewer ──────────────────────────────────────────────────
+
+document.getElementById('carFullBtn').addEventListener('click', () => {
+  const slides = carSlides();
+  if (!slides.length) return;
+  const [rw, rh] = carRatioWH();
+  carViewerScroll.innerHTML = '';
+  carViewerDots.innerHTML = '';
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let fw = Math.min(vw, (vh - 40) * rw / rh);
+  const fh = fw * rh / rw;
+  slides.forEach(({ item, sub }, i) => {
+    const sl = document.createElement('div');
+    sl.className = 'cv-slide';
+    const fr = document.createElement('div');
+    fr.className = 'cv-frame';
+    fr.style.width = fw + 'px'; fr.style.height = fh + 'px';
+    const img = document.createElement('img');
+    img.src = item.img.src;
+    const b = carImgBox(item, sub, fw, fh);
+    img.style.left = b.left + 'px'; img.style.top = b.top + 'px';
+    img.style.width = b.w + 'px'; img.style.height = b.h + 'px';
+    fr.appendChild(img);
+    sl.appendChild(fr);
+    carViewerScroll.appendChild(sl);
+    carViewerDots.appendChild(document.createElement('i'));
+  });
+  carViewer.hidden = false;
+  carViewerScroll.scrollLeft = car.cur * vw;
+  carViewerUpdateDots();
+});
+function carViewerUpdateDots() {
+  const i = Math.round(carViewerScroll.scrollLeft / carViewerScroll.clientWidth);
+  [...carViewerDots.children].forEach((d, k) => d.classList.toggle('on', k === i));
+}
+carViewerScroll.addEventListener('scroll', () => requestAnimationFrame(carViewerUpdateDots));
+document.getElementById('carViewerClose').addEventListener('click', () => {
+  // leave the editor on the slide the test ended on
+  car.cur = Math.max(0, Math.min(carSlides().length - 1,
+    Math.round(carViewerScroll.scrollLeft / carViewerScroll.clientWidth)));
+  carViewer.hidden = true;
+  carRender(false); carRenderFilmSel();
+});
+
+// ── Export: one image per slide, in posting order ───────────────────────────
+
+carExportBtn.addEventListener('click', async () => {
+  const slides = carSlides();
+  if (!slides.length || carExportBtn.disabled) return;
+  const [rw, rh] = carRatioWH();
+  const W = 1080, H = Math.round(1080 * rh / rw);
+  carExportBtn.disabled = true;
+  const label = carExportBtn.textContent;
+  try {
+    for (let i = 0; i < slides.length; i++) {
+      carExportBtn.textContent = `${i + 1} / ${slides.length}…`;
+      const { item, sub } = slides[i];
+      const cvs = document.createElement('canvas');
+      cvs.width = W; cvs.height = H;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+      const b = carImgBox(item, sub, W, H);
+      ctx.drawImage(item.img, b.left, b.top, b.w, b.h);
+      await new Promise(resolve => {
+        cvs.toBlob(blob => {
+          if (window.webkit?.messageHandlers?.exportImage) {
+            const reader = new FileReader();
+            reader.onload = () => { window.webkit.messageHandlers.exportImage.postMessage(reader.result); resolve(); };
+            reader.readAsDataURL(blob);
+          } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `carousel-${String(i + 1).padStart(2, '0')}.jpg`; a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            resolve();
+          }
+        }, 'image/jpeg', 0.93);
+      });
+      // native Photos saves need breathing room between messages
+      if (i < slides.length - 1) await new Promise(r => setTimeout(r, 350));
+    }
+    carExportBtn.textContent = 'Saved ✓';
+    setTimeout(() => { carExportBtn.textContent = label; carExportBtn.disabled = false; }, 1600);
+  } catch (err) {
+    console.warn('carousel export failed', err);
+    carExportBtn.textContent = label; carExportBtn.disabled = false;
+  }
+});
+
+// ── Persistence + open/close ────────────────────────────────────────────────
+
+function carThumbnail() {
+  const slides = carSlides();
+  if (!slides.length) return null;
+  const SIZE = 320;
+  const cvs = document.createElement('canvas');
+  cvs.width = SIZE; cvs.height = SIZE;
+  const ctx = cvs.getContext('2d');
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, SIZE, SIZE);
+  const [rw, rh] = carRatioWH();
+  // cover-fill the square with slide 1
+  const w = Math.max(SIZE, SIZE * rw / rh), h = w * rh / rw;
+  const { item, sub } = slides[0];
+  const b = carImgBox(item, sub, w, h);
+  ctx.save();
+  ctx.translate((SIZE - w) / 2, (SIZE - h) / 2);
+  ctx.drawImage(item.img, b.left, b.top, b.w, b.h);
+  ctx.restore();
+  return cvs.toDataURL('image/jpeg', 0.82);
+}
+
+function saveCarouselToDB() {
+  if (!_currentProjectId || !car) return;
+  if (!car.items.length) return;
+  const meta = projects.find(p => p.id === _currentProjectId);
+  if (meta) {
+    const th = carThumbnail();
+    if (th) meta.thumbnail = th;
+    meta.updatedAt = Date.now();
+    meta.kind = 'carousel';
+    saveProjects();
+  }
+  const serial = {
+    id: _currentProjectId, kind: 'carousel',
+    carousel: { ratio: car.ratio, items: car.items.map(it => ({ id: it.id, src: it.src, span: it.span, t: { ...it.t } })) }
+  };
+  dbPut(_currentProjectId, serial).catch(err => console.warn('IDB save failed', err));
+}
+
+function closeCarouselAndGoHome() {
+  if (car && car.items.length) {
+    saveCarouselToDB();
+  } else if (_currentProjectId) {
+    projects = projects.filter(p => p.id !== _currentProjectId);
+    saveProjects();
+    dbDelete(_currentProjectId).catch(() => {});
+  }
+  car = null; _carOpen = false; _currentProjectId = null;
+  document.body.classList.remove('car-open');
+  updateGreeting();
+  renderProjectsList();
+  homeScreen.hidden = false;
+  homeScreen.classList.remove('leaving');
+  homeScreen.classList.add('entering');
+  homeScreen.addEventListener('animationend', () => homeScreen.classList.remove('entering'), { once: true });
+  setTimeout(() => { carouselScreen.hidden = true; }, 350);
+}
+document.getElementById('carBack').addEventListener('click', closeCarouselAndGoHome);
+
+// home leave without the board-editor coach marks
+function leaveHomeToCarousel(then) {
+  homeScreen.classList.add('leaving');
+  homeScreen.addEventListener('animationend', () => {
+    homeScreen.hidden = true;
+    homeScreen.classList.remove('leaving');
+    if (then) then();
+  }, { once: true });
+}
+
+function createNewCarouselProject() {
+  _currentProjectId = genId();
+  projects.push({ id: _currentProjectId, kind: 'carousel', updatedAt: Date.now(), thumbnail: null });
+  saveProjects();
+  car = { ratio: '4:5', items: [], cur: 0 };
+  _carOpen = true;
+  document.body.classList.add('car-open');
+  carouselScreen.hidden = false;
+  carRender();
+  leaveHomeToCarousel();
+}
+
+function openCarouselProject(id) {
+  _currentProjectId = id;
+  _carOpen = true;
+  document.body.classList.add('car-open');
+  const dataP = dbGet(id).then(saved => saved?.carousel || { ratio: '4:5', items: [] }).catch(() => ({ ratio: '4:5', items: [] }));
+  leaveHomeToCarousel(async () => {
+    const data = await dataP;
+    const items = await Promise.all((data.items || []).map(si => new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve({ id: si.id || genId(), src: si.src, img, span: si.span || 1, t: si.t || { scale: 1, fx: 0, fy: 0 } });
+      img.onerror = () => resolve(null);
+      img.src = si.src;
+    })));
+    car = { ratio: data.ratio === '1:1' ? '1:1' : '4:5', items: items.filter(Boolean), cur: 0 };
+    carouselScreen.hidden = false;
+    carRender();
+  });
+}
 </script>
 </body>
 </html>

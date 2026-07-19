@@ -11,10 +11,12 @@ import Security
 // ═══════════════════════════════════════════════════════════════════════════
 
 enum StllsPro {
-    /// MASTER SWITCH — keep false until the App Store Connect products exist
-    /// and the .storekit file is selected in the scheme; flipping this on with
-    /// no products reachable would lock the whole app behind a dead paywall.
-    static let enabled = false
+    /// MASTER SWITCH — Stage 1 testing is ON: the shared scheme selects
+    /// StllsPro.storekit, so every Xcode run (simulator or device) uses local
+    /// fake products. ⚠️ Do NOT archive for TestFlight/App Store while this is
+    /// true until the App Store Connect products exist — archive builds ignore
+    /// the scheme's StoreKit configuration and would show a dead paywall.
+    static let enabled = true
 
     static let monthlyID = "is.skjaskot.stlls.pro.monthly"
     static let yearlyID  = "is.skjaskot.stlls.pro.yearly"

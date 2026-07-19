@@ -1268,7 +1268,11 @@
     position: absolute; left: 0; top: 0; overflow: hidden;
     background: var(--surface2); border: 1px solid var(--border2);
     border-radius: 10px; box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
+  /* wide mode: the selected photo has no outline of its own — the preview
+     window highlights instead */
+  .car-clip.widesel { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
   .car-obj { position: absolute; cursor: pointer; }
   .car-obj img {
     width: 100%; height: 100%; display: block; max-width: none;
@@ -12749,7 +12753,9 @@ function carRender(structural = true) {
   const sb = carStrip.querySelector('.car-selbox');
   const selO = carSel();
   // wide images show no selection outline at all — they always exceed the
-  // preview, so the box would just ring the whole screen
+  // preview, so the box would just ring the whole screen; the preview window
+  // itself highlights instead
+  clip.classList.toggle('widesel', !!(selO && selO.wide));
   sb.classList.toggle('show', !!selO && !selO.wide);
   if (selO && !selO.wide) {
     const oh = selO.w * selO.img.naturalHeight / selO.img.naturalWidth;

@@ -359,12 +359,12 @@ private struct FloatingFramesBackground: View {
                 ForEach(specs.indices, id: \.self) { i in
                     let s = specs[i]
                     RoundedRectangle(cornerRadius: 9)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1.2)
+                        .stroke(Color.white.opacity(0.8), lineWidth: 1.4)
                         .frame(width: s.w, height: s.h)
                         .scaleEffect(reduceMotion ? 1 : (on ? 1.08 : 0.90))
                         .position(x: geo.size.width * s.x, y: geo.size.height * s.y)
                         .offset(y: reduceMotion ? 0 : (on ? -s.dy : s.dy))
-                        .opacity(reduceMotion ? 0.05 : (on ? 0.20 : 0.02))
+                        .opacity(reduceMotion ? 0.12 : (on ? 0.42 : 0.08))
                         .animation(
                             reduceMotion ? nil :
                                 .easeInOut(duration: s.dur)

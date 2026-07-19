@@ -1126,38 +1126,63 @@
   .nt-txt span { display: block; font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
   .nt-art { flex-shrink: 0; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; }
 
-  /* Board mini-animation: 4 stacked frames gently trading height */
+  /* Board mini-animation: 4 frames morphing through layouts —
+     vertical stack → 2×2 grid → horizontal columns → back */
   .nt-board {
     width: 46px; height: 72px; border: 1.5px solid var(--text-mid); border-radius: 8px;
-    padding: 4px; display: flex; flex-direction: column; gap: 3px; box-sizing: border-box;
+    box-sizing: border-box; position: relative;
   }
   .nt-board i {
-    display: block; border-radius: 3px; background: var(--text-dim); opacity: 0.55;
-    flex: 1 1 0; min-height: 0;
-    animation: ntFrame 3.2s ease-in-out infinite;
+    position: absolute; display: block; border-radius: 3px;
+    background: var(--text-dim); opacity: 0.55;
+    animation-duration: 8s; animation-timing-function: ease-in-out; animation-iteration-count: infinite;
   }
-  .nt-board i:nth-child(2) { animation-delay: -0.8s; }
-  .nt-board i:nth-child(3) { animation-delay: -1.6s; }
-  .nt-board i:nth-child(4) { animation-delay: -2.4s; }
-  @keyframes ntFrame { 0%, 100% { flex-grow: 1; } 50% { flex-grow: 1.9; } }
+  .nt-board i:nth-child(1) { animation-name: ntB1; }
+  .nt-board i:nth-child(2) { animation-name: ntB2; }
+  .nt-board i:nth-child(3) { animation-name: ntB3; }
+  .nt-board i:nth-child(4) { animation-name: ntB4; }
+  @keyframes ntB1 {
+    0%, 24%  { left: 4px;    top: 4px;  width: 35px;  height: 13px; }
+    34%, 58% { left: 4px;    top: 4px;  width: 16px;  height: 29px; }
+    68%, 92% { left: 4px;    top: 4px;  width: 6.5px; height: 61px; }
+    100%     { left: 4px;    top: 4px;  width: 35px;  height: 13px; }
+  }
+  @keyframes ntB2 {
+    0%, 24%  { left: 4px;    top: 20px; width: 35px;  height: 13px; }
+    34%, 58% { left: 23px;   top: 4px;  width: 16px;  height: 29px; }
+    68%, 92% { left: 13.5px; top: 4px;  width: 6.5px; height: 61px; }
+    100%     { left: 4px;    top: 20px; width: 35px;  height: 13px; }
+  }
+  @keyframes ntB3 {
+    0%, 24%  { left: 4px;    top: 36px; width: 35px;  height: 13px; }
+    34%, 58% { left: 4px;    top: 36px; width: 16px;  height: 29px; }
+    68%, 92% { left: 23px;   top: 4px;  width: 6.5px; height: 61px; }
+    100%     { left: 4px;    top: 36px; width: 35px;  height: 13px; }
+  }
+  @keyframes ntB4 {
+    0%, 24%  { left: 4px;    top: 52px; width: 35px;  height: 13px; }
+    34%, 58% { left: 23px;   top: 36px; width: 16px;  height: 29px; }
+    68%, 92% { left: 32.5px; top: 4px;  width: 6.5px; height: 61px; }
+    100%     { left: 4px;    top: 52px; width: 35px;  height: 13px; }
+  }
 
-  /* Carousel mini-animation: cards swiping left, a new one "added" each pause.
-     Cards are identical so the loop's snap back to 0 is invisible. */
+  /* Carousel mini-animation: a swipe step with a card "added", then the view
+     zooms out to reveal the whole row of images before easing back in. */
   .nt-carousel { width: 74px; height: 58px; overflow: hidden; position: relative; }
-  .nt-track { display: flex; gap: 5px; height: 100%; animation: ntSwipe 3.6s cubic-bezier(0.4,0,0.2,1) infinite; }
+  .nt-track {
+    display: flex; gap: 5px; height: 100%; transform-origin: 0 50%;
+    animation: ntSwipe 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
   .nt-card {
     flex: 0 0 38px; height: 100%; box-sizing: border-box;
     border: 1.5px solid var(--text-mid); border-radius: 7px; position: relative;
-    /* The card entering at the right edge glows subtly as the + pops — the
-       "image being added". The loop snaps back exactly two cards, so a 3.6s
-       highlight staggered by half a period between neighbours stays seamless. */
-    animation: ntCardHi 3.6s ease-in-out infinite;
   }
-  .nt-card:nth-child(odd) { animation-delay: -1.8s; }
+  /* the card revealed by the swipe glows as it "arrives" */
+  .nt-card:nth-child(2) { animation: ntCardHi 6s ease-in-out infinite; }
   @keyframes ntCardHi {
-    0%, 10%   { border-color: var(--text-mid); box-shadow: none; }
-    16%, 29%  { border-color: var(--accent); box-shadow: 0 0 9px -2px var(--accent); }
-    40%, 100% { border-color: var(--text-mid); box-shadow: none; }
+    0%, 32%   { border-color: var(--text-mid); box-shadow: none; }
+    38%, 48%  { border-color: var(--accent); box-shadow: 0 0 9px -2px var(--accent); }
+    58%, 100% { border-color: var(--text-mid); box-shadow: none; }
   }
   .nt-card::before {
     content: ''; position: absolute; top: 6px; left: 6px; width: 8px; height: 8px;
@@ -1168,21 +1193,22 @@
     border-radius: 4px; background: var(--text-dim); opacity: 0.35;
   }
   @keyframes ntSwipe {
-    0%, 32%  { transform: translateX(0); }
-    46%, 82% { transform: translateX(-43px); }   /* one card + gap */
-    96%, 100% { transform: translateX(-86px); }
+    0%, 22%   { transform: translateX(0) scale(1); }
+    32%, 48%  { transform: translateX(-43px) scale(1); }   /* one card + gap */
+    60%, 82%  { transform: translateX(1px) scale(0.28); }  /* zoomed out: the whole row */
+    94%, 100% { transform: translateX(0) scale(1); }
   }
   .nt-add {
     position: absolute; right: 3px; top: 50%; margin-top: -8px; width: 16px; height: 16px;
     border-radius: 50%; background: var(--accent); color: var(--accent-fg);
     display: flex; align-items: center; justify-content: center;
     font-size: 12px; line-height: 1; font-weight: 500;
-    animation: ntAdd 1.8s ease-in-out infinite;   /* one pop per swipe pause */
+    animation: ntAdd 6s ease-in-out infinite;   /* pops during the opening rest */
   }
   @keyframes ntAdd {
-    0%, 12%   { opacity: 0; transform: scale(0.4); }
-    28%, 58%  { opacity: 1; transform: scale(1); }
-    74%, 100% { opacity: 0; transform: scale(0.4); }
+    0%, 4%    { opacity: 0; transform: scale(0.4); }
+    10%, 18%  { opacity: 1; transform: scale(1); }
+    24%, 100% { opacity: 0; transform: scale(0.4); }
   }
   @media (prefers-reduced-motion: reduce) {
     .nt-board i, .nt-track, .nt-add, .nt-card { animation: none; }

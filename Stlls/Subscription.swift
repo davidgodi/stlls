@@ -210,6 +210,7 @@ struct SubscriptionOnboarding: View {
     var body: some View {
         ZStack {
             StllsPro.bg.ignoresSafeArea()
+            FloatingFramesBackground().ignoresSafeArea()
             switch step {
             case 0: TrialIntroScreen { advance() }
             case 1: NotificationPrePrompt { advance() }
@@ -258,6 +259,54 @@ private struct OnboardCTA: View {
     }
 }
 
+// Ambient looping background: empty layout frames drifting in and out all
+// over the screen — a nod to the app's opening splash. Deliberately quiet:
+// thin strokes, low opacity, slow cycles. Static under Reduce Motion.
+private struct FloatingFramesBackground: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var on = false
+
+    // deterministic per-frame layout (fractions of the screen)
+    private struct Spec { let x: CGFloat; let y: CGFloat; let w: CGFloat; let h: CGFloat
+                          let dur: Double; let delay: Double }
+    private let specs: [Spec] = [
+        .init(x: 0.14, y: 0.16, w: 64,  h: 92,  dur: 7.0, delay: 0.0),
+        .init(x: 0.82, y: 0.12, w: 48,  h: 48,  dur: 6.2, delay: 1.1),
+        .init(x: 0.88, y: 0.44, w: 70,  h: 96,  dur: 8.4, delay: 2.3),
+        .init(x: 0.10, y: 0.52, w: 44,  h: 62,  dur: 6.8, delay: 3.0),
+        .init(x: 0.24, y: 0.84, w: 78,  h: 56,  dur: 7.6, delay: 0.7),
+        .init(x: 0.78, y: 0.80, w: 52,  h: 74,  dur: 6.4, delay: 1.9),
+        .init(x: 0.50, y: 0.07, w: 56,  h: 40,  dur: 8.0, delay: 2.7),
+        .init(x: 0.56, y: 0.93, w: 40,  h: 40,  dur: 7.2, delay: 3.6),
+        .init(x: 0.05, y: 0.33, w: 34,  h: 48,  dur: 6.0, delay: 4.2),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                ForEach(specs.indices, id: \.self) { i in
+                    let s = specs[i]
+                    RoundedRectangle(cornerRadius: 9)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1.2)
+                        .frame(width: s.w, height: s.h)
+                        .position(x: geo.size.width * s.x, y: geo.size.height * s.y)
+                        .opacity(reduceMotion ? 0.05 : (on ? 0.11 : 0.0))
+                        .scaleEffect(reduceMotion ? 1 : (on ? 1.05 : 0.92))
+                        .animation(
+                            reduceMotion ? nil :
+                                .easeInOut(duration: s.dur)
+                                .repeatForever(autoreverses: true)
+                                .delay(s.delay),
+                            value: on
+                        )
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .onAppear { on = true }
+    }
+}
+
 // Screen 1 — trial intro
 private struct TrialIntroScreen: View {
     let onContinue: () -> Void
@@ -265,10 +314,8 @@ private struct TrialIntroScreen: View {
         VStack {
             Wordmark().padding(.top, 24)
             Spacer()
-            (Text("We want you to discover ")
-                + Text("STLLS Pro").bold()
-                + Text(", so here's a ")
-                + Text("7-day free trial").bold().foregroundColor(StllsPro.accent)
+            (Text("We want you to try everything STLLS can do, with all the power it has. Here is a ")
+                + Text("7 day trial").bold().foregroundColor(StllsPro.accent)
                 + Text(" on us."))
                 .font(.system(size: 26, weight: .medium))
                 .multilineTextAlignment(.center)
@@ -311,46 +358,53 @@ private struct NotificationPrePrompt: View {
     }
 }
 
-// The SCRL-style illustration: a mock system dialog with an arrow at "Allow".
+// Illustration of the permission dialog — deliberately hazy and desaturated
+// so it reads as a preview of what's coming, not a real system prompt; only
+// the accent arrow at "Allow" stays crisp.
 private struct MockPermissionDialog: View {
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 6) {
-                Text("\u{201C}STLLS\u{201D} Would Like to\nSend You Notifications")
-                    .font(.system(size: 15, weight: .semibold))
-                    .multilineTextAlignment(.center)
-                Text("Notifications may include alerts,\nsounds and icon badges.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity)
-            Divider()
-            HStack(spacing: 0) {
-                Text("Don't Allow")
-                    .font(.system(size: 15))
-                    .foregroundColor(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                VStack(spacing: 6) {
+                    Text("\u{201C}STLLS\u{201D} Would Like to\nSend You Notifications")
+                        .font(.system(size: 15, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                    Text("Notifications may include alerts,\nsounds and icon badges.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity)
                 Divider()
-                Text("Allow")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.blue)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .overlay(alignment: .bottom) {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(StllsPro.accent)
-                            .offset(y: 44)
-                    }
+                HStack(spacing: 0) {
+                    Text("Don't Allow")
+                        .font(.system(size: 15))
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    Divider()
+                    Text("Allow")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .frame(height: 44)
             }
-            .frame(height: 44)
+            .frame(width: 270)
+            .background(.regularMaterial)
+            .cornerRadius(14)
+            .saturation(0.35)
+            .opacity(0.85)
+            .blur(radius: 1.1)
+
+            // crisp accent arrow aimed at "Allow" (bottom-right quarter)
+            Image(systemName: "arrow.up")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundColor(StllsPro.accent)
+                .offset(x: -60, y: 46)
         }
-        .frame(width: 270)
-        .background(.regularMaterial)
-        .cornerRadius(14)
         .padding(.bottom, 44)
     }
 }
@@ -376,26 +430,32 @@ private struct ReminderPromiseScreen: View {
     }
 }
 
+// STLLS-styled notification card (own dark language, accent ring — not the
+// stock iOS banner look).
 private struct MockReminderNotification: View {
     var body: some View {
         HStack(spacing: 10) {
             RoundedRectangle(cornerRadius: 9)
-                .fill(Color.black)
+                .fill(StllsPro.accent)
                 .frame(width: 38, height: 38)
-                .overlay(Text("S").font(.system(size: 16, weight: .bold)).foregroundColor(.white))
+                .overlay(Text("S").font(.system(size: 17, weight: .heavy)).foregroundColor(.black))
             VStack(alignment: .leading, spacing: 2) {
-                Text("STLLS Pro").font(.system(size: 13, weight: .semibold))
+                Text("STLLS Pro")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
                 Text("Your free trial will renew in 2 days unless cancelled before.")
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.white.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
+        .padding(13)
         .frame(width: 320)
-        .background(.regularMaterial)
+        .background(Color.white.opacity(0.06))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(StllsPro.accent.opacity(0.45), lineWidth: 1))
         .cornerRadius(16)
+        .shadow(color: StllsPro.accent.opacity(0.12), radius: 18)
     }
 }
 
@@ -427,6 +487,9 @@ struct PaywallScreen: View {
         ZStack(alignment: .topTrailing) {
             LinearGradient(colors: [Color(red: 0.10, green: 0.12, blue: 0.17), StllsPro.bg],
                            startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea()
+            FloatingFramesBackground()
+                .opacity(0.6)   // quieter behind the offer content
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {

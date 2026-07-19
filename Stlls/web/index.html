@@ -13579,9 +13579,19 @@ carExportBtn.addEventListener('click', async () => {
   const label = carExportBtn.textContent;
   const progFill = document.getElementById('carExportProg').querySelector('i');
   carExportProgReset(progFill, true);   // defensive: clean slate even if a prior reset was lost
+  // one continuous eased fill, driven by rAF: it glides toward just shy of the
+  // current frame's share while that frame saves, so it never steps or stalls
+  progFill.style.transition = 'opacity 0.4s ease';
+  let progTarget = 0, progDisp = 0, progRun = true;
+  (function progTick() {
+    progDisp += (progTarget - progDisp) * 0.10;
+    progFill.style.width = (progDisp * 100) + '%';
+    if (progRun) requestAnimationFrame(progTick);
+  })();
   try {
     for (let f = 0; f < car.frames; f++) {
       carExportBtn.textContent = `${f + 1} / ${car.frames}…`;
+      progTarget = (f + 0.9) / car.frames;
       const cvs = document.createElement('canvas');
       cvs.width = W; cvs.height = H;
       const ctx = cvs.getContext('2d');
@@ -13603,19 +13613,24 @@ carExportBtn.addEventListener('click', async () => {
           }
         }, mime, qual);
       });
-      progFill.style.width = ((f + 1) / car.frames * 100) + '%';
       // native Photos saves need breathing room between messages
       if (f < car.frames - 1) await new Promise(r => setTimeout(r, 350));
     }
+    // glide the fill to the end, then fade it out smoothly
+    progTarget = 1;
+    for (let i = 0; i < 30 && progDisp < 0.995; i++) await new Promise(r => setTimeout(r, 50));
+    progRun = false;
+    progFill.style.width = '100%';
     carExportBtn.textContent = 'Saved ✓';
-    carExportProgReset(progFill);   // line returns to the faint divider right away
+    carExportProgReset(progFill);   // fades out, then hard-resets to the faint divider
     setTimeout(() => {
       carExportBtn.textContent = label; carExportBtn.disabled = false;
     }, 1600);
   } catch (err) {
     console.warn('carousel export failed', err);
+    progRun = false;
     carExportBtn.textContent = label; carExportBtn.disabled = false;
-    carExportProgReset(progFill);
+    carExportProgReset(progFill, true);
   }
 });
 
@@ -13626,6 +13641,7 @@ function carExportProgReset(fill, instant) {
   clearTimeout(fill._resetT);
   if (instant) {
     fill.classList.add('pf-notrans');
+    fill.style.transition = '';   // drop the export-time inline override
     fill.style.opacity = '1';
     fill.style.width = '0%';
     void fill.offsetWidth;

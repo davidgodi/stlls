@@ -4526,6 +4526,7 @@
     <div class="car-underrow" id="carWideRow" hidden>
       <button class="car-tool" id="carWideDn" title="Fewer frames">− frame</button>
       <button class="car-tool" id="carWideUp" title="More frames">+ frame</button>
+      <button class="car-tool danger" id="carWideDelete" hidden>Delete</button>
     </div>
     <div class="car-count" id="carCount" hidden>1 / 1</div>
   </div>
@@ -12747,8 +12748,10 @@ function carRender(structural = true) {
   }
   const sb = carStrip.querySelector('.car-selbox');
   const selO = carSel();
-  sb.classList.toggle('show', !!selO);
-  if (selO) {
+  // wide images show no selection outline at all — they always exceed the
+  // preview, so the box would just ring the whole screen
+  sb.classList.toggle('show', !!selO && !selO.wide);
+  if (selO && !selO.wide) {
     const oh = selO.w * selO.img.naturalHeight / selO.img.naturalWidth;
     sb.style.left   = (selO.x * k) + 'px';
     sb.style.top    = (selO.y * k) + 'px';
@@ -12791,11 +12794,14 @@ function carRenderTools() {
   document.getElementById('carSelPanel').classList.toggle('show', !!sel && !sel.wide);
   const wideRow = document.getElementById('carWideRow');
   wideRow.hidden = !wideO || (sel && !sel.wide) || _carBgMode;
-  // wide mode: the −/+ row is the only frame control — no ghost tiles anywhere
+  // wide mode: the −/+ row is the only frame control — no ghost tiles anywhere,
+  // and no add-photos button once the one image is in
   document.getElementById('carAddSlide').style.display = wideO ? 'none' : '';
+  document.getElementById('carAddPhotoBtn').style.display = wideO ? 'none' : '';
   if (wideO) {
     document.getElementById('carWideDn').disabled = wideO.span <= 1;
     document.getElementById('carWideUp').disabled = wideO.span >= 10;
+    document.getElementById('carWideDelete').hidden = !(sel && sel.wide);
   }
   if (sel && sel.wide) return;
   if (sel) {
@@ -13077,6 +13083,13 @@ document.getElementById('carWideDn').addEventListener('click', () => {
   car.cur = Math.min(car.cur, car.frames - 1);
   if (_carSmooth) _carScrollCanon = Math.min(_carScrollCanon, (car.frames - 0.5) * carCW());
   carWideFit(o);
+  carRender();
+});
+document.getElementById('carWideDelete').addEventListener('click', () => {
+  const o = carWideImg(); if (!o) return;
+  carPushHist();
+  car.imgs.splice(car.imgs.indexOf(o), 1);
+  car.sel = null;
   carRender();
 });
 
@@ -13415,6 +13428,16 @@ carStage.addEventListener('pointerdown', e => {
                   d0: Math.hypot(px - a.x, py - a.y) || 1,
                   moved: false, snap0: carSnapshot() };
     return;
+  }
+  // wide image: reposition only by dragging from INSIDE the preview window;
+  // outside it falls through to swipe (and a plain tap deselects)
+  if (sel && sel.wide) {
+    const [px, py] = carPt(e);
+    if (px >= 0 && px <= car.frames * carCW() && py >= 0 && py <= CAR_CH) {
+      _carMove = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                   o: sel, x0: sel.x, y0: sel.y, px, py, moved: false, snap0: carSnapshot() };
+      return;
+    }
   }
   // the selection overlay covers the selected image (even where it's behind
   // another image or outside the frame) — dragging it moves the image

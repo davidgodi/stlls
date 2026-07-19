@@ -1439,10 +1439,12 @@
   .car-thumb {
     position: relative; flex: 0 0 auto; height: 78px; border-radius: 8px;
     border: 1.5px solid var(--border2); background: var(--surface2); cursor: pointer;
-    padding: 0; -webkit-tap-highlight-color: transparent;
+    padding: 0; box-sizing: content-box; -webkit-tap-highlight-color: transparent;
   }
   .car-thumb.cur { border-color: var(--accent); }
-  .car-thumb canvas { display: block; height: 100%; border-radius: 6.5px; }
+  .car-thumb canvas { display: block; width: 100%; height: 100%; border-radius: 6.5px; }
+  /* library thumbs morph with the preview on ratio change */
+  #carFilm.ratio-anim .car-thumb { transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
   .car-thumb .ct-n {
     position: absolute; left: 4px; bottom: 3px; font-size: 9px; color: #fff;
     text-shadow: 0 1px 3px rgba(0,0,0,0.8); font-variant-numeric: tabular-nums;
@@ -12824,14 +12826,28 @@ function carDrawFrame(ctx, f, k) {
   }
 }
 
-function carRenderFilm() {
-  carFilm.innerHTML = '';
+function carRenderFilm(morph = false) {
   const [W, H] = carSlideDims();
   const th = 78, tw = Math.round(th * W / H);
   const kk = th / CAR_CH;
+  // ratio morph: keep the existing thumbs and animate their width — the
+  // bitmap redraws to the new aspect immediately and stretches along
+  if (morph && carFilm.children.length === car.frames) {
+    [...carFilm.children].forEach((b, f) => {
+      const cvs = b.querySelector('canvas');
+      cvs.width = tw; cvs.height = th;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, tw, th);
+      carDrawFrame(ctx, f, kk);
+      b.style.width = tw + 'px';
+    });
+    return;
+  }
+  carFilm.innerHTML = '';
   for (let f = 0; f < car.frames; f++) {
     const b = document.createElement('button');
     b.className = 'car-thumb' + (f === car.cur ? ' cur' : '');
+    b.style.width = tw + 'px';
     const cv = document.createElement('canvas');
     cv.width = tw; cv.height = th;
     const ctx = cv.getContext('2d');
@@ -12975,10 +12991,14 @@ carRatioBtn.addEventListener('click', () => {
   car.ratio = car.ratio === '4:5' ? '1:1' : '4:5';
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();   // slide width changed
   carStrip.classList.add('ratio-anim');
+  carFilm.classList.add('ratio-anim');
   carRender(false);
-  carRenderFilm();
+  carRenderFilm(true);   // library thumbs morph along with the preview
   clearTimeout(_carRatioT);
-  _carRatioT = setTimeout(() => carStrip.classList.remove('ratio-anim'), 500);
+  _carRatioT = setTimeout(() => {
+    carStrip.classList.remove('ratio-anim');
+    carFilm.classList.remove('ratio-anim');
+  }, 500);
 });
 
 document.getElementById('carSnapBtn').addEventListener('click', e => {

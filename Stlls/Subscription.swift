@@ -64,13 +64,22 @@ final class EntitlementStore: ObservableObject {
     /// then runs in free mode (Pro-only exports gated in the web layer).
     @Published var paywallDismissed = false
 
+    /// Small "That's a Pro feature!" card shown when a gated export is tapped.
+    @Published var upsellVisible = false
+
     /// True when every feature is unlocked (subscriber, trial, or
     /// grandfathered paid-app purchase).
     var isPro: Bool {
         !StllsPro.enabled || state == .entitled || state == .grandfathered
     }
 
+    func presentUpsell() {
+        upsellVisible = true
+        SubAnalytics.log("upsell_shown")
+    }
+
     func presentPaywall() {
+        upsellVisible = false
         paywallDismissed = false
         SubAnalytics.log("paywall_reopened")
     }
@@ -201,11 +210,11 @@ enum TrialReminder {
     }
 }
 
-// Web bridge: the web layer taps a Pro-gated export → reopen the paywall.
+// Web bridge: the web layer taps a Pro-gated export → show the upsell card.
 final class ProMessageHandler: NSObject, WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-        Task { @MainActor in EntitlementStore.shared.presentPaywall() }
+        Task { @MainActor in EntitlementStore.shared.presentUpsell() }
     }
 }
 
@@ -225,11 +234,68 @@ struct SubscriptionGate: View {
                 case .locked:
                     if !store.paywallDismissed {
                         SubscriptionOnboarding()
+                    } else if store.upsellVisible {
+                        ProUpsellOverlay()
+                            .transition(.opacity)
                     }
                 }
             }
         }
+        .animation(.easeOut(duration: 0.28), value: store.upsellVisible)
         .onAppear { store.start() }
+    }
+}
+
+// Small in-app upsell: blurred scrim + dark card, shown when a free-tier user
+// taps a Pro-gated export. CTA leads to the full offer.
+private struct ProUpsellOverlay: View {
+    @ObservedObject private var store = EntitlementStore.shared
+    @State private var shown = false
+
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
+            Color.black.opacity(0.35).ignoresSafeArea()
+                .onTapGesture { store.upsellVisible = false }
+
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle()
+                        .fill(StllsPro.accent.opacity(0.16))
+                        .frame(width: 52, height: 52)
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(StllsPro.accent)
+                }
+                Text("That's a Pro feature!")
+                    .font(.system(size: 22, weight: .heavy))
+                    .foregroundColor(.white)
+                    .padding(.top, 16)
+                OnboardCTA(title: "Try Pro for 7 days free") {
+                    store.presentPaywall()
+                }
+                .padding(.top, 22)
+                Button {
+                    store.upsellVisible = false
+                } label: {
+                    Text("Not now")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+                .padding(.top, 14)
+            }
+            .padding(26)
+            .frame(maxWidth: 330)
+            .background(Color(red: 0.07, green: 0.07, blue: 0.08))
+            .overlay(RoundedRectangle(cornerRadius: 26).stroke(Color.white.opacity(0.10), lineWidth: 1))
+            .cornerRadius(26)
+            .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+            .scaleEffect(shown ? 1 : 0.92)
+            .opacity(shown ? 1 : 0)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { shown = true }
+        }
     }
 }
 

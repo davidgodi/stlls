@@ -12791,6 +12791,8 @@ function carRenderTools() {
   document.getElementById('carSelPanel').classList.toggle('show', !!sel && !sel.wide);
   const wideRow = document.getElementById('carWideRow');
   wideRow.hidden = !wideO || (sel && !sel.wide) || _carBgMode;
+  // wide mode: the −/+ row is the only frame control — no ghost tiles anywhere
+  document.getElementById('carAddSlide').style.display = wideO ? 'none' : '';
   if (wideO) {
     document.getElementById('carWideDn').disabled = wideO.span <= 1;
     document.getElementById('carWideUp').disabled = wideO.span >= 10;

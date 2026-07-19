@@ -1403,9 +1403,14 @@
 
   .car-film {
     display: flex; gap: 8px; align-items: center;
-    padding: 10px 14px calc(14px + env(safe-area-inset-bottom));
+    padding: 10px 14px 8px;
     flex-shrink: 0;
   }
+  .car-exportrow {
+    display: flex; justify-content: flex-end; flex-shrink: 0;
+    padding: 0 16px calc(12px + env(safe-area-inset-bottom));
+  }
+  .car-exportrow .car-chip { padding: 10px 24px; font-size: 12px; }
   #carFilm {
     overflow-x: auto; flex: 1 1 auto; min-width: 0; padding: 2px 0;
     -webkit-overflow-scrolling: touch; scrollbar-width: none;
@@ -4434,10 +4439,6 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
     </button>
     <button class="car-chip" id="carRatioBtn">4:5</button>
-    <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-    </button>
-    <button class="car-chip accent" id="carExportBtn">Export</button>
     <button class="car-chip" id="carSettingsBtn" aria-label="Settings">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -4455,6 +4456,9 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path fill-rule="evenodd" d="M12 2a9.5 9.5 0 0 0-9.5 9.5V20A2 2 0 0 0 4.5 22h4.6a2 2 0 0 0 2-2v-8.6a.9.9 0 0 1 1.8 0V20a2 2 0 0 0 2 2h4.6a2 2 0 0 0 2-2v-8.5A9.5 9.5 0 0 0 12 2zM4.9 15.4h3.8v2.7H4.9zm10.4 0h3.8v2.7h-3.8z"/></svg>
         Snap
       </button>
+      <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      </button>
     </div>
     <div class="car-underrow" id="carFrameRow" hidden>
       <button class="car-tool" id="carFrameDn" title="Fewer frames">− frame</button>
@@ -4465,6 +4469,9 @@
   <div class="car-film" id="carFilmRow">
     <div style="display:flex;gap:8px;align-items:center;" id="carFilm"></div>
     <button id="carAddSlide" aria-label="Add media">+</button>
+  </div>
+  <div class="car-exportrow">
+    <button class="car-chip accent" id="carExportBtn">Export</button>
   </div>
   <!-- Selected-photo settings: fades in over the library while a photo is selected -->
   <div class="car-selpanel" id="carSelPanel">
@@ -12854,7 +12861,13 @@ function carPickWideImage() {
   });
   inp.click();
 }
-document.getElementById('carAddSlide').addEventListener('click', () => openBigModal(carAddModal));
+// Adding to a carousel that already has photos goes straight to the camera
+// roll — the Photos/Wide-image choice only matters for the very first import.
+function carAddMedia() {
+  if (car.imgs.length) carFileMulti.click();
+  else openBigModal(carAddModal);
+}
+document.getElementById('carAddSlide').addEventListener('click', carAddMedia);
 document.getElementById('carAddPhotos').addEventListener('click', () => { closeBigModal(carAddModal); carFileMulti.click(); });
 document.getElementById('carAddWide').addEventListener('click', () => { closeBigModal(carAddModal); carPickWideImage(); });
 carAddModal.addEventListener('pointerdown', e => { if (e.target === carAddModal) closeBigModal(carAddModal); });
@@ -13333,7 +13346,7 @@ carStage.addEventListener('click', e => {
   if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag || _carBgMode) return;   // bg mode: canvas taps only move the bg
-  if (e.target.closest('.car-ghostadd')) { openBigModal(carAddModal); return; }
+  if (e.target.closest('.car-ghostadd')) { carAddMedia(); return; }
   if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
   const objEl = e.target.closest('.car-obj');
   if (objEl) {

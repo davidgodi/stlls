@@ -9,7 +9,7 @@
 /* Begin PBXBuildFile section */
 		1B1B1B1B1B1B1B1B1B1B1B1B /* StllsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A6A6A6A6A6A6A6A6A6A6A6A /* StllsApp.swift */; };
 		2B2B2B2B2B2B2B2B2B2B2B2B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7A7A7A7A7A7A7A7A7A7A7A /* ContentView.swift */; };
-		3C3C3C3C3C3C3C3C3C3C3C3C /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */; };
+		AB01CD23EF45AB01CD23EF45 /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */; };
 		3B3B3B3B3B3B3B3B3B3B3B3B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A8A8A8A8A8A8A8A8A8A8A8A /* Assets.xcassets */; };
 		4B4B4B4B4B4B4B4B4B4B4B4B /* web in Resources */ = {isa = PBXBuildFile; fileRef = 0B0B0B0B0B0B0B0B0B0B0B0B /* web */; };
 /* End PBXBuildFile section */
@@ -162,7 +162,7 @@
 			files = (
 				1B1B1B1B1B1B1B1B1B1B1B1B /* StllsApp.swift in Sources */,
 				2B2B2B2B2B2B2B2B2B2B2B2B /* ContentView.swift in Sources */,
-				3C3C3C3C3C3C3C3C3C3C3C3C /* Subscription.swift in Sources */,
+				AB01CD23EF45AB01CD23EF45 /* Subscription.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

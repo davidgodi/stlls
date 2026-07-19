@@ -233,10 +233,11 @@ struct SubscriptionOnboarding: View {
 
 private struct Wordmark: View {
     var body: some View {
-        Text("STLLS")
-            .font(.system(size: 15, weight: .semibold))
-            .kerning(4)
-            .foregroundColor(.white)
+        Image("StllsProLogo")   // STLLS PRO logo, black keyed to transparent
+            .resizable()
+            .scaledToFit()
+            .frame(height: 44)
+            .accessibilityLabel("STLLS Pro")
     }
 }
 

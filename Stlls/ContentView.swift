@@ -1514,7 +1514,16 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, P
         userContent.add(videoHandler,     name: "setImportSource")
         userContent.add(remindersHandler, name: "scheduleReminders")
         userContent.add(proHandler,       name: "showPaywall")
-        userContent.add(proHandler,       name: "homeShown")
+
+        // Onboarding-first launch: hold the web opening animation until the
+        // offer is dismissed (X) or an entitlement resolves. The flag must be
+        // set before any page script runs.
+        if StllsPro.enabled {
+            userContent.addUserScript(WKUserScript(
+                source: "window.STLLS_HOLD_SPLASH=true",
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true))
+        }
 
         let config = WKWebViewConfiguration()
         config.userContentController = userContent
@@ -1532,11 +1541,16 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, P
         webView.navigationDelegate = self
 
         // Keep the web layer's Pro flag in sync with the entitlement engine
-        // (drives the carousel/video export gates in index.html).
+        // (drives the carousel/video export gates in index.html), and release
+        // the held opening animation once the offer is out of the way.
         if StllsPro.enabled {
-            proCancellable = EntitlementStore.shared.$state
+            let store = EntitlementStore.shared
+            proCancellable = Publishers.CombineLatest(store.$state, store.$paywallDismissed)
                 .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in self?.pushProState() }
+                .sink { [weak self] _, _ in
+                    self?.pushProState()
+                    self?.maybeReleaseSplash()
+                }
         }
 
         exportHandler.webView       = webView
@@ -1570,8 +1584,19 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, P
             completionHandler: nil)
     }
 
+    // The offer is done (X, purchase, or already entitled) → let the web
+    // opening animation play. Safe to call repeatedly; the JS side runs once.
+    private func maybeReleaseSplash() {
+        let store = EntitlementStore.shared
+        guard store.isPro || store.paywallDismissed else { return }
+        webView?.evaluateJavaScript(
+            "window.stllsReleaseSplash&&window.stllsReleaseSplash()",
+            completionHandler: nil)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         pushProState()
+        maybeReleaseSplash()
     }
 
     // MARK: WKUIDelegate — file input (images only; video goes via native bridge)

@@ -81,6 +81,9 @@
     pointer-events: none;
   }
   #splashScreen[hidden] { display: none; }
+  /* Held by the native shell while the Pro onboarding shows — the opening
+     animation waits on its first frame and plays on release. */
+  #splashScreen.held, #splashScreen.held * { animation-play-state: paused !important; }
 
   /* ── Launch sequence — pulsing layout frames around the logo, Apple-minimal ──
      The whole stage fades out together near the end via splashStageOut. */
@@ -5466,7 +5469,6 @@ welcomeContinueBtn.addEventListener('click', () => {
   welcomeOverlay.addEventListener('animationend', () => {
     welcomeOverlay.hidden = true;
     welcomeOverlay.classList.remove('leaving');
-    stllsSignalHome();   // welcome done → the main menu is now on screen
   }, { once: true });
 });
 
@@ -12025,15 +12027,6 @@ function stllsIsPro() { return window.STLLS_PRO !== false; }
 function stllsAskPro() {
   try { window.webkit.messageHandlers.showPaywall.postMessage(null); } catch (e) {}
 }
-// Tell the native shell the main menu is on screen (it starts the Pro
-// onboarding 2 s later). Fired once — after the splash, and only once any
-// first-run welcome (name/email) step is done.
-let _homeSignaled = false;
-function stllsSignalHome() {
-  if (_homeSignaled) return;
-  _homeSignaled = true;
-  try { window.webkit.messageHandlers.homeShown.postMessage(null); } catch (e) {}
-}
 // Free-tier note on the home screen (hidden until the shell flags free tier).
 const freeTierNote = document.getElementById('freeTierNote');
 function updateFreeTierNote() { if (freeTierNote) freeTierNote.hidden = stllsIsPro(); }
@@ -12547,6 +12540,10 @@ async function doVideoExport() {
 })();
 
 // ── Splash screen ────────────────────────────────────────────────────────────
+// In the app with STLLS Pro enabled, the shell injects STLLS_HOLD_SPLASH
+// before this runs: the opening animation pauses on its first frame while the
+// subscription onboarding shows, and plays once the shell calls
+// stllsReleaseSplash() (offer X-ed, purchase completed, or already entitled).
 (function() {
   const splash = document.getElementById('splashScreen');
   const isFreshLaunch = !sessionStorage.getItem('stlls-launched');
@@ -12562,17 +12559,29 @@ async function doVideoExport() {
     }
   }
 
-  if (isFreshLaunch) {
-    sessionStorage.setItem('stlls-launched', '1');
-    setTimeout(() => {
+  function runSplash() {
+    if (isFreshLaunch) {
+      sessionStorage.setItem('stlls-launched', '1');
+      setTimeout(() => {
+        splash.hidden = true;
+        afterSplash();
+      }, 2900);
+    } else {
       splash.hidden = true;
       afterSplash();
-      if (hasName) stllsSignalHome();   // no welcome step → menu is up now
-    }, 2900);
+    }
+  }
+
+  if (window.STLLS_HOLD_SPLASH) {
+    splash.classList.add('held');
+    window.stllsReleaseSplash = function() {
+      if (!window.STLLS_HOLD_SPLASH) return;
+      window.STLLS_HOLD_SPLASH = false;
+      splash.classList.remove('held');
+      runSplash();
+    };
   } else {
-    splash.hidden = true;
-    afterSplash();
-    if (hasName) stllsSignalHome();
+    runSplash();
   }
 })();
 

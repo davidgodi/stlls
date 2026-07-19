@@ -67,18 +67,6 @@ final class EntitlementStore: ObservableObject {
     /// Small "That's a Pro feature!" card shown when a gated export is tapped.
     @Published var upsellVisible = false
 
-    /// The app opens normally (splash → optional name/email → main menu); the
-    /// web layer signals `homeShown` and the onboarding fades in 2 s later.
-    @Published var onboardingArmed = false
-
-    func armOnboardingSoon() {
-        guard !onboardingArmed else { return }
-        Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            withAnimation(.easeInOut(duration: 0.45)) { onboardingArmed = true }
-        }
-    }
-
     /// True when every feature is unlocked (subscriber, trial, or
     /// grandfathered paid-app purchase).
     var isPro: Bool {
@@ -222,18 +210,11 @@ enum TrialReminder {
     }
 }
 
-// Web bridge: "homeShown" = main menu is visible (arms the delayed
-// onboarding); "showPaywall" = a Pro-gated export was tapped (upsell card).
+// Web bridge: the web layer taps a Pro-gated export → show the upsell card.
 final class ProMessageHandler: NSObject, WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-        let name = message.name
-        Task { @MainActor in
-            switch name {
-            case "homeShown": EntitlementStore.shared.armOnboardingSoon()
-            default:          EntitlementStore.shared.presentUpsell()
-            }
-        }
+        Task { @MainActor in EntitlementStore.shared.presentUpsell() }
     }
 }
 
@@ -249,9 +230,9 @@ struct SubscriptionGate: View {
                 case .grandfathered, .entitled:
                     EmptyView()
                 case .unknown:
-                    EmptyView()   // app boots visibly; onboarding waits for the menu signal
+                    StllsPro.bg.ignoresSafeArea()   // brief cover while resolving (splash is held)
                 case .locked:
-                    if store.onboardingArmed && !store.paywallDismissed {
+                    if !store.paywallDismissed {
                         SubscriptionOnboarding()
                             .transition(.opacity)
                     } else if store.upsellVisible {
@@ -262,7 +243,7 @@ struct SubscriptionGate: View {
             }
         }
         .animation(.easeOut(duration: 0.28), value: store.upsellVisible)
-        .animation(.easeInOut(duration: 0.45), value: store.onboardingArmed)
+        .animation(.easeInOut(duration: 0.4), value: store.paywallDismissed)
         .onAppear { store.start() }
     }
 }

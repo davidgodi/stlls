@@ -1200,7 +1200,23 @@
     background: none; border: none; color: var(--text-mid); cursor: pointer; padding: 6px;
     display: flex; align-items: center; -webkit-tap-highlight-color: transparent;
   }
-  .car-title { font-size: 12px; letter-spacing: 0.16em; font-weight: 600; color: var(--text-mid); flex: 1; }
+  .car-brand { font-size: 13px; letter-spacing: 0.22em; font-weight: 600; color: var(--text); }
+  .car-sub {
+    padding: 2px 16px 6px; flex-shrink: 0;
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim);
+  }
+  /* Background/Snap float over the top of the preview, clear of the top bar */
+  .car-overchips { position: absolute; top: 8px; left: 12px; z-index: 5; display: flex; gap: 8px; }
+  /* export progress bar — fills as frames save */
+  #carExportProg {
+    height: 3px; margin: 0 16px 6px; border-radius: 2px; overflow: hidden;
+    background: var(--border2); flex-shrink: 0;
+  }
+  #carExportProg[hidden] { display: none !important; }
+  #carExportProg i {
+    display: block; height: 100%; width: 0%;
+    background: var(--accent); border-radius: 2px; transition: width 0.3s ease;
+  }
   .car-chip {
     display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 9px;
     background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
@@ -1245,13 +1261,14 @@
      so the outline and handle stay visible (and grabbable) even when the
      image is behind another one or hangs outside the preview frame. */
   .car-selbox {
-    position: absolute; display: none;
-    outline: 2px solid var(--accent); opacity: 0.92;
+    position: absolute; display: none; box-sizing: border-box;
+    border: 2px solid var(--accent); opacity: 0.92;
     cursor: grab;
   }
   .car-selbox.show { display: block; }
-  /* photo bleeding outside the preview: tight dotted outline instead of solid */
-  .car-selbox.out { outline: 1.5px dotted var(--accent); }
+  /* photo bleeding outside the preview: tight dotted border (border, not
+     outline — dotted outlines drop their vertical edges under transforms) */
+  .car-selbox.out { border-style: dotted; border-width: 1.5px; }
   /* undo/redo dropdown */
   #carUndoMenu {
     position: fixed; z-index: 600; display: flex; flex-direction: column;
@@ -1276,15 +1293,17 @@
     content: ''; position: absolute; inset: 0; pointer-events: none;
     border: var(--obw, 0px) solid #fff; border-radius: var(--orad, 0px);
   }
-  /* floating sliders panel for the selected image */
+  /* Selected-photo settings: covers the library row, fading in and out */
   .car-selpanel {
-    position: absolute; z-index: 4; bottom: 52px; left: 50%; transform: translateX(-50%);
-    width: min(320px, calc(100vw - 40px));
-    display: flex; flex-direction: column; gap: 4px;
-    background: var(--surface); border: 1px solid var(--border2); border-radius: 12px;
-    padding: 10px 14px; box-shadow: var(--btn-shadow);
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+    background: var(--surface); border-top: 1px solid var(--border2);
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; gap: 5px;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.22s ease;
   }
-  .car-selpanel[hidden] { display: none !important; }
+  .car-selpanel.show { opacity: 1; pointer-events: auto; }
+  .car-selbtns { display: flex; gap: 8px; justify-content: center; margin-top: 5px; }
   /* canvas background layers (under every image) */
   .car-bgcolor { position: absolute; inset: 0; pointer-events: none; }
   .car-bgphoto { position: absolute; pointer-events: none; max-width: none; }
@@ -1392,12 +1411,6 @@
     -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
   #carFilm::-webkit-scrollbar { display: none; }
-  /* Background / Snap chips pinned at the left of the library row */
-  .car-filmchip {
-    flex-direction: column; justify-content: center; gap: 5px;
-    height: 78px; padding: 6px 10px; flex: 0 0 auto;
-    font-size: 9.5px;
-  }
   .car-thumb {
     position: relative; flex: 0 0 auto; height: 78px; border-radius: 8px;
     border: 1.5px solid var(--border2); background: var(--surface2); cursor: pointer;
@@ -4415,7 +4428,8 @@
     <button class="car-back" id="carBack" aria-label="Back">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
     </button>
-    <span class="car-title">CAROUSEL</span>
+    <span class="car-brand">STLLS</span>
+    <span style="flex:1"></span>
     <button class="car-chip" id="carUndoBtn" aria-label="Undo / Redo" title="Undo / Redo">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
     </button>
@@ -4424,35 +4438,44 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
     </button>
     <button class="car-chip accent" id="carExportBtn">Export</button>
+    <button class="car-chip" id="carSettingsBtn" aria-label="Settings">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </div>
+  <div class="car-sub">Carousel editor</div>
+  <div id="carExportProg" hidden><i></i></div>
   <div id="carStage">
     <div id="carStrip"></div>
+    <div class="car-overchips">
+      <button class="car-chip" id="carBgBtn" aria-label="Background">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/><circle cx="8.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/></svg>
+        Background
+      </button>
+      <button class="car-chip on" id="carSnapBtn" aria-label="Snap to edges">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path fill-rule="evenodd" d="M12 2a9.5 9.5 0 0 0-9.5 9.5V20A2 2 0 0 0 4.5 22h4.6a2 2 0 0 0 2-2v-8.6a.9.9 0 0 1 1.8 0V20a2 2 0 0 0 2 2h4.6a2 2 0 0 0 2-2v-8.5A9.5 9.5 0 0 0 12 2zM4.9 15.4h3.8v2.7H4.9zm10.4 0h3.8v2.7h-3.8z"/></svg>
+        Snap
+      </button>
+    </div>
     <div class="car-underrow" id="carFrameRow" hidden>
       <button class="car-tool" id="carFrameDn" title="Fewer frames">− frame</button>
       <button class="car-tool" id="carFrameUp" title="More frames">+ frame</button>
     </div>
-    <div class="car-underrow" id="carSelRow" hidden>
+    <div class="car-count" id="carCount" hidden>1 / 1</div>
+  </div>
+  <div class="car-film" id="carFilmRow">
+    <div style="display:flex;gap:8px;align-items:center;" id="carFilm"></div>
+    <button id="carAddSlide" aria-label="Add media">+</button>
+  </div>
+  <!-- Selected-photo settings: fades in over the library while a photo is selected -->
+  <div class="car-selpanel" id="carSelPanel">
+    <div class="slider-row"><label>Scale</label><input type="range" id="carObjScale" min="10" max="400" step="2" value="72"><span class="slider-val" id="carObjScaleVal">72</span></div>
+    <div class="slider-row"><label>Round</label><input type="range" id="carObjRound" min="0" max="150" step="2" value="0"><span class="slider-val" id="carObjRoundVal">0</span></div>
+    <div class="slider-row"><label>Border</label><input type="range" id="carObjBorder" min="0" max="50" step="1" value="0"><span class="slider-val" id="carObjBorderVal">0</span></div>
+    <div class="car-selbtns">
       <button class="car-tool danger" id="carSelDelete">Delete</button>
       <button class="car-tool" id="carSelFwd">Forward</button>
       <button class="car-tool" id="carSelBack">Behind</button>
     </div>
-    <div class="car-selpanel" id="carSelPanel" hidden>
-      <div class="slider-row"><label>Round</label><input type="range" id="carObjRound" min="0" max="150" step="2" value="0"><span class="slider-val" id="carObjRoundVal">0</span></div>
-      <div class="slider-row"><label>Border</label><input type="range" id="carObjBorder" min="0" max="50" step="1" value="0"><span class="slider-val" id="carObjBorderVal">0</span></div>
-    </div>
-    <div class="car-count" id="carCount" hidden>1 / 1</div>
-  </div>
-  <div class="car-film" id="carFilmRow">
-    <button class="car-chip car-filmchip" id="carBgBtn" aria-label="Background">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/><circle cx="8.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/></svg>
-      <span>Background</span>
-    </button>
-    <button class="car-chip car-filmchip on" id="carSnapBtn" aria-label="Snap to edges">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path fill-rule="evenodd" d="M12 2a9.5 9.5 0 0 0-9.5 9.5V20A2 2 0 0 0 4.5 22h4.6a2 2 0 0 0 2-2v-8.6a.9.9 0 0 1 1.8 0V20a2 2 0 0 0 2 2h4.6a2 2 0 0 0 2-2v-8.5A9.5 9.5 0 0 0 12 2zM4.9 15.4h3.8v2.7H4.9zm10.4 0h3.8v2.7h-3.8z"/></svg>
-      <span>Snap</span>
-    </button>
-    <div style="display:flex;gap:8px;align-items:center;" id="carFilm"></div>
-    <button id="carAddSlide" aria-label="Add media">+</button>
   </div>
   <!-- Background edit mode: docked under the preview so changes are visible live -->
   <div id="carBgPanel" hidden>
@@ -12412,9 +12435,10 @@ function carViewportCanon(dx = 0) {
   };
 }
 
-// Keep the scale handle reachable: prefer the image's bottom-right corner, but
-// when that's off-screen slide it along the image bounds to whichever corner or
-// edge point IS visible. Never relocates mid-scale (it would fight the finger).
+// The scale handle always sits exactly on a CORNER of the photo, picked so it
+// faces the centre of the preview: photo centre below the preview centre →
+// upper corner, photo on the right → left corner (and vice versa). Never
+// relocates mid-scale (it would fight the finger).
 function carPlaceHandle() {
   const sb = carStrip.querySelector('.car-selbox');
   const h = sb?.querySelector('.car-handle');
@@ -12422,17 +12446,12 @@ function carPlaceHandle() {
   if (!h || !o || _carScale) return;
   const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
   const vp = carViewportCanon();
-  const M = 30 / (carK() * _carView);   // ~30 screen px inset
-  let px = Math.min(vp.x1 - M, o.x + o.w);
-  px = Math.max(px, vp.x0 + M, o.x);
-  px = Math.min(px, o.x + o.w);
-  let py = Math.min(vp.y1 - M, o.y + oh);
-  py = Math.max(py, vp.y0 + M, o.y);
-  py = Math.min(py, o.y + oh);
-  _carHandle = { hx: px >= o.x + o.w / 2 ? 1 : 0, hy: py >= o.y + oh / 2 ? 1 : 0 };
+  const hx = (o.x + o.w / 2) >= (vp.x0 + vp.x1) / 2 ? 0 : 1;
+  const hy = (o.y + oh  / 2) >= (vp.y0 + vp.y1) / 2 ? 0 : 1;
+  _carHandle = { hx, hy };
   const k = carK();
-  h.style.left = ((px - o.x) * k - 11) + 'px';
-  h.style.top  = ((py - o.y) * k - 11) + 'px';
+  h.style.left = (hx * o.w * k - 11) + 'px';
+  h.style.top  = (hy * oh  * k - 11) + 'px';
   h.style.right = 'auto';
   h.style.bottom = 'auto';
 }
@@ -12634,8 +12653,7 @@ function carRender(structural = true) {
 
 function carRenderTools() {
   const sel = carSel();
-  document.getElementById('carSelRow').hidden = !sel;
-  document.getElementById('carSelPanel').hidden = !sel;
+  document.getElementById('carSelPanel').classList.toggle('show', !!sel);   // fades over the library
   document.getElementById('carFrameRow').hidden = !!sel;
   document.getElementById('carFrameDn').disabled = car.frames <= 1;
   document.getElementById('carFrameUp').disabled = car.frames >= 10;
@@ -12643,12 +12661,27 @@ function carRenderTools() {
     const i = car.imgs.indexOf(sel);
     document.getElementById('carSelFwd').disabled = i === car.imgs.length - 1;
     document.getElementById('carSelBack').disabled = i === 0;
+    const sc = Math.round(sel.w / carCW() * 100);
+    document.getElementById('carObjScale').value = sc;
+    document.getElementById('carObjScaleVal').textContent = sc;
     document.getElementById('carObjRound').value = sel.r || 0;
     document.getElementById('carObjRoundVal').textContent = sel.r || 0;
     document.getElementById('carObjBorder').value = sel.bw || 0;
     document.getElementById('carObjBorderVal').textContent = sel.bw || 0;
   }
 }
+
+document.getElementById('carObjScale').addEventListener('input', e => {
+  const o = carSel(); if (!o) return;
+  const a = o.img.naturalHeight / o.img.naturalWidth;
+  const nw = Math.min(carCW() * 10, Math.max(80, +e.target.value / 100 * carCW()));
+  const cx = o.x + o.w / 2, cy = o.y + (o.w * a) / 2;   // grow about the photo centre
+  o.w = nw;
+  o.x = cx - nw / 2;
+  o.y = cy - (nw * a) / 2;
+  document.getElementById('carObjScaleVal').textContent = e.target.value;
+  carRender(false);
+});
 
 document.getElementById('carObjRound').addEventListener('input', e => {
   const o = carSel(); if (!o) return;
@@ -12662,7 +12695,7 @@ document.getElementById('carObjBorder').addEventListener('input', e => {
   document.getElementById('carObjBorderVal').textContent = o.bw;
   carRender(false);
 });
-['carObjRound', 'carObjBorder'].forEach(id =>
+['carObjScale', 'carObjRound', 'carObjBorder'].forEach(id =>
   document.getElementById(id).addEventListener('change', () => carRenderFilm()));
 
 function carRoundRectPath(ctx, x, y, w, h, r) {
@@ -12909,13 +12942,15 @@ document.addEventListener('keydown', e => {
 
 // sliders: capture state when the drag starts, commit one history entry when it ends
 let _carSliderSnap = null;
-['carObjRound', 'carObjBorder', 'carBgBlur', 'carBgOpacity', 'carBgScale'].forEach(id => {
+['carObjScale', 'carObjRound', 'carObjBorder', 'carBgBlur', 'carBgOpacity', 'carBgScale'].forEach(id => {
   const el = document.getElementById(id);
   el.addEventListener('pointerdown', () => { _carSliderSnap = carSnapshot(); });
   el.addEventListener('change', () => {
     if (_carSliderSnap) { carCommitHist(_carSliderSnap); _carSliderSnap = null; }
   });
 });
+
+document.getElementById('carSettingsBtn').addEventListener('click', () => openSettings());
 
 // ── Background edit mode ────────────────────────────────────────────────────
 // The bg chip docks a panel under the preview: colour swatches, photo upload
@@ -13380,6 +13415,10 @@ carExportBtn.addEventListener('click', async () => {
   const W = 1080, H = Math.round(1080 * rh / rw);
   carExportBtn.disabled = true;
   const label = carExportBtn.textContent;
+  const prog = document.getElementById('carExportProg');
+  const progFill = prog.querySelector('i');
+  progFill.style.width = '0%';
+  prog.hidden = false;
   try {
     for (let f = 0; f < car.frames; f++) {
       carExportBtn.textContent = `${f + 1} / ${car.frames}…`;
@@ -13404,14 +13443,19 @@ carExportBtn.addEventListener('click', async () => {
           }
         }, 'image/jpeg', 0.93);
       });
+      progFill.style.width = ((f + 1) / car.frames * 100) + '%';
       // native Photos saves need breathing room between messages
       if (f < car.frames - 1) await new Promise(r => setTimeout(r, 350));
     }
     carExportBtn.textContent = 'Saved ✓';
-    setTimeout(() => { carExportBtn.textContent = label; carExportBtn.disabled = false; }, 1600);
+    setTimeout(() => {
+      carExportBtn.textContent = label; carExportBtn.disabled = false;
+      prog.hidden = true;
+    }, 1600);
   } catch (err) {
     console.warn('carousel export failed', err);
     carExportBtn.textContent = label; carExportBtn.disabled = false;
+    prog.hidden = true;
   }
 });
 

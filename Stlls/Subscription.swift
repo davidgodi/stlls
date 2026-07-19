@@ -279,6 +279,12 @@ private extension LinearGradient {
         LinearGradient(colors: [StllsPro.accent, Color(red: 0.45, green: 0.78, blue: 1.0)],
                        startPoint: .leading, endPoint: .trailing)
     }
+    // warm display gradient for the big headlines — orange into yellow
+    static var stllsTitle: LinearGradient {
+        LinearGradient(colors: [Color(red: 1.0, green: 0.55, blue: 0.15),
+                                Color(red: 1.0, green: 0.84, blue: 0.30)],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
 }
 
 // Full-width capsule, label left / arrow right. Screens supply the horizontal
@@ -304,107 +310,47 @@ private struct OnboardCTA: View {
     }
 }
 
-// Layered animated backdrop: aurora colour blobs drifting across the screen,
-// a slow rotating sheen, and gradient-stroked layout frames that drift,
-// rotate and pulse. Static (and much quieter) under Reduce Motion.
+// Dark, on-brand backdrop: near-black ground with the STLLS layout frames
+// drifting and pulsing over it. Static (and quieter) under Reduce Motion.
 private struct OnboardBackdrop: View {
     var intensity: Double = 1.0
     var body: some View {
         ZStack {
-            StllsPro.bg
-            AuroraBackground().opacity(intensity)
+            Color.black
+            StllsPro.bg.opacity(0.6)
             FloatingFramesBackground().opacity(intensity)
         }
         .ignoresSafeArea()
     }
 }
 
-// Soft radial colour fields drifting between two anchor points each, plus a
-// slow full-screen angular sheen. Radial falloff gives the blur look without
-// a live blur filter (cheap on GPU).
-private struct AuroraBackground: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var on = false
-
-    private static let violet = Color(red: 0.55, green: 0.35, blue: 1.0)
-    private static let teal   = Color(red: 0.20, green: 0.85, blue: 0.75)
-    private static let deep   = Color(red: 0.10, green: 0.25, blue: 0.85)
-    private static let rose   = Color(red: 0.85, green: 0.30, blue: 0.70)
-
-    private struct Blob { let sx: CGFloat; let sy: CGFloat; let ex: CGFloat; let ey: CGFloat
-                          let size: CGFloat; let color: Color; let peak: Double
-                          let dur: Double; let delay: Double }
-    private let blobs: [Blob] = [
-        .init(sx: -0.15, sy: 0.05, ex: 0.35, ey: 0.30, size: 520, color: StllsPro.accent, peak: 0.42, dur: 13.0, delay: 0.0),
-        .init(sx: 1.10,  sy: 0.20, ex: 0.70, ey: 0.05, size: 460, color: violet,          peak: 0.38, dur: 16.0, delay: 1.2),
-        .init(sx: 0.85,  sy: 1.05, ex: 0.55, ey: 0.72, size: 560, color: deep,            peak: 0.45, dur: 14.5, delay: 2.6),
-        .init(sx: 0.05,  sy: 0.90, ex: 0.30, ey: 0.62, size: 420, color: teal,            peak: 0.30, dur: 12.0, delay: 0.7),
-        .init(sx: 0.55,  sy: 0.48, ex: 0.15, ey: 0.40, size: 380, color: rose,            peak: 0.26, dur: 17.5, delay: 3.4),
-    ]
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                ForEach(blobs.indices, id: \.self) { i in
-                    let b = blobs[i]
-                    Circle()
-                        .fill(RadialGradient(colors: [b.color.opacity(b.peak), b.color.opacity(0)],
-                                             center: .center, startRadius: 0, endRadius: b.size / 2))
-                        .frame(width: b.size, height: b.size)
-                        .position(x: geo.size.width * (reduceMotion ? (b.sx + b.ex) / 2 : (on ? b.ex : b.sx)),
-                                  y: geo.size.height * (reduceMotion ? (b.sy + b.ey) / 2 : (on ? b.ey : b.sy)))
-                        .opacity(reduceMotion ? 0.5 : 1)
-                        .animation(
-                            reduceMotion ? nil :
-                                .easeInOut(duration: b.dur)
-                                .repeatForever(autoreverses: true)
-                                .delay(b.delay),
-                            value: on
-                        )
-                }
-                if !reduceMotion {
-                    AngularGradient(colors: [.clear, StllsPro.accent.opacity(0.10), .clear,
-                                             Self.violet.opacity(0.09), .clear],
-                                    center: .center)
-                        .frame(width: geo.size.width * 2.4, height: geo.size.width * 2.4)
-                        .rotationEffect(.degrees(on ? 360 : 0))
-                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
-                        .animation(.linear(duration: 48).repeatForever(autoreverses: false), value: on)
-                }
-            }
-        }
-        .allowsHitTesting(false)
-        .onAppear { on = true }
-    }
-}
-
-// Empty layout frames — the STLLS motif — drifting, tilting and pulsing all
-// over the screen with gradient strokes.
+// Empty layout frames — the STLLS motif — drifting and pulsing all over the
+// screen. Kept straight (no tilt) and monochrome, on brand.
 private struct FloatingFramesBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var on = false
 
     // deterministic per-frame layout (fractions of the screen)
     private struct Spec { let x: CGFloat; let y: CGFloat; let w: CGFloat; let h: CGFloat
-                          let rot: Double; let dy: CGFloat; let dur: Double; let delay: Double }
+                          let dy: CGFloat; let dur: Double; let delay: Double }
     private let specs: [Spec] = [
-        .init(x: 0.14, y: 0.16, w: 64,  h: 92,  rot: 5,  dy: 16, dur: 7.0, delay: 0.0),
-        .init(x: 0.82, y: 0.12, w: 48,  h: 48,  rot: -7, dy: 12, dur: 6.2, delay: 1.1),
-        .init(x: 0.88, y: 0.44, w: 70,  h: 96,  rot: 4,  dy: 20, dur: 8.4, delay: 2.3),
-        .init(x: 0.10, y: 0.52, w: 44,  h: 62,  rot: -5, dy: 14, dur: 6.8, delay: 3.0),
-        .init(x: 0.24, y: 0.84, w: 78,  h: 56,  rot: 6,  dy: 18, dur: 7.6, delay: 0.7),
-        .init(x: 0.78, y: 0.80, w: 52,  h: 74,  rot: -4, dy: 15, dur: 6.4, delay: 1.9),
-        .init(x: 0.50, y: 0.07, w: 56,  h: 40,  rot: 8,  dy: 10, dur: 8.0, delay: 2.7),
-        .init(x: 0.56, y: 0.93, w: 40,  h: 40,  rot: -6, dy: 12, dur: 7.2, delay: 3.6),
-        .init(x: 0.05, y: 0.33, w: 34,  h: 48,  rot: 5,  dy: 16, dur: 6.0, delay: 4.2),
-        .init(x: 0.33, y: 0.28, w: 88,  h: 120, rot: -3, dy: 22, dur: 9.2, delay: 1.5),
-        .init(x: 0.68, y: 0.30, w: 40,  h: 56,  rot: 7,  dy: 13, dur: 6.6, delay: 4.8),
-        .init(x: 0.42, y: 0.60, w: 52,  h: 38,  rot: -8, dy: 17, dur: 7.8, delay: 2.0),
-        .init(x: 0.93, y: 0.66, w: 36,  h: 52,  rot: 4,  dy: 11, dur: 6.1, delay: 3.3),
-        .init(x: 0.04, y: 0.74, w: 58,  h: 42,  rot: -5, dy: 19, dur: 8.6, delay: 5.1),
-        .init(x: 0.64, y: 0.55, w: 100, h: 72,  rot: 3,  dy: 24, dur: 9.8, delay: 0.4),
-        .init(x: 0.38, y: 0.97, w: 64,  h: 46,  rot: -6, dy: 14, dur: 7.4, delay: 4.5),
-        .init(x: 0.20, y: 0.02, w: 44,  h: 60,  rot: 6,  dy: 12, dur: 6.9, delay: 5.6),
+        .init(x: 0.14, y: 0.16, w: 64,  h: 92,  dy: 16, dur: 7.0, delay: 0.0),
+        .init(x: 0.82, y: 0.12, w: 48,  h: 48,  dy: 12, dur: 6.2, delay: 1.1),
+        .init(x: 0.88, y: 0.44, w: 70,  h: 96,  dy: 20, dur: 8.4, delay: 2.3),
+        .init(x: 0.10, y: 0.52, w: 44,  h: 62,  dy: 14, dur: 6.8, delay: 3.0),
+        .init(x: 0.24, y: 0.84, w: 78,  h: 56,  dy: 18, dur: 7.6, delay: 0.7),
+        .init(x: 0.78, y: 0.80, w: 52,  h: 74,  dy: 15, dur: 6.4, delay: 1.9),
+        .init(x: 0.50, y: 0.07, w: 56,  h: 40,  dy: 10, dur: 8.0, delay: 2.7),
+        .init(x: 0.56, y: 0.93, w: 40,  h: 40,  dy: 12, dur: 7.2, delay: 3.6),
+        .init(x: 0.05, y: 0.33, w: 34,  h: 48,  dy: 16, dur: 6.0, delay: 4.2),
+        .init(x: 0.33, y: 0.28, w: 88,  h: 120, dy: 22, dur: 9.2, delay: 1.5),
+        .init(x: 0.68, y: 0.30, w: 40,  h: 56,  dy: 13, dur: 6.6, delay: 4.8),
+        .init(x: 0.42, y: 0.60, w: 52,  h: 38,  dy: 17, dur: 7.8, delay: 2.0),
+        .init(x: 0.93, y: 0.66, w: 36,  h: 52,  dy: 11, dur: 6.1, delay: 3.3),
+        .init(x: 0.04, y: 0.74, w: 58,  h: 42,  dy: 19, dur: 8.6, delay: 5.1),
+        .init(x: 0.64, y: 0.55, w: 100, h: 72,  dy: 24, dur: 9.8, delay: 0.4),
+        .init(x: 0.38, y: 0.97, w: 64,  h: 46,  dy: 14, dur: 7.4, delay: 4.5),
+        .init(x: 0.20, y: 0.02, w: 44,  h: 60,  dy: 12, dur: 6.9, delay: 5.6),
     ]
 
     var body: some View {
@@ -413,12 +359,8 @@ private struct FloatingFramesBackground: View {
                 ForEach(specs.indices, id: \.self) { i in
                     let s = specs[i]
                     RoundedRectangle(cornerRadius: 9)
-                        .stroke(LinearGradient(colors: [Color.white.opacity(0.75),
-                                                        StllsPro.accent.opacity(0.55)],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing),
-                                lineWidth: 1.2)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 1.2)
                         .frame(width: s.w, height: s.h)
-                        .rotationEffect(.degrees(reduceMotion ? 0 : (on ? s.rot : -s.rot)))
                         .scaleEffect(reduceMotion ? 1 : (on ? 1.08 : 0.90))
                         .position(x: geo.size.width * s.x, y: geo.size.height * s.y)
                         .offset(y: reduceMotion ? 0 : (on ? -s.dy : s.dy))
@@ -448,8 +390,7 @@ private struct TrialIntroScreen: View {
             Eyebrow("FREE TRIAL")
             Text("7 days\non us.")
                 .font(.system(size: 64, weight: .heavy))
-                .foregroundStyle(LinearGradient(colors: [.white, StllsPro.accent],
-                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                .foregroundStyle(LinearGradient.stllsTitle)
                 .padding(.top, 10)
             Text("We want you to try everything STLLS can do, with all the power it has.")
                 .font(.system(size: 17))
@@ -693,8 +634,7 @@ struct PaywallScreen: View {
                     Eyebrow("WELCOME OFFER")
                     Text("Everything STLLS, unlocked.")
                         .font(.system(size: 32, weight: .heavy))
-                        .foregroundStyle(LinearGradient(colors: [.white, StllsPro.accent],
-                                                        startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .foregroundStyle(LinearGradient.stllsTitle)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                 }
@@ -848,11 +788,7 @@ struct PaywallScreen: View {
             .padding(14)
             .background(selected?.id == product.id ? StllsPro.accent.opacity(0.08) : Color.white.opacity(0.04))
             .overlay(RoundedRectangle(cornerRadius: 15)
-                .stroke(selected?.id == product.id
-                            ? AnyShapeStyle(LinearGradient(colors: [StllsPro.accent,
-                                                                    Color(red: 0.55, green: 0.35, blue: 1.0)],
-                                                           startPoint: .topLeading, endPoint: .bottomTrailing))
-                            : AnyShapeStyle(Color.white.opacity(0.12)),
+                .stroke(selected?.id == product.id ? StllsPro.accent : Color.white.opacity(0.12),
                         lineWidth: 1.5))
             .cornerRadius(15)
         }

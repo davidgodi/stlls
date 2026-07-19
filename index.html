@@ -12719,10 +12719,10 @@ function carRender(structural = true) {
       selO.x < 0 || selO.y < 0 ||
       selO.x + selO.w > car.frames * carCW() || selO.y + oh > CAR_CH);
   }
-  // snap guides — shown only while a drag is actually snapped
+  // snap guides — shown only while a drag/scale is actually snapped
   const lv = carStrip.querySelector('.car-snapline.v');
   const lh = carStrip.querySelector('.car-snapline.h');
-  const guides = _carMove && _carSnapL;
+  const guides = (_carMove || _carScale) && _carSnapL;
   lv.style.display = (guides && _carSnapL.x !== null) ? 'block' : 'none';
   lh.style.display = (guides && _carSnapL.y !== null) ? 'block' : 'none';
   if (guides && _carSnapL.x !== null) {
@@ -13252,6 +13252,30 @@ function carSnapObj(o) {
   _carSnapL = (lineX !== null || lineY !== null) ? { x: lineX, y: lineY } : null;
 }
 
+// Scaling snap: with the magnet on, a centre-anchored resize locks the width
+// where one of the image's edges lands on a frame boundary (or the canvas
+// top/bottom). Other images are deliberately not considered here.
+function carSnapScaleW(o, a, w) {
+  const th = 8 / (carK() * _carView);
+  const cw = carCW();
+  const asp = o.img.naturalHeight / o.img.naturalWidth;
+  let best = th, bw = null, lineX = null, lineY = null;
+  const consider = (wc, edgeDist, lx, ly) => {
+    if (wc >= 80 && wc <= cw * 10 && edgeDist < best) { best = edgeDist; bw = wc; lineX = lx; lineY = ly; }
+  };
+  for (let i = 0; i <= car.frames; i++) {
+    const c = i * cw;
+    consider(2 * (a.x - c), Math.abs(2 * (a.x - c) - w) / 2, c, null);        // left edge → boundary
+    consider(2 * (c - a.x), Math.abs(2 * (c - a.x) - w) / 2, c, null);        // right edge → boundary
+  }
+  for (const c of [0, CAR_CH]) {
+    consider(2 * (a.y - c) / asp, Math.abs(2 * (a.y - c) / asp - w) * asp / 2, null, c);   // top edge
+    consider(2 * (c - a.y) / asp, Math.abs(2 * (c - a.y) / asp - w) * asp / 2, null, c);   // bottom edge
+  }
+  _carSnapL = bw !== null ? { x: lineX, y: lineY } : null;
+  return bw ?? w;
+}
+
 function carPt(e) {   // screen point → canonical canvas coords
   const [W, H] = carSlideDims();
   const r = carStage.getBoundingClientRect();
@@ -13360,6 +13384,7 @@ carStage.addEventListener('pointermove', e => {
     const o = _carScale.o, a = _carScale.a;
     const d = Math.hypot(px - a.x, py - a.y);
     o.w = Math.min(carCW() * 10, Math.max(80, _carScale.w0 * d / _carScale.d0));
+    if (_carSnap) o.w = carSnapScaleW(o, a, o.w);
     const nh = o.w * o.img.naturalHeight / o.img.naturalWidth;
     o.x = a.x - o.w / 2;   // the photo's centre stays put
     o.y = a.y - nh / 2;
@@ -13411,7 +13436,8 @@ function carPtrEnd(e) {
   if (_carScale && e.pointerId === _carScale.id) {
     if (_carScale.moved) { carMarkDragged(); carRenderFilm(); carCommitHist(_carScale.snap0); }
     _carScale = null;
-    carRender(false);   // handle may relocate now that the gesture is over
+    _carSnapL = null;
+    carRender(false);   // hide guides; handle may relocate now that the gesture is over
     return;
   }
   if (_carMove && e.pointerId === _carMove.id) {

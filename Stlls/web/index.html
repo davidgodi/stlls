@@ -1412,6 +1412,10 @@
   #carStrip.ratio-anim .car-frameline { transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
   #carStrip.ratio-anim .car-framedim,
   #carStrip.ratio-anim .car-ghostadd { transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
+  #carStrip.ratio-anim .car-bgphoto {
+    transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), top 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
   /* board-editor chrome (header, workspace, its fixed bars) stays out of the way
      while the carousel editor is open */
   body.car-open header, body.car-open .workspace, body.car-open #timelineBar,
@@ -12988,7 +12992,19 @@ document.getElementById('carSelBack').addEventListener('click', () => {
 let _carRatioT = null;
 carRatioBtn.addEventListener('click', () => {
   carPushHist();
+  const cwOld = carCW();
   car.ratio = car.ratio === '4:5' ? '1:1' : '4:5';
+  const r = carCW() / cwOld;
+  // the background photo keeps its coverage relative to the frames:
+  // horizontal position and size scale with the frame width (vertically
+  // about its own centre)
+  const bp = car.bg?.photo;
+  if (bp) {
+    const cy = (bp.y || 0) + (CAR_CH * (bp.scale || 1)) / 2;
+    bp.scale = (bp.scale || 1) * r;
+    bp.x = (bp.x || 0) * r;
+    bp.y = cy - (CAR_CH * bp.scale) / 2;
+  }
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();   // slide width changed
   carStrip.classList.add('ratio-anim');
   carFilm.classList.add('ratio-anim');

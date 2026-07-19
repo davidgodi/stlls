@@ -1234,6 +1234,7 @@
     display: block; height: 100%; width: 0%;
     background: var(--accent); transition: width 0.3s ease, opacity 0.4s ease;
   }
+  #carExportProg i.pf-notrans { transition: none !important; }
   .car-chip {
     display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 9px;
     background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
@@ -13491,7 +13492,7 @@ carExportBtn.addEventListener('click', async () => {
   carExportBtn.disabled = true;
   const label = carExportBtn.textContent;
   const progFill = document.getElementById('carExportProg').querySelector('i');
-  progFill.style.width = '0%';
+  carExportProgReset(progFill, true);   // defensive: clean slate even if a prior reset was lost
   try {
     for (let f = 0; f < car.frames; f++) {
       carExportBtn.textContent = `${f + 1} / ${car.frames}…`;
@@ -13532,16 +13533,21 @@ carExportBtn.addEventListener('click', async () => {
   }
 });
 
-// fade the finished fill out of the separator line, then reset it silently
-function carExportProgReset(fill) {
-  fill.style.opacity = '0';
-  setTimeout(() => {
-    fill.style.transition = 'none';
+// Return the separator line to its faint idle state. Idempotent: the fade is
+// cosmetic, the instant pass is the guarantee — it also runs synchronously at
+// the start of every export, so a missed timer can never leave the line lit.
+function carExportProgReset(fill, instant) {
+  clearTimeout(fill._resetT);
+  if (instant) {
+    fill.classList.add('pf-notrans');
+    fill.style.opacity = '1';
     fill.style.width = '0%';
     void fill.offsetWidth;
-    fill.style.transition = '';
-    fill.style.opacity = '1';
-  }, 450);
+    fill.classList.remove('pf-notrans');
+    return;
+  }
+  fill.style.opacity = '0';   // fade the finished fill out…
+  fill._resetT = setTimeout(() => carExportProgReset(fill, true), 500);   // …then hard-reset
 }
 
 // ── Persistence + open/close ────────────────────────────────────────────────

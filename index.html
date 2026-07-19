@@ -166,6 +166,18 @@
   }
   #homeSettingsBtn:hover { color: var(--text-mid); }
 
+  /* PRO capsule — free tier only, opens the Pro offer */
+  #homeProBtn {
+    margin-left: 12px;
+    background: linear-gradient(90deg, var(--accent), #73c2ff);
+    color: #000; border: none; cursor: pointer;
+    font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em;
+    padding: 5px 13px; border-radius: 999px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #homeProBtn[hidden] { display: none; }
+  #homeProBtn:active { transform: scale(0.96); }
+
   /* New-board area */
   #homeNewArea {
     display: flex; align-items: center; justify-content: center;
@@ -3521,6 +3533,7 @@
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     </button>
+    <button id="homeProBtn" hidden>PRO</button>
   </div>
 
   <!-- Greeting + new board button — centered in the upper half -->
@@ -12027,10 +12040,20 @@ function stllsIsPro() { return window.STLLS_PRO !== false; }
 function stllsAskPro() {
   try { window.webkit.messageHandlers.showPaywall.postMessage(null); } catch (e) {}
 }
-// Free-tier note on the home screen (hidden until the shell flags free tier).
+// Opens the full Pro offer directly (PRO button — not the upsell card).
+function stllsOpenOffer() {
+  try { window.webkit.messageHandlers.showOffer.postMessage(null); } catch (e) {}
+}
+// Free-tier UI on the home screen (hidden until the shell flags free tier):
+// the exports note under the create buttons + the PRO capsule in the top bar.
 const freeTierNote = document.getElementById('freeTierNote');
-function updateFreeTierNote() { if (freeTierNote) freeTierNote.hidden = stllsIsPro(); }
+const homeProBtn   = document.getElementById('homeProBtn');
+function updateFreeTierNote() {
+  if (freeTierNote) freeTierNote.hidden = stllsIsPro();
+  if (homeProBtn)   homeProBtn.hidden   = stllsIsPro();
+}
 if (freeTierNote) freeTierNote.addEventListener('click', stllsAskPro);
+if (homeProBtn)   homeProBtn.addEventListener('click', stllsOpenOffer);
 document.addEventListener('stlls-pro-changed', updateFreeTierNote);
 updateFreeTierNote();
 

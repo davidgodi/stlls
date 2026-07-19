@@ -210,11 +210,18 @@ enum TrialReminder {
     }
 }
 
-// Web bridge: the web layer taps a Pro-gated export → show the upsell card.
+// Web bridge: "showPaywall" = a Pro-gated export was tapped (upsell card);
+// "showOffer" = the home-screen PRO button (straight to the offer).
 final class ProMessageHandler: NSObject, WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-        Task { @MainActor in EntitlementStore.shared.presentUpsell() }
+        let name = message.name
+        Task { @MainActor in
+            switch name {
+            case "showOffer": EntitlementStore.shared.presentPaywall()
+            default:          EntitlementStore.shared.presentUpsell()
+            }
+        }
     }
 }
 

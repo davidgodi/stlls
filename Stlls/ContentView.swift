@@ -1514,6 +1514,7 @@ class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, P
         userContent.add(videoHandler,     name: "setImportSource")
         userContent.add(remindersHandler, name: "scheduleReminders")
         userContent.add(proHandler,       name: "showPaywall")
+        userContent.add(proHandler,       name: "showOffer")
 
         // Onboarding-first launch: hold the web opening animation until the
         // offer is dismissed (X) or an entitlement resolves. The flag must be

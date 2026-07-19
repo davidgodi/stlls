@@ -279,6 +279,14 @@ private struct FloatingFramesBackground: View {
         .init(x: 0.50, y: 0.07, w: 56,  h: 40,  dur: 8.0, delay: 2.7),
         .init(x: 0.56, y: 0.93, w: 40,  h: 40,  dur: 7.2, delay: 3.6),
         .init(x: 0.05, y: 0.33, w: 34,  h: 48,  dur: 6.0, delay: 4.2),
+        .init(x: 0.33, y: 0.28, w: 88,  h: 120, dur: 9.2, delay: 1.5),
+        .init(x: 0.68, y: 0.30, w: 40,  h: 56,  dur: 6.6, delay: 4.8),
+        .init(x: 0.42, y: 0.60, w: 52,  h: 38,  dur: 7.8, delay: 2.0),
+        .init(x: 0.93, y: 0.66, w: 36,  h: 52,  dur: 6.1, delay: 3.3),
+        .init(x: 0.04, y: 0.74, w: 58,  h: 42,  dur: 8.6, delay: 5.1),
+        .init(x: 0.64, y: 0.55, w: 100, h: 72,  dur: 9.8, delay: 0.4),
+        .init(x: 0.38, y: 0.97, w: 64,  h: 46,  dur: 7.4, delay: 4.5),
+        .init(x: 0.20, y: 0.02, w: 44,  h: 60,  dur: 6.9, delay: 5.6),
     ]
 
     var body: some View {
@@ -358,52 +366,52 @@ private struct NotificationPrePrompt: View {
     }
 }
 
-// Illustration of the permission dialog — deliberately hazy and desaturated
-// so it reads as a preview of what's coming, not a real system prompt; only
-// the accent arrow at "Allow" stays crisp.
+// Illustration of the modern iOS permission card — dark sheet, left-aligned
+// text, capsule buttons. Slightly hazy and desaturated so it reads as a
+// preview, not a real prompt; only the accent arrow at "Allow" stays crisp.
 private struct MockPermissionDialog: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            VStack(spacing: 0) {
-                VStack(spacing: 6) {
-                    Text("\u{201C}STLLS\u{201D} Would Like to\nSend You Notifications")
-                        .font(.system(size: 15, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                    Text("Notifications may include alerts,\nsounds and icon badges.")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity)
-                Divider()
-                HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("\u{201C}STLLS\u{201D} Would Like to Send You Notifications")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Notifications may include alerts, sounds and icon badges. These can be configured in Settings.")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.55))
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 12) {
                     Text("Don't Allow")
-                        .font(.system(size: 15))
-                        .foregroundColor(.blue)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                    Divider()
+                        .padding(.vertical, 13)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(Capsule())
                     Text("Allow")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.blue)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 13)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(Capsule())
                 }
-                .frame(height: 44)
+                .padding(.top, 6)
             }
-            .frame(width: 270)
-            .background(.regularMaterial)
-            .cornerRadius(14)
+            .padding(20)
+            .frame(width: 310)
+            .background(Color(red: 0.11, green: 0.11, blue: 0.12))
+            .cornerRadius(26)
             .saturation(0.35)
             .opacity(0.85)
             .blur(radius: 1.1)
 
-            // crisp accent arrow aimed at "Allow" (bottom-right quarter)
+            // crisp accent arrow aimed at the "Allow" capsule
             Image(systemName: "arrow.up")
                 .font(.system(size: 24, weight: .bold))
                 .foregroundColor(StllsPro.accent)
-                .offset(x: -60, y: 46)
+                .offset(x: -78, y: 44)
         }
         .padding(.bottom, 44)
     }
@@ -435,10 +443,11 @@ private struct ReminderPromiseScreen: View {
 private struct MockReminderNotification: View {
     var body: some View {
         HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 9)
-                .fill(StllsPro.accent)
+            Image("stlls logo1")
+                .resizable()
+                .scaledToFill()
                 .frame(width: 38, height: 38)
-                .overlay(Text("S").font(.system(size: 17, weight: .heavy)).foregroundColor(.black))
+                .clipShape(RoundedRectangle(cornerRadius: 9))
             VStack(alignment: .leading, spacing: 2) {
                 Text("STLLS Pro")
                     .font(.system(size: 13, weight: .semibold))

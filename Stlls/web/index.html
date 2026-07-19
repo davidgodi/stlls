@@ -1210,9 +1210,21 @@
   /* add-photos button tucked under the frame counter, upper right */
   .car-addphoto {
     position: absolute; top: 44px; right: 12px; z-index: 5;
-    width: 34px; height: 34px; padding: 0; border-radius: 50%;
+    width: 68px; height: 68px; padding: 0; border-radius: 50%;
     justify-content: center;
   }
+  .car-addphoto svg { width: 26px; height: 26px; }
+  /* per-frame delete badge (top-right of each frame); first tap asks */
+  .car-framex {
+    position: absolute; z-index: 3; height: 24px; min-width: 24px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 7px; border-radius: 12px; box-sizing: border-box;
+    background: var(--surface); border: 1px solid var(--border2); color: var(--text-mid);
+    font-size: 10.5px; cursor: pointer; box-shadow: var(--btn-shadow);
+    transform-origin: 100% 0; white-space: nowrap;
+  }
+  .car-framex.confirm { background: #ff6b5e; border-color: transparent; color: #fff; font-weight: 600; }
+  #carStrip.bgmode .car-framex { display: none !important; }
   /* export progress bar — fills as frames save */
   #carExportProg {
     height: 3px; margin: 0 16px 6px; border-radius: 2px; overflow: hidden;
@@ -4471,10 +4483,6 @@
     <button class="car-chip car-addphoto" id="carAddPhotoBtn" aria-label="Add photos">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
-    <div class="car-underrow" id="carFrameRow" hidden>
-      <button class="car-tool" id="carFrameDn" title="Fewer frames">− frame</button>
-      <button class="car-tool" id="carFrameUp" title="More frames">+ frame</button>
-    </div>
     <div class="car-count" id="carCount" hidden>1 / 1</div>
   </div>
   <div class="car-film" id="carFilmRow">
@@ -12405,6 +12413,7 @@ let _carSmooth = true;   // seamless free scrolling is the navigation model
 let _carScrollCanon = 0; // canvas x (canonical units) at stage centre
 let _carHist = [], _carRedoStack = [];   // undo/redo snapshots
 let _carHandle = { hx: 1, hy: 1 };       // which image corner the scale handle sits on
+let _carFrameXConfirm = null;            // frame index awaiting delete confirmation
 
 const CAR_CH = 1000;     // canonical slide height
 const CAR_MINV = 0.35, CAR_MAXV = 2.5;
@@ -12448,8 +12457,10 @@ function carApplyView(dx = 0) {
   const cc = _carSmooth ? _carScrollCanon * carK() : (car.cur + 0.5) * W;
   carStrip.style.transform =
     `translate(${cx - cc * _carView + dx}px, ${cy - (H / 2) * _carView}px) scale(${_carView})`;
-  // the scale handle keeps its screen size regardless of zoom
+  // the scale handle + frame badges keep their screen size regardless of zoom
   carStrip.querySelectorAll('.car-handle').forEach(h => h.style.transform = `scale(${1 / _carView})`);
+  carStrip.querySelectorAll('.car-framex').forEach(b =>
+    b.style.transform = `translateX(-100%) scale(${1 / _carView})`);
   carPlaceHandle();
 }
 
@@ -12491,7 +12502,23 @@ function carPlaceHandle() {
 function carGoFrame(f) {
   car.cur = Math.max(0, Math.min(car.frames - 1, f));
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();
+  _carFrameXConfirm = null;
   carRender(false);
+  carRenderFilmSel();
+}
+
+// Delete frame f: its slice closes up (content to the right shifts left)
+function carDeleteFrame(f) {
+  if (car.frames <= 1) return;
+  carPushHist();
+  const cw = carCW();
+  car.imgs.forEach(o => { if (o.x + o.w / 2 >= (f + 1) * cw) o.x -= cw; });
+  car.frames--;
+  car.cur = Math.max(0, Math.min(car.frames - 1, f));
+  if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * cw;
+  car.sel = null;
+  _carFrameXConfirm = null;
+  carRender();
   carRenderFilmSel();
 }
 
@@ -12580,6 +12607,14 @@ function carRender(structural = true) {
       d.dataset.f = i;
       clip.appendChild(d);
     }
+    if (car.frames > 1) {
+      for (let i = 0; i < car.frames; i++) {
+        const b = document.createElement('div');
+        b.className = 'car-framex';
+        b.dataset.f = i;
+        clip.appendChild(b);
+      }
+    }
     carStrip.appendChild(clip);
     const g = document.createElement('div');
     g.className = 'car-ghostadd';
@@ -12635,6 +12670,15 @@ function carRender(structural = true) {
     d.style.width = W + 'px';
     d.classList.toggle('off', +d.dataset.f === car.cur);
   });
+  clip.querySelectorAll('.car-framex').forEach(b => {
+    const f = +b.dataset.f;
+    b.style.left = ((f + 1) * W - 8) + 'px';
+    b.style.top = '8px';
+    const confirming = _carFrameXConfirm === f;
+    b.classList.toggle('confirm', confirming);
+    b.textContent = confirming ? 'Delete frame?' : '✕';
+    b.style.transform = `translateX(-100%) scale(${1 / _carView})`;
+  });
   const g = carStrip.querySelector('.car-ghostadd');
   g.style.display = car.frames >= 10 ? 'none' : 'flex';   // frame cap reached
   g.style.left = (totalW + 12) + 'px';
@@ -12686,9 +12730,6 @@ function carRender(structural = true) {
 function carRenderTools() {
   const sel = carSel();
   document.getElementById('carSelPanel').classList.toggle('show', !!sel);   // fades over the library
-  document.getElementById('carFrameRow').hidden = !!sel;
-  document.getElementById('carFrameDn').disabled = car.frames <= 1;
-  document.getElementById('carFrameUp').disabled = car.frames >= 10;
   if (sel) {
     const i = car.imgs.indexOf(sel);
     document.getElementById('carSelFwd').disabled = i === car.imgs.length - 1;
@@ -12901,18 +12942,6 @@ carAddModal.querySelector('[data-bm-close]').addEventListener('click', () => clo
 
 // ── Frame count + selection tools ───────────────────────────────────────────
 
-document.getElementById('carFrameDn').addEventListener('click', () => {
-  if (car.frames <= 1) return;
-  carPushHist();
-  car.frames--;
-  carRender();
-});
-document.getElementById('carFrameUp').addEventListener('click', () => {
-  if (car.frames >= 10) return;
-  carPushHist();
-  car.frames++;
-  carRender();
-});
 document.getElementById('carSelDelete').addEventListener('click', () => {
   const o = carSel(); if (!o) return;
   carPushHist();
@@ -13183,7 +13212,8 @@ function carPt(e) {   // screen point → canonical canvas coords
 
 carStage.addEventListener('pointerdown', e => {
   if (!car) return;
-  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
+  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel') ||
+      e.target.closest('.car-framex')) return;   // rows/panel/badges handle themselves
   if (_carBgMode) {
     // background mode: one finger moves the bg photo, two fingers scale it
     const bp = car.bg?.photo;
@@ -13382,6 +13412,14 @@ carStage.addEventListener('click', e => {
     }
     return;
   }
+  const fx = e.target.closest('.car-framex');
+  if (fx) {
+    const f = +fx.dataset.f;
+    if (_carFrameXConfirm === f) carDeleteFrame(f);           // second tap confirms
+    else { _carFrameXConfirm = f; carRender(false); }         // first tap asks
+    return;
+  }
+  if (_carFrameXConfirm !== null) { _carFrameXConfirm = null; carRender(false); return; }
   if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
   const objEl = e.target.closest('.car-obj');
   if (objEl) {

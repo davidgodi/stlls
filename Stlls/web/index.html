@@ -1283,9 +1283,20 @@
     cursor: grab;
   }
   .car-selbox.show { display: block; }
-  /* photo bleeding outside the preview: tight dotted border (border, not
-     outline — dotted outlines drop their vertical edges under transforms) */
-  .car-selbox.out { border-style: dotted; border-width: 1.5px; }
+  /* Photo bleeding outside the preview: tight dashed edges. Drawn as four
+     gradient strokes — WebKit renders dotted/dashed BORDER edges unreliably
+     (especially the vertical ones) inside a transformed ancestor. */
+  .car-selbox.out {
+    border-color: transparent;
+    background-image:
+      repeating-linear-gradient(90deg, var(--accent) 0 4px, transparent 4px 9px),
+      repeating-linear-gradient(90deg, var(--accent) 0 4px, transparent 4px 9px),
+      repeating-linear-gradient(0deg,  var(--accent) 0 4px, transparent 4px 9px),
+      repeating-linear-gradient(0deg,  var(--accent) 0 4px, transparent 4px 9px);
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
+    background-size: 100% 1.5px, 100% 1.5px, 1.5px 100%, 1.5px 100%;
+    background-repeat: no-repeat;
+  }
   /* undo/redo dropdown */
   #carUndoMenu {
     position: fixed; z-index: 600; display: flex; flex-direction: column;
@@ -12488,12 +12499,18 @@ function carPlaceHandle() {
   const sb = carStrip.querySelector('.car-selbox');
   const h = sb?.querySelector('.car-handle');
   const o = carSel();
-  if (!h || !o || _carScale) return;
+  if (!h || !o) return;
   const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
-  const vp = carViewportCanon();
-  const hx = (o.x + o.w / 2) >= (vp.x0 + vp.x1) / 2 ? 0 : 1;
-  const hy = (o.y + oh  / 2) >= (vp.y0 + vp.y1) / 2 ? 0 : 1;
-  _carHandle = { hx, hy };
+  let hx, hy;
+  if (_carScale) {
+    // mid-gesture: stay glued to the corner being dragged — never re-pick it
+    hx = _carScale.hx; hy = _carScale.hy;
+  } else {
+    const vp = carViewportCanon();
+    hx = (o.x + o.w / 2) >= (vp.x0 + vp.x1) / 2 ? 0 : 1;
+    hy = (o.y + oh  / 2) >= (vp.y0 + vp.y1) / 2 ? 0 : 1;
+    _carHandle = { hx, hy };
+  }
   const k = carK();
   h.style.left = (hx * o.w * k - 11) + 'px';
   h.style.top  = (hy * oh  * k - 11) + 'px';

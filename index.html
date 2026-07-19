@@ -1214,20 +1214,18 @@
     justify-content: center;
   }
   .car-addphoto svg { width: 26px; height: 26px; }
-  /* per-frame delete badge (top-right of each frame); first tap asks */
-  .car-framex {
-    position: absolute; z-index: 3; height: 24px; min-width: 24px;
-    display: flex; align-items: center; justify-content: center;
-    padding: 0 7px; border-radius: 12px; box-sizing: border-box;
-    background: var(--surface); border: 1px solid var(--border2); color: var(--text-mid);
-    font-size: 10.5px; cursor: pointer; box-shadow: var(--btn-shadow);
-    transform-origin: 100% 0; white-space: nowrap;
+  /* per-frame delete badge on the library thumbnails; first tap asks */
+  .car-thumb .ct-fx {
+    position: absolute; top: 3px; right: 3px; z-index: 2;
+    height: 18px; min-width: 18px; padding: 0 5px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+    background: rgba(10, 12, 16, 0.78); color: #fff; font-size: 9px;
+    cursor: pointer; white-space: nowrap;
   }
-  .car-framex.confirm { background: #ff6b5e; border-color: transparent; color: #fff; font-weight: 600; }
-  #carStrip.bgmode .car-framex { display: none !important; }
+  .car-thumb .ct-fx.confirm { background: #ff6b5e; font-weight: 600; }
   /* export progress bar — fills as frames save */
   #carExportProg {
-    height: 3px; margin: 0 16px 6px; border-radius: 2px; overflow: hidden;
+    height: 3px; margin: 4px 16px 8px; border-radius: 2px; overflow: hidden;
     background: var(--border2); flex-shrink: 0;
   }
   #carExportProg[hidden] { display: none !important; }
@@ -4463,7 +4461,6 @@
     </button>
   </div>
   <div class="car-sub">Carousel editor</div>
-  <div id="carExportProg" hidden><i></i></div>
   <div id="carStage">
     <div id="carStrip"></div>
     <div class="car-overchips">
@@ -4489,6 +4486,7 @@
     <div style="display:flex;gap:8px;align-items:center;" id="carFilm"></div>
     <button id="carAddSlide" aria-label="Add media">+</button>
   </div>
+  <div id="carExportProg" hidden><i></i></div>
   <div class="car-exportrow">
     <div class="export-selects">
       <label>Format</label>
@@ -12457,10 +12455,8 @@ function carApplyView(dx = 0) {
   const cc = _carSmooth ? _carScrollCanon * carK() : (car.cur + 0.5) * W;
   carStrip.style.transform =
     `translate(${cx - cc * _carView + dx}px, ${cy - (H / 2) * _carView}px) scale(${_carView})`;
-  // the scale handle + frame badges keep their screen size regardless of zoom
+  // the scale handle keeps its screen size regardless of zoom
   carStrip.querySelectorAll('.car-handle').forEach(h => h.style.transform = `scale(${1 / _carView})`);
-  carStrip.querySelectorAll('.car-framex').forEach(b =>
-    b.style.transform = `translateX(-100%) scale(${1 / _carView})`);
   carPlaceHandle();
 }
 
@@ -12502,9 +12498,17 @@ function carPlaceHandle() {
 function carGoFrame(f) {
   car.cur = Math.max(0, Math.min(car.frames - 1, f));
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();
-  _carFrameXConfirm = null;
   carRender(false);
-  carRenderFilmSel();
+  if (_carFrameXConfirm !== null) { _carFrameXConfirm = null; carRenderFilm(); }
+  else carRenderFilmSel();
+}
+
+function carAddFrame() {
+  if (car.frames >= 10) return;
+  carPushHist();
+  car.frames++;
+  carGoFrame(car.frames - 1);
+  carRender();
 }
 
 // Delete frame f: its slice closes up (content to the right shifts left)
@@ -12607,14 +12611,6 @@ function carRender(structural = true) {
       d.dataset.f = i;
       clip.appendChild(d);
     }
-    if (car.frames > 1) {
-      for (let i = 0; i < car.frames; i++) {
-        const b = document.createElement('div');
-        b.className = 'car-framex';
-        b.dataset.f = i;
-        clip.appendChild(b);
-      }
-    }
     carStrip.appendChild(clip);
     const g = document.createElement('div');
     g.className = 'car-ghostadd';
@@ -12669,15 +12665,6 @@ function carRender(structural = true) {
     d.style.left = (d.dataset.f * W) + 'px';
     d.style.width = W + 'px';
     d.classList.toggle('off', +d.dataset.f === car.cur);
-  });
-  clip.querySelectorAll('.car-framex').forEach(b => {
-    const f = +b.dataset.f;
-    b.style.left = ((f + 1) * W - 8) + 'px';
-    b.style.top = '8px';
-    const confirming = _carFrameXConfirm === f;
-    b.classList.toggle('confirm', confirming);
-    b.textContent = confirming ? 'Delete frame?' : '✕';
-    b.style.transform = `translateX(-100%) scale(${1 / _carView})`;
   });
   const g = carStrip.querySelector('.car-ghostadd');
   g.style.display = car.frames >= 10 ? 'none' : 'flex';   // frame cap reached
@@ -12850,6 +12837,20 @@ function carRenderFilm() {
     carDrawFrame(ctx, f, kk);
     b.appendChild(cv);
     b.appendChild(Object.assign(document.createElement('span'), { className: 'ct-n', textContent: f + 1 }));
+    if (car.frames > 1) {
+      // ✕ deletes this frame — first tap asks, second tap confirms
+      const confirming = _carFrameXConfirm === f;
+      const xb = Object.assign(document.createElement('span'), {
+        className: 'ct-fx' + (confirming ? ' confirm' : ''),
+        textContent: confirming ? 'Delete?' : '✕'
+      });
+      xb.addEventListener('click', ev => {
+        ev.stopPropagation();
+        if (_carFrameXConfirm === f) carDeleteFrame(f);
+        else { _carFrameXConfirm = f; carRenderFilm(); }
+      });
+      b.appendChild(xb);
+    }
     b.addEventListener('click', () => carGoFrame(f));
     carFilm.appendChild(b);
   }
@@ -12933,7 +12934,7 @@ function carAddMedia() {
   if (car.imgs.length) carFileMulti.click();
   else openBigModal(carAddModal);
 }
-document.getElementById('carAddSlide').addEventListener('click', carAddMedia);
+document.getElementById('carAddSlide').addEventListener('click', () => carAddFrame());   // library + tile adds a FRAME
 document.getElementById('carAddPhotoBtn').addEventListener('click', carAddMedia);
 document.getElementById('carAddPhotos').addEventListener('click', () => { closeBigModal(carAddModal); carFileMulti.click(); });
 document.getElementById('carAddWide').addEventListener('click', () => { closeBigModal(carAddModal); carPickWideImage(); });
@@ -13212,8 +13213,7 @@ function carPt(e) {   // screen point → canonical canvas coords
 
 carStage.addEventListener('pointerdown', e => {
   if (!car) return;
-  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel') ||
-      e.target.closest('.car-framex')) return;   // rows/panel/badges handle themselves
+  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
   if (_carBgMode) {
     // background mode: one finger moves the bg photo, two fingers scale it
     const bp = car.bg?.photo;
@@ -13402,24 +13402,8 @@ carStage.addEventListener('click', e => {
   if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag || _carBgMode) return;   // bg mode: canvas taps only move the bg
-  if (e.target.closest('.car-ghostadd')) {
-    // the dashed frame after the newest frame ADDS the next frame
-    if (car.frames < 10) {
-      carPushHist();
-      car.frames++;
-      carGoFrame(car.frames - 1);
-      carRender();
-    }
-    return;
-  }
-  const fx = e.target.closest('.car-framex');
-  if (fx) {
-    const f = +fx.dataset.f;
-    if (_carFrameXConfirm === f) carDeleteFrame(f);           // second tap confirms
-    else { _carFrameXConfirm = f; carRender(false); }         // first tap asks
-    return;
-  }
-  if (_carFrameXConfirm !== null) { _carFrameXConfirm = null; carRender(false); return; }
+  if (e.target.closest('.car-ghostadd')) { carAddFrame(); return; }
+  if (_carFrameXConfirm !== null) { _carFrameXConfirm = null; carRenderFilm(); return; }
   if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
   const objEl = e.target.closest('.car-obj');
   if (objEl) {

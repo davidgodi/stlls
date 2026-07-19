@@ -1406,11 +1406,13 @@
     padding: 10px 14px 8px;
     flex-shrink: 0;
   }
+  /* board-editor-style export section: Format + Scale selects, wide EXPORT */
   .car-exportrow {
-    display: flex; justify-content: flex-end; flex-shrink: 0;
-    padding: 0 16px calc(12px + env(safe-area-inset-bottom));
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+    padding: 2px 16px calc(14px + env(safe-area-inset-bottom));
   }
-  .car-exportrow .car-chip { padding: 10px 24px; font-size: 12px; }
+  .car-exportrow .export-selects { gap: 8px; }
+  .car-exportrow .export-btn { flex: 1; width: auto; padding: 12px; }
   #carFilm {
     overflow-x: auto; flex: 1 1 auto; min-width: 0; padding: 2px 0;
     -webkit-overflow-scrolling: touch; scrollbar-width: none;
@@ -4471,7 +4473,20 @@
     <button id="carAddSlide" aria-label="Add media">+</button>
   </div>
   <div class="car-exportrow">
-    <button class="car-chip accent" id="carExportBtn">Export</button>
+    <div class="export-selects">
+      <label>Format</label>
+      <select id="carExportFmt">
+        <option value="png" selected>PNG</option>
+        <option value="jpg">JPG</option>
+      </select>
+      <label>Scale</label>
+      <select id="carExportScale">
+        <option value="1">1×</option>
+        <option value="2" selected>2×</option>
+        <option value="3">3×</option>
+      </select>
+    </div>
+    <button class="export-btn" id="carExportBtn">Export</button>
   </div>
   <!-- Selected-photo settings: fades in over the library while a photo is selected -->
   <div class="car-selpanel" id="carSelPanel">
@@ -13425,7 +13440,11 @@ document.getElementById('carViewerClose').addEventListener('click', () => {
 carExportBtn.addEventListener('click', async () => {
   if (!car.imgs.length || carExportBtn.disabled) return;
   const [rw, rh] = carRatioWH();
-  const W = 1080, H = Math.round(1080 * rh / rw);
+  const fmt = document.getElementById('carExportFmt').value;
+  const expScale = +document.getElementById('carExportScale').value || 1;
+  const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
+  const qual = fmt === 'jpg' ? 0.93 : undefined;
+  const W = 1080 * expScale, H = Math.round(1080 * rh / rw) * expScale;
   carExportBtn.disabled = true;
   const label = carExportBtn.textContent;
   const prog = document.getElementById('carExportProg');
@@ -13450,11 +13469,11 @@ carExportBtn.addEventListener('click', async () => {
           } else {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = `carousel-${String(f + 1).padStart(2, '0')}.jpg`; a.click();
+            a.href = url; a.download = `carousel-${String(f + 1).padStart(2, '0')}.${fmt}`; a.click();
             setTimeout(() => URL.revokeObjectURL(url), 5000);
             resolve();
           }
-        }, 'image/jpeg', 0.93);
+        }, mime, qual);
       });
       progFill.style.width = ((f + 1) / car.frames * 100) + '%';
       // native Photos saves need breathing room between messages

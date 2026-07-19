@@ -178,12 +178,13 @@
   #homeProBtn[hidden] { display: none; }
   #homeProBtn:active { transform: scale(0.96); }
 
-  /* New-board area */
+  /* New-board area — pushed down so the greeting has room to breathe */
   #homeNewArea {
     display: flex; align-items: center; justify-content: center;
     background: var(--bg);
-    padding: 36px 0 0;
-    margin-top: 18px;
+    padding: 0;
+    margin-top: 5.5vh;
+    margin-bottom: 10px;
     flex-shrink: 0;
   }
 
@@ -312,18 +313,20 @@
     margin-top: -8px; padding-left: 2px;
   }
 
-  /* Upper area: flex:1 so it fills space above MY BOARDS and centers content */
+  /* Upper area: content-sized flow — greeting up top, buttons pushed lower.
+     No vertical centering: with three project types the centered block
+     overflowed both ways on phones (greeting over the brand, note over the
+     library). The library below simply takes whatever space remains. */
   #homeUpperArea {
-    flex: 1;
-    min-height: 52vh;
+    flex-shrink: 0;
     display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    gap: 0;
+    align-items: center;
+    padding-top: 12px;
   }
 
   /* ── HOME GREETING ── */
   #homeGreeting {
-    padding: 0 28px;
+    padding: 6px 28px 0;
     flex-shrink: 0; width: 100%; box-sizing: border-box;
   }
   #homeGreeting p {
@@ -1126,20 +1129,22 @@
 
   /* ── New-project type chooser (Board vs Carousel) ──────────────────────── */
   /* New-project buttons on the home screen (Board / Carousel) */
-  .home-newtype { width: min(360px, calc(100vw - 48px)); display: flex; flex-direction: column; }
+  .home-newtype { width: min(340px, calc(100vw - 48px)); display: flex; flex-direction: column; }
   .nt-btn {
-    width: 100%; display: flex; align-items: center; gap: 16px;
-    background: var(--surface2); border: 1px solid var(--border2); border-radius: 14px;
-    padding: 16px; margin-top: 10px; cursor: pointer; font-family: inherit;
+    width: 100%; display: flex; align-items: center; gap: 14px;
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: 13px;
+    padding: 11px 14px; margin-top: 9px; cursor: pointer; font-family: inherit;
     text-align: left; color: var(--text);
     transition: transform 0.2s ease, border-color 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
   .nt-btn:hover { border-color: var(--accent); }
   .nt-btn:active { transform: scale(0.97); }
-  .nt-txt b { display: block; font-size: 14px; font-weight: 600; letter-spacing: 0.02em; }
-  .nt-txt span { display: block; font-size: 11px; color: var(--text-dim); margin-top: 3px; line-height: 1.4; }
-  .nt-art { flex-shrink: 0; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; }
+  .nt-txt b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+  .nt-txt span { display: block; font-size: 10.5px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+  .nt-art { flex-shrink: 0; width: 62px; height: 62px; display: flex; align-items: center; justify-content: center; }
+  /* the mini-animations were hand-tuned at full size — scale them as a unit */
+  .nt-art > * { transform: scale(0.72); transform-origin: center; }
 
   /* Board mini-animation: 4 frames morphing through layouts —
      vertical stack → 2×2 grid → horizontal columns → back */
@@ -1282,18 +1287,19 @@
     color: var(--text-dim); font-size: 13px; pointer-events: none;
   }
   .grid-hint[hidden] { display: none; }
-  #gridAddPhotoBtn { position: absolute; right: 12px; top: 10px; }
   .grid-controls { flex-shrink: 0; padding: 8px 14px 4px; }
   .grid-chiprow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .grid-gaprow { margin-top: 8px; }
+  /* the shared .car-addphoto rule floats the button over the carousel stage —
+     in the grid it lives inline in the chip row instead */
+  #gridAddPhotoBtn { position: static; }
 
   /* Profile preview / upload guide modals */
-  #gridPreviewModal, #gridGuideModal {
+  #gridGuideModal {
     position: fixed; inset: 0; z-index: 220;
     display: flex; align-items: center; justify-content: center;
     background: rgba(0,0,0,0.7);
   }
-  #gridPreviewModal[hidden], #gridGuideModal[hidden] { display: none !important; }
+  #gridGuideModal[hidden] { display: none !important; }
   .gp-card {
     width: min(380px, calc(100vw - 36px)); max-height: calc(100vh - 80px);
     overflow-y: auto; background: var(--surface); border: 1px solid var(--border2);
@@ -4805,22 +4811,6 @@
   <div id="gridStage">
     <canvas id="gridCanvas"></canvas>
     <div class="grid-hint" id="gridHint">Tap + to add your design</div>
-    <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
-      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="7" width="14" height="14" rx="2.5"/>
-        <circle cx="7.5" cy="11.5" r="1.3" fill="currentColor" stroke="none"/>
-        <path d="M3 18l4-4 3 3 3.5-3.5 3.5 3.5"/>
-        <defs>
-          <radialGradient id="apFadeG">
-            <stop offset="55%" stop-color="var(--surface2)"/>
-            <stop offset="100%" stop-color="var(--surface2)" stop-opacity="0"/>
-          </radialGradient>
-        </defs>
-        <circle cx="19.5" cy="5.5" r="7" fill="url(#apFadeG)" stroke="none"/>
-        <line x1="19.5" y1="2.5" x2="19.5" y2="8.5" stroke="var(--accent)"/>
-        <line x1="16.5" y1="5.5" x2="22.5" y2="5.5" stroke="var(--accent)"/>
-      </svg>
-    </button>
   </div>
   <div class="grid-controls">
     <div class="grid-chiprow">
@@ -4830,9 +4820,23 @@
       <span style="flex:1"></span>
       <button class="car-chip on" id="gridOverlayBtn">Guides</button>
       <button class="car-chip" id="gridModeBtn" title="Upload format — 4:5 with bleed (default) or native 3:4 (experimental)">4:5</button>
-      <button class="car-chip" id="gridPreviewBtn">Preview</button>
+      <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="7" width="14" height="14" rx="2.5"/>
+          <circle cx="7.5" cy="11.5" r="1.3" fill="currentColor" stroke="none"/>
+          <path d="M3 18l4-4 3 3 3.5-3.5 3.5 3.5"/>
+          <defs>
+            <radialGradient id="apFadeG">
+              <stop offset="55%" stop-color="var(--surface2)"/>
+              <stop offset="100%" stop-color="var(--surface2)" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="19.5" cy="5.5" r="7" fill="url(#apFadeG)" stroke="none"/>
+          <line x1="19.5" y1="2.5" x2="19.5" y2="8.5" stroke="var(--accent)"/>
+          <line x1="16.5" y1="5.5" x2="22.5" y2="5.5" stroke="var(--accent)"/>
+        </svg>
+      </button>
     </div>
-    <div class="slider-row grid-gaprow"><label>Gap</label><input type="range" id="gridGap" min="0" max="20" step="1" value="0"><span class="slider-val" id="gridGapVal">0</span></div>
   </div>
   <div id="gridExportProg"><i></i></div>
   <div class="car-exportrow">
@@ -4842,21 +4846,14 @@
         <option value="png" selected>PNG</option>
         <option value="jpg">JPG</option>
       </select>
+      <label>Scale</label>
+      <select id="gridExportScale">
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="3">3×</option>
+      </select>
     </div>
     <button class="export-btn" id="gridExportBtn" disabled>Export</button>
-  </div>
-</div>
-
-<!-- Grid profile preview — honest 3:4 mock of the resulting profile grid -->
-<div id="gridPreviewModal" hidden>
-  <div class="gp-card">
-    <div class="gp-head">
-      <span>Profile preview</span>
-      <button class="car-chip" id="gridPrevTheme">Light</button>
-      <button class="bm-close" id="gridPrevClose">Close</button>
-    </div>
-    <div class="gp-grid" id="gpGrid"></div>
-    <p class="gp-note">Exactly how your grid renders on a profile — 3:4 thumbnail crops with the grid's gaps.</p>
   </div>
 </div>
 
@@ -14503,13 +14500,10 @@ document.getElementById('gridModeBtn').addEventListener('click', () => {
   grid.mode = grid.mode === '34' ? '45' : '34';
   gridUiSync(); gridClamp(); gridRender(); gridSave();
 });
-const gridGapInput = document.getElementById('gridGap');
-gridGapInput.addEventListener('input', () => {
-  grid.gap = +gridGapInput.value;
-  document.getElementById('gridGapVal').textContent = grid.gap;
-  gridClamp(); gridRender();
-});
-gridGapInput.addEventListener('change', gridSave);
+// NOTE: the spec's gap-compensation slider (0–20 canvas px, discarding gutter
+// content so diagonals stay straight across the profile grid's rendered
+// spacing) was removed from the UI July 2026 — the geometry still supports
+// grid.gap, so reintroduce the control if seams look kinked on a live profile.
 
 function gridUiSync() {
   document.querySelectorAll('#gridScreen [data-grows]').forEach(b =>
@@ -14518,8 +14512,6 @@ function gridUiSync() {
   const modeBtn = document.getElementById('gridModeBtn');
   modeBtn.textContent = grid.mode === '34' ? '3:4' : '4:5';
   modeBtn.classList.toggle('on', grid.mode === '34');
-  gridGapInput.value = grid.gap;
-  document.getElementById('gridGapVal').textContent = grid.gap;
 }
 
 // ── Import ──────────────────────────────────────────────────────────────────
@@ -14549,8 +14541,7 @@ gridFileInput.addEventListener('change', () => {
   reader.readAsDataURL(file);
 });
 
-// ── Profile preview: the honesty check (3:4 crops + real gaps) ──────────────
-
+// Mini cell renderer — shows the tile's visible 3:4 crop (upload-guide tiles)
 function gridMiniCell(g, r, c, imgRect, cssW) {
   const v = gridVisRect(g, r, c);
   const dpr = Math.min(2.5, window.devicePixelRatio || 1);
@@ -14566,29 +14557,6 @@ function gridMiniCell(g, r, c, imgRect, cssW) {
   return cvs;
 }
 
-document.getElementById('gridPreviewBtn').addEventListener('click', () => {
-  if (!grid?.img) return;
-  const g = gridGeo();
-  const gp = document.getElementById('gpGrid');
-  gp.innerHTML = '';
-  const imgRect = gridImgRect();
-  for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
-    const cell = document.createElement('div');
-    cell.className = 'gp-cell';
-    cell.appendChild(gridMiniCell(g, r, c, imgRect, 118));
-    gp.appendChild(cell);
-  }
-  document.getElementById('gridPreviewModal').hidden = false;
-});
-document.getElementById('gridPrevClose').addEventListener('click', () => {
-  document.getElementById('gridPreviewModal').hidden = true;
-});
-document.getElementById('gridPrevTheme').addEventListener('click', e => {
-  const gp = document.getElementById('gpGrid');
-  gp.classList.toggle('light');
-  e.currentTarget.textContent = gp.classList.contains('light') ? 'Dark' : 'Light';
-});
-
 // ── Export: exact upload sizes, posting order baked into the sequence ───────
 
 gridExportBtn.addEventListener('click', async () => {
@@ -14596,6 +14564,7 @@ gridExportBtn.addEventListener('click', async () => {
   if (!stllsIsPro()) { stllsAskPro(); return; }   // grid export is Pro-only
   const g = gridGeo();
   const fmt = document.getElementById('gridExportFmt').value;
+  const expScale = +document.getElementById('gridExportScale').value || 1;
   const mime = fmt === 'jpg' ? 'image/jpeg' : 'image/png';
   const qual = fmt === 'jpg' ? 0.95 : undefined;
   const imgRect = gridImgRect();
@@ -14622,12 +14591,13 @@ gridExportBtn.addEventListener('click', async () => {
       progTarget = (i + 0.9) / total;
       const t = gridTileRect(g, r, c);
       const cvs = document.createElement('canvas');
-      // canvas units are already output pixels (1080 × 1350 / 1440); edges
-      // snap only here at raster time — the spec's rounding rule
-      cvs.width = Math.round(t.w); cvs.height = Math.round(t.h);
+      // canvas units are output pixels at 1× (1080 × 1350 / 1440); edges snap
+      // only here at raster time — the spec's rounding rule
+      cvs.width = Math.round(t.w * expScale); cvs.height = Math.round(t.h * expScale);
       const ctx = cvs.getContext('2d');
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, cvs.width, cvs.height);
+      ctx.scale(expScale, expScale);
       ctx.drawImage(grid.img.img, imgRect.dx - t.x, imgRect.dy - t.y, imgRect.dw, imgRect.dh);
       await new Promise(resolve => {
         cvs.toBlob(blob => {

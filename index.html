@@ -1205,8 +1205,14 @@
     padding: 2px 16px 6px; flex-shrink: 0;
     font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim);
   }
-  /* Background/Snap float over the top of the preview, clear of the top bar */
+  /* Background/Snap/Fullscreen/Ratio float over the top of the preview */
   .car-overchips { position: absolute; top: 8px; left: 12px; z-index: 5; display: flex; gap: 8px; }
+  /* add-photos button tucked under the frame counter, upper right */
+  .car-addphoto {
+    position: absolute; top: 44px; right: 12px; z-index: 5;
+    width: 34px; height: 34px; padding: 0; border-radius: 50%;
+    justify-content: center;
+  }
   /* export progress bar — fills as frames save */
   #carExportProg {
     height: 3px; margin: 0 16px 6px; border-radius: 2px; overflow: hidden;
@@ -4440,7 +4446,6 @@
     <button class="car-chip" id="carUndoBtn" aria-label="Undo / Redo" title="Undo / Redo">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
     </button>
-    <button class="car-chip" id="carRatioBtn">4:5</button>
     <button class="car-chip" id="carSettingsBtn" aria-label="Settings">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -4461,7 +4466,11 @@
       <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
       </button>
+      <button class="car-chip" id="carRatioBtn">4:5</button>
     </div>
+    <button class="car-chip car-addphoto" id="carAddPhotoBtn" aria-label="Add photos">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
     <div class="car-underrow" id="carFrameRow" hidden>
       <button class="car-tool" id="carFrameDn" title="Fewer frames">− frame</button>
       <button class="car-tool" id="carFrameUp" title="More frames">+ frame</button>
@@ -12627,6 +12636,7 @@ function carRender(structural = true) {
     d.classList.toggle('off', +d.dataset.f === car.cur);
   });
   const g = carStrip.querySelector('.car-ghostadd');
+  g.style.display = car.frames >= 10 ? 'none' : 'flex';   // frame cap reached
   g.style.left = (totalW + 12) + 'px';
   g.style.top = '0px';
   g.style.width = W + 'px';
@@ -12883,6 +12893,7 @@ function carAddMedia() {
   else openBigModal(carAddModal);
 }
 document.getElementById('carAddSlide').addEventListener('click', carAddMedia);
+document.getElementById('carAddPhotoBtn').addEventListener('click', carAddMedia);
 document.getElementById('carAddPhotos').addEventListener('click', () => { closeBigModal(carAddModal); carFileMulti.click(); });
 document.getElementById('carAddWide').addEventListener('click', () => { closeBigModal(carAddModal); carPickWideImage(); });
 carAddModal.addEventListener('pointerdown', e => { if (e.target === carAddModal) closeBigModal(carAddModal); });
@@ -13361,7 +13372,16 @@ carStage.addEventListener('click', e => {
   if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag || _carBgMode) return;   // bg mode: canvas taps only move the bg
-  if (e.target.closest('.car-ghostadd')) { carAddMedia(); return; }
+  if (e.target.closest('.car-ghostadd')) {
+    // the dashed frame after the newest frame ADDS the next frame
+    if (car.frames < 10) {
+      carPushHist();
+      car.frames++;
+      carGoFrame(car.frames - 1);
+      carRender();
+    }
+    return;
+  }
   if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
   const objEl = e.target.closest('.car-obj');
   if (objEl) {

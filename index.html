@@ -1376,6 +1376,11 @@
   #carStrip.bgmode .car-selbox, #carStrip.bgmode .car-snapline { display: none !important; }
   #carouselScreen.bgmode-ui .car-underrow,
   #carouselScreen.bgmode-ui .car-selpanel { display: none !important; }
+  /* carousel tour: lift each step's target above the scrim (210) */
+  body.coach-carw-on .car-chip.car-addphoto { z-index: 211; }
+  body.coach-carsel-on #carStrip { z-index: 211; }
+  body.coach-carfr-on .car-film { position: relative; z-index: 211; }
+  body.coach-carex-on .car-exportrow { position: relative; z-index: 211; }
   /* smooth-scroll mode: no per-frame dimming, just the hairline grid */
   #carStrip.smooth .car-framedim { background: transparent !important; }
   .car-frameline {
@@ -3499,8 +3504,8 @@
           </svg>
           <div class="coach-bubble">
             <strong>Start here</strong>
-            Tap Board to create your first one — import stills, arrange the layout, and export.
-            <span class="coach-sub">Every board you make is saved below the line.</span>
+            Pick <b>Board</b> to compose stills and clips in one layout, or <b>Carousel</b> to build a swipeable post.
+            <span class="coach-sub">Every project you make is saved below the line.</span>
           </div>
         </div>
       </div>
@@ -4575,6 +4580,49 @@
     <button id="carUndoDo">Undo</button>
     <button id="carRedoDo">Redo</button>
   </div>
+
+  <!-- First-time tour (scrim + guides live inside the carousel's stacking context) -->
+  <div id="coachDimCar" class="coach-dim coach-dim-fixed" hidden></div>
+  <div id="guideCarWelcome" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Add your photos</strong>
+      Tap <b>+</b> to import from your camera roll — photos land on the canvas, free to arrange. The first import can also be one <b>wide image</b> that runs across frames.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
+  <div id="guideCarSelect" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Tap a photo to edit it</strong>
+      Drag to move — the magnet snaps it to edges — pull the corner dot to resize, and use the panel below for rounding, border and layer order.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
+  <div id="guideCarFrames" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Frames are your pages</strong>
+      Swipe to move through them — each frame exports as one photo. Add more with the dashed frame at the end, or remove one with its ✕ in the library.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
+  <div id="guideCarExport" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Test, then export</strong>
+      The expand chip up top plays your carousel like the real post. <b>Export</b> saves every frame to Photos, in posting order.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
 </div>
 
 <!-- Carousel add-media chooser -->
@@ -4792,6 +4840,31 @@ setupCoach('editor', {
   // — whichever is visible — and pulse that same whole frame.
   anchor: ['#mAddBtn', '#dropzone'], pulse: ['#mAddBtn', '#dropzone'],
   onShow: ensureMediaBarOpen,            // make sure the bar is open so the + is visible
+});
+// Carousel editor first-time tour: welcome fires on entering the editor;
+// select → frames → export chain from the first import (wide imports skip the
+// select step — its handle/panel don't apply there — and go straight to frames).
+setupCoach('carwelcome', {
+  el: 'guideCarWelcome', store: 'stlls-guide-carwelcome', area: '#carouselScreen',
+  dim: 'coachDimCar', body: 'coach-carw-on',
+  anchor: '.car-chip.car-addphoto', pulse: ['.car-chip.car-addphoto'],
+  showIf: () => !!car && car.imgs.length === 0,
+});
+setupCoach('carselect', {
+  el: 'guideCarSelect', store: 'stlls-guide-carselect', area: '#carouselScreen',
+  dim: 'coachDimCar', body: 'coach-carsel-on',
+  anchor: '.car-clip', next: 'carframes',
+  showIf: () => !!car && car.imgs.length > 0 && !carWideImg(),
+});
+setupCoach('carframes', {
+  el: 'guideCarFrames', store: 'stlls-guide-carframes', area: '#carouselScreen',
+  dim: 'coachDimCar', body: 'coach-carfr-on',
+  anchor: '#carFilmRow', next: 'carexport',
+});
+setupCoach('carexport', {
+  el: 'guideCarExport', store: 'stlls-guide-carexport', area: '#carouselScreen',
+  dim: 'coachDimCar', body: 'coach-carex-on',
+  anchor: '.car-exportrow',
 });
 // Guided tour — starts when the first stills land (see renderList), then chains.
 // canvas/layout/adjust are "explore then continue" steps: a continue icon
@@ -12984,6 +13057,9 @@ async function carImportFiles(files, wide) {
   }
   car.sel = null;
   carRender();
+  // first import kicks off the editing tour (wide imports skip to the frames step)
+  dismissCoach('carwelcome');
+  showCoach('carselect', 900);
 }
 
 carFileMulti.addEventListener('change', () => {
@@ -13816,7 +13892,7 @@ function createNewCarouselProject() {
   document.body.classList.add('car-open');
   carouselScreen.hidden = false;
   carRender();
-  leaveHomeToCarousel();
+  leaveHomeToCarousel(() => showCoach('carwelcome', 600));
 }
 
 // Legacy carousels (one image per frame / span items) → free canvas objects:
@@ -13877,6 +13953,7 @@ function openCarouselProject(id) {
     carStrip.classList.add('smooth');
     carouselScreen.hidden = false;
     carRender();
+    showCoach('carwelcome', 600);
   });
 }
 

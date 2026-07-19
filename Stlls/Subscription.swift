@@ -34,6 +34,11 @@ enum StllsPro {
     /// (Stage 2 sandbox verification, spec §8).
     static let debugFastReminder = false
 
+    /// ⚠️ DEV ONLY — forces the app fully Pro: no onboarding, no paywall, all
+    /// gated exports unlocked. Set false before any paywall testing stage and
+    /// NEVER archive with this true.
+    static let debugForcePro = true
+
     static let privacyURL = URL(string: "https://davidgodi.github.io/stlls-privacy/")!
     static let termsURL   = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 
@@ -92,7 +97,7 @@ final class EntitlementStore: ObservableObject {
     private var updatesTask: Task<Void, Never>?
 
     func start() {
-        guard StllsPro.enabled else { state = .entitled; return }
+        guard StllsPro.enabled, !StllsPro.debugForcePro else { state = .entitled; return }
         state = KeychainCache.readState() ?? .unknown   // offline-friendly boot
         Task { await resolve() }
         // Listen for the app's lifetime: renewals, cancellations, refunds,

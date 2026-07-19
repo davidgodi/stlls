@@ -13521,9 +13521,9 @@ carExportBtn.addEventListener('click', async () => {
       if (f < car.frames - 1) await new Promise(r => setTimeout(r, 350));
     }
     carExportBtn.textContent = 'Saved ✓';
+    carExportProgReset(progFill);   // line returns to the faint divider right away
     setTimeout(() => {
       carExportBtn.textContent = label; carExportBtn.disabled = false;
-      carExportProgReset(progFill);
     }, 1600);
   } catch (err) {
     console.warn('carousel export failed', err);

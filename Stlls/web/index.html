@@ -2709,6 +2709,18 @@
   #homeScreen.entering { animation: pageIn 0.38s cubic-bezier(0.4,0,0.2,1) forwards; }
   #homeScreen.leaving  { animation: pageOut 0.32s cubic-bezier(0.4,0,0.2,1) forwards; }
 
+  /* Free-tier note under the create-project buttons (tap → Pro offer) */
+  #freeTierNote {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    margin: 14px auto 0; padding: 0;
+    background: none; border: none; cursor: pointer;
+    font: inherit; font-size: 11.5px; color: var(--text-dim);
+    max-width: 320px; text-align: left; line-height: 1.45;
+  }
+  #freeTierNote[hidden] { display: none; }
+  #freeTierNote b { color: var(--accent); font-weight: 600; }
+  #freeTierNote svg { flex: none; opacity: 0.7; }
+
   /* ── Settings panel ── */
   #settingsPanel {
     position: fixed; inset: 0; z-index: 400;
@@ -3540,6 +3552,13 @@
             <span class="coach-sub">Every project you make is saved below the line.</span>
           </div>
         </div>
+        <button id="freeTierNote" hidden>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+          <span>Free version — photo board exports only. Carousel &amp; video exports are <b>Pro</b>.</span>
+        </button>
       </div>
     </div>
   </div>
@@ -5447,6 +5466,7 @@ welcomeContinueBtn.addEventListener('click', () => {
   welcomeOverlay.addEventListener('animationend', () => {
     welcomeOverlay.hidden = true;
     welcomeOverlay.classList.remove('leaving');
+    stllsSignalHome();   // welcome done → the main menu is now on screen
   }, { once: true });
 });
 
@@ -12005,6 +12025,21 @@ function stllsIsPro() { return window.STLLS_PRO !== false; }
 function stllsAskPro() {
   try { window.webkit.messageHandlers.showPaywall.postMessage(null); } catch (e) {}
 }
+// Tell the native shell the main menu is on screen (it starts the Pro
+// onboarding 2 s later). Fired once — after the splash, and only once any
+// first-run welcome (name/email) step is done.
+let _homeSignaled = false;
+function stllsSignalHome() {
+  if (_homeSignaled) return;
+  _homeSignaled = true;
+  try { window.webkit.messageHandlers.homeShown.postMessage(null); } catch (e) {}
+}
+// Free-tier note on the home screen (hidden until the shell flags free tier).
+const freeTierNote = document.getElementById('freeTierNote');
+function updateFreeTierNote() { if (freeTierNote) freeTierNote.hidden = stllsIsPro(); }
+if (freeTierNote) freeTierNote.addEventListener('click', stllsAskPro);
+document.addEventListener('stlls-pro-changed', updateFreeTierNote);
+updateFreeTierNote();
 
 exportBtn.addEventListener('click', () => {
   if (hasClips()) {                              // any clip present → looping-video export
@@ -12532,10 +12567,12 @@ async function doVideoExport() {
     setTimeout(() => {
       splash.hidden = true;
       afterSplash();
+      if (hasName) stllsSignalHome();   // no welcome step → menu is up now
     }, 2900);
   } else {
     splash.hidden = true;
     afterSplash();
+    if (hasName) stllsSignalHome();
   }
 })();
 

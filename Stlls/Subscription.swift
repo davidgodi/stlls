@@ -67,6 +67,18 @@ final class EntitlementStore: ObservableObject {
     /// Small "That's a Pro feature!" card shown when a gated export is tapped.
     @Published var upsellVisible = false
 
+    /// The app opens normally (splash → optional name/email → main menu); the
+    /// web layer signals `homeShown` and the onboarding fades in 2 s later.
+    @Published var onboardingArmed = false
+
+    func armOnboardingSoon() {
+        guard !onboardingArmed else { return }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            withAnimation(.easeInOut(duration: 0.45)) { onboardingArmed = true }
+        }
+    }
+
     /// True when every feature is unlocked (subscriber, trial, or
     /// grandfathered paid-app purchase).
     var isPro: Bool {
@@ -210,11 +222,18 @@ enum TrialReminder {
     }
 }
 
-// Web bridge: the web layer taps a Pro-gated export → show the upsell card.
+// Web bridge: "homeShown" = main menu is visible (arms the delayed
+// onboarding); "showPaywall" = a Pro-gated export was tapped (upsell card).
 final class ProMessageHandler: NSObject, WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-        Task { @MainActor in EntitlementStore.shared.presentUpsell() }
+        let name = message.name
+        Task { @MainActor in
+            switch name {
+            case "homeShown": EntitlementStore.shared.armOnboardingSoon()
+            default:          EntitlementStore.shared.presentUpsell()
+            }
+        }
     }
 }
 
@@ -230,10 +249,11 @@ struct SubscriptionGate: View {
                 case .grandfathered, .entitled:
                     EmptyView()
                 case .unknown:
-                    StllsPro.bg.ignoresSafeArea()   // brief boot splash while resolving
+                    EmptyView()   // app boots visibly; onboarding waits for the menu signal
                 case .locked:
-                    if !store.paywallDismissed {
+                    if store.onboardingArmed && !store.paywallDismissed {
                         SubscriptionOnboarding()
+                            .transition(.opacity)
                     } else if store.upsellVisible {
                         ProUpsellOverlay()
                             .transition(.opacity)
@@ -242,6 +262,7 @@ struct SubscriptionGate: View {
             }
         }
         .animation(.easeOut(duration: 0.28), value: store.upsellVisible)
+        .animation(.easeInOut(duration: 0.45), value: store.onboardingArmed)
         .onAppear { store.start() }
     }
 }
@@ -746,14 +767,27 @@ struct PaywallScreen: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
 
-                VStack(alignment: .leading, spacing: 10) {
-                    checkRow(trialEligible ? "7-day free trial" : "Full access from day one")
-                    checkRow("All features and layouts")
-                    checkRow("Cancel anytime from the app")
+                HStack(alignment: .center, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        checkRow(trialEligible ? "7-day free trial" : "Full access from day one")
+                        checkRow("All features and layouts")
+                        checkRow("Cancel anytime from the app")
+                    }
+                    Spacer(minLength: 6)
+                    // the app itself, fanned in two small device frames
+                    ZStack {
+                        PhoneShot(name: "ProShotEditor", height: 134)
+                            .rotationEffect(.degrees(-8))
+                            .offset(x: -32, y: 4)
+                        PhoneShot(name: "ProShotPreview", height: 150)
+                            .rotationEffect(.degrees(6))
+                            .offset(x: 14)
+                    }
+                    .frame(width: 132, height: 162)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
-                .padding(.top, 20)
+                .padding(.top, 16)
 
                 VStack(spacing: 10) {
                     if let m = monthly { planCard(m, badge: nil, subtitle: "\(m.displayPrice) per month") }
@@ -839,6 +873,24 @@ struct PaywallScreen: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 withAnimation { showClose = true }
             }
+        }
+    }
+
+    /// A real app screenshot inside a slim dark device frame.
+    private struct PhoneShot: View {
+        let name: String
+        let height: CGFloat
+        var body: some View {
+            Image(name)
+                .resizable()
+                .scaledToFill()
+                .frame(width: height * 0.462, height: height)
+                .clipShape(RoundedRectangle(cornerRadius: height * 0.09))
+                .padding(3)
+                .background(RoundedRectangle(cornerRadius: height * 0.09 + 3).fill(Color(white: 0.10)))
+                .overlay(RoundedRectangle(cornerRadius: height * 0.09 + 3)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 1))
+                .shadow(color: .black.opacity(0.45), radius: 12, y: 6)
         }
     }
 

@@ -20,6 +20,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>instagram</string>
+	</array>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>STLLS saves your exported layouts to your photo library.</string>
 	<key>UILaunchScreen</key>

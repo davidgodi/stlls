@@ -13821,7 +13821,24 @@ document.getElementById('carViewerClose').addEventListener('click', () => {
 
 // ── Export: one image per frame, in posting order ───────────────────────────
 
+// Jump into the Instagram app (native handler) or instagram.com on the web
+function openInstagram() {
+  if (window.webkit?.messageHandlers?.openInstagram) {
+    window.webkit.messageHandlers.openInstagram.postMessage(null);
+  } else {
+    window.open('https://www.instagram.com', '_blank');
+  }
+}
+let _carIGOffer = false;
+
 carExportBtn.addEventListener('click', async () => {
+  if (_carIGOffer) {
+    // fresh export → the button offers a straight jump to Instagram
+    _carIGOffer = false;
+    carExportBtn.textContent = 'Export';
+    openInstagram();
+    return;
+  }
   if (!car.imgs.length || carExportBtn.disabled) return;
   const [rw, rh] = carRatioWH();
   const fmt = document.getElementById('carExportFmt').value;
@@ -13878,7 +13895,13 @@ carExportBtn.addEventListener('click', async () => {
     carExportBtn.textContent = 'Saved ✓';
     carExportProgReset(progFill);   // fades out, then hard-resets to the faint divider
     setTimeout(() => {
-      carExportBtn.textContent = label; carExportBtn.disabled = false;
+      // while the export is fresh, the button becomes a jump into Instagram
+      _carIGOffer = true;
+      carExportBtn.textContent = 'Open Instagram ↗';
+      carExportBtn.disabled = false;
+      setTimeout(() => {
+        if (_carIGOffer) { _carIGOffer = false; carExportBtn.textContent = label; }
+      }, 12000);
     }, 1600);
   } catch (err) {
     console.warn('carousel export failed', err);

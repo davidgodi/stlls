@@ -1353,6 +1353,25 @@ class VideoMessageHandler: NSObject, WKScriptMessageHandler, PHPickerViewControl
 
 // MARK: - JS → Swift bridge for scheduling local notifications
 
+// Opens the Instagram app (or its App Store page when it isn't installed) —
+// the post-export "Open Instagram" shortcut. Requires "instagram" in
+// LSApplicationQueriesSchemes for canOpenURL to answer truthfully.
+class InstagramMessageHandler: NSObject, WKScriptMessageHandler {
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard message.name == "openInstagram" else { return }
+        DispatchQueue.main.async {
+            if let ig = URL(string: "instagram://app"), UIApplication.shared.canOpenURL(ig) {
+                UIApplication.shared.open(ig)
+            } else if let store = URL(string: "https://apps.apple.com/app/instagram/id389801252") {
+                UIApplication.shared.open(store)
+            }
+        }
+    }
+}
+
 class RemindersMessageHandler: NSObject, WKScriptMessageHandler {
 
     func userContentController(
@@ -1485,6 +1504,7 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
     private let videoHandler     = VideoMessageHandler()
     private let schemeHandler    = VideoSchemeHandler()
     private let remindersHandler = RemindersMessageHandler()
+    private let instagramHandler = InstagramMessageHandler()
     private var filePickerCompletionHandler: (([URL]?) -> Void)?
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
@@ -1510,6 +1530,7 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         userContent.add(videoHandler,     name: "clearCache")
         userContent.add(videoHandler,     name: "setImportSource")
         userContent.add(remindersHandler, name: "scheduleReminders")
+        userContent.add(instagramHandler, name: "openInstagram")
 
         let config = WKWebViewConfiguration()
         config.userContentController = userContent

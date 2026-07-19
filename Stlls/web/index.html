@@ -13301,12 +13301,12 @@ carStage.addEventListener('pointerdown', e => {
   const sel = carSel();
   if (sel && e.target.classList.contains('car-handle')) {
     const [px, py] = carPt(e);
-    // scale about the corner OPPOSITE the handle's current position
+    // scale about the photo's CENTRE — it grows/shrinks in place
     const oh0 = sel.w * sel.img.naturalHeight / sel.img.naturalWidth;
-    const hx = _carHandle.hx, hy = _carHandle.hy;
-    const a = { x: hx ? sel.x : sel.x + sel.w, y: hy ? sel.y : sel.y + oh0 };
+    const a = { x: sel.x + sel.w / 2, y: sel.y + oh0 / 2 };
     _carScale = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY, o: sel,
-                  w0: sel.w, hx, hy, a, d0: Math.hypot(px - a.x, py - a.y) || 1,
+                  w0: sel.w, hx: _carHandle.hx, hy: _carHandle.hy, a,
+                  d0: Math.hypot(px - a.x, py - a.y) || 1,
                   moved: false, snap0: carSnapshot() };
     return;
   }
@@ -13363,8 +13363,8 @@ carStage.addEventListener('pointermove', e => {
     const d = Math.hypot(px - a.x, py - a.y);
     o.w = Math.min(carCW() * 10, Math.max(80, _carScale.w0 * d / _carScale.d0));
     const nh = o.w * o.img.naturalHeight / o.img.naturalWidth;
-    o.x = _carScale.hx ? a.x : a.x - o.w;   // the anchored corner stays put
-    o.y = _carScale.hy ? a.y : a.y - nh;
+    o.x = a.x - o.w / 2;   // the photo's centre stays put
+    o.y = a.y - nh / 2;
     _carScale.moved = true;
     carRender(false);
     return;

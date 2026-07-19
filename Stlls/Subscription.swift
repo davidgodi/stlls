@@ -375,6 +375,18 @@ private struct FloatingFramesBackground: View {
                 }
             }
         }
+        // fade the frames in the middle band where headlines/cards sit, keep
+        // them bold near the top and bottom edges
+        .mask(
+            LinearGradient(stops: [
+                .init(color: .white, location: 0.00),
+                .init(color: .white, location: 0.14),
+                .init(color: .white.opacity(0.28), location: 0.34),
+                .init(color: .white.opacity(0.28), location: 0.76),
+                .init(color: .white, location: 0.94),
+                .init(color: .white, location: 1.00),
+            ], startPoint: .top, endPoint: .bottom)
+        )
         .allowsHitTesting(false)
         .onAppear { on = true }
     }

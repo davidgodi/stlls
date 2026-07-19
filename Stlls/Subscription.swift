@@ -209,13 +209,17 @@ struct SubscriptionOnboarding: View {
 
     var body: some View {
         ZStack {
-            StllsPro.bg.ignoresSafeArea()
-            FloatingFramesBackground().ignoresSafeArea()
-            switch step {
-            case 0: TrialIntroScreen { advance() }
-            case 1: NotificationPrePrompt { advance() }
-            case 2: ReminderPromiseScreen { advance() }
-            default: PaywallScreen()
+            if step < 3 { OnboardBackdrop() }
+            VStack(spacing: 0) {
+                if step < 3 { StepBar(step: step).padding(.top, 12) }
+                Group {
+                    switch step {
+                    case 0: TrialIntroScreen { advance() }
+                    case 1: NotificationPrePrompt { advance() }
+                    case 2: ReminderPromiseScreen { advance() }
+                    default: PaywallScreen()
+                    }
+                }
             }
         }
         .onAppear {
@@ -242,51 +246,165 @@ private struct Wordmark: View {
     }
 }
 
+// Story-style progress: three thin segments, filled up to the current step.
+private struct StepBar: View {
+    let step: Int
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { i in
+                Capsule()
+                    .fill(i <= step ? StllsPro.accent : Color.white.opacity(0.15))
+                    .frame(height: 3)
+            }
+        }
+        .padding(.horizontal, 28)
+        .animation(.easeInOut(duration: 0.3), value: step)
+    }
+}
+
+// Uppercase tracked micro-label above each headline.
+private struct Eyebrow: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .tracking(2.4)
+            .foregroundColor(StllsPro.accent)
+    }
+}
+
+private extension LinearGradient {
+    static var stllsCTA: LinearGradient {
+        LinearGradient(colors: [StllsPro.accent, Color(red: 0.45, green: 0.78, blue: 1.0)],
+                       startPoint: .leading, endPoint: .trailing)
+    }
+}
+
+// Full-width capsule, label left / arrow right. Screens supply the horizontal
+// padding so the capsule lines up with their left-aligned text column.
 private struct OnboardCTA: View {
     let title: String
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(StllsPro.accent)
-                .foregroundColor(.black)
-                .cornerRadius(14)
+            HStack {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .tracking(0.2)
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 15, weight: .bold))
+            }
+            .padding(.horizontal, 26)
+            .padding(.vertical, 17)
+            .background(Capsule().fill(LinearGradient.stllsCTA))
+            .foregroundColor(.black)
         }
-        .padding(.horizontal, 28)
     }
 }
 
-// Ambient looping background: empty layout frames drifting in and out all
-// over the screen — a nod to the app's opening splash. Deliberately quiet:
-// thin strokes, low opacity, slow cycles. Static under Reduce Motion.
+// Layered animated backdrop: aurora colour blobs drifting across the screen,
+// a slow rotating sheen, and gradient-stroked layout frames that drift,
+// rotate and pulse. Static (and much quieter) under Reduce Motion.
+private struct OnboardBackdrop: View {
+    var intensity: Double = 1.0
+    var body: some View {
+        ZStack {
+            StllsPro.bg
+            AuroraBackground().opacity(intensity)
+            FloatingFramesBackground().opacity(intensity)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+// Soft radial colour fields drifting between two anchor points each, plus a
+// slow full-screen angular sheen. Radial falloff gives the blur look without
+// a live blur filter (cheap on GPU).
+private struct AuroraBackground: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var on = false
+
+    private static let violet = Color(red: 0.55, green: 0.35, blue: 1.0)
+    private static let teal   = Color(red: 0.20, green: 0.85, blue: 0.75)
+    private static let deep   = Color(red: 0.10, green: 0.25, blue: 0.85)
+    private static let rose   = Color(red: 0.85, green: 0.30, blue: 0.70)
+
+    private struct Blob { let sx: CGFloat; let sy: CGFloat; let ex: CGFloat; let ey: CGFloat
+                          let size: CGFloat; let color: Color; let peak: Double
+                          let dur: Double; let delay: Double }
+    private let blobs: [Blob] = [
+        .init(sx: -0.15, sy: 0.05, ex: 0.35, ey: 0.30, size: 520, color: StllsPro.accent, peak: 0.42, dur: 13.0, delay: 0.0),
+        .init(sx: 1.10,  sy: 0.20, ex: 0.70, ey: 0.05, size: 460, color: violet,          peak: 0.38, dur: 16.0, delay: 1.2),
+        .init(sx: 0.85,  sy: 1.05, ex: 0.55, ey: 0.72, size: 560, color: deep,            peak: 0.45, dur: 14.5, delay: 2.6),
+        .init(sx: 0.05,  sy: 0.90, ex: 0.30, ey: 0.62, size: 420, color: teal,            peak: 0.30, dur: 12.0, delay: 0.7),
+        .init(sx: 0.55,  sy: 0.48, ex: 0.15, ey: 0.40, size: 380, color: rose,            peak: 0.26, dur: 17.5, delay: 3.4),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                ForEach(blobs.indices, id: \.self) { i in
+                    let b = blobs[i]
+                    Circle()
+                        .fill(RadialGradient(colors: [b.color.opacity(b.peak), b.color.opacity(0)],
+                                             center: .center, startRadius: 0, endRadius: b.size / 2))
+                        .frame(width: b.size, height: b.size)
+                        .position(x: geo.size.width * (reduceMotion ? (b.sx + b.ex) / 2 : (on ? b.ex : b.sx)),
+                                  y: geo.size.height * (reduceMotion ? (b.sy + b.ey) / 2 : (on ? b.ey : b.sy)))
+                        .opacity(reduceMotion ? 0.5 : 1)
+                        .animation(
+                            reduceMotion ? nil :
+                                .easeInOut(duration: b.dur)
+                                .repeatForever(autoreverses: true)
+                                .delay(b.delay),
+                            value: on
+                        )
+                }
+                if !reduceMotion {
+                    AngularGradient(colors: [.clear, StllsPro.accent.opacity(0.10), .clear,
+                                             Self.violet.opacity(0.09), .clear],
+                                    center: .center)
+                        .frame(width: geo.size.width * 2.4, height: geo.size.width * 2.4)
+                        .rotationEffect(.degrees(on ? 360 : 0))
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                        .animation(.linear(duration: 48).repeatForever(autoreverses: false), value: on)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .onAppear { on = true }
+    }
+}
+
+// Empty layout frames — the STLLS motif — drifting, tilting and pulsing all
+// over the screen with gradient strokes.
 private struct FloatingFramesBackground: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var on = false
 
     // deterministic per-frame layout (fractions of the screen)
     private struct Spec { let x: CGFloat; let y: CGFloat; let w: CGFloat; let h: CGFloat
-                          let dur: Double; let delay: Double }
+                          let rot: Double; let dy: CGFloat; let dur: Double; let delay: Double }
     private let specs: [Spec] = [
-        .init(x: 0.14, y: 0.16, w: 64,  h: 92,  dur: 7.0, delay: 0.0),
-        .init(x: 0.82, y: 0.12, w: 48,  h: 48,  dur: 6.2, delay: 1.1),
-        .init(x: 0.88, y: 0.44, w: 70,  h: 96,  dur: 8.4, delay: 2.3),
-        .init(x: 0.10, y: 0.52, w: 44,  h: 62,  dur: 6.8, delay: 3.0),
-        .init(x: 0.24, y: 0.84, w: 78,  h: 56,  dur: 7.6, delay: 0.7),
-        .init(x: 0.78, y: 0.80, w: 52,  h: 74,  dur: 6.4, delay: 1.9),
-        .init(x: 0.50, y: 0.07, w: 56,  h: 40,  dur: 8.0, delay: 2.7),
-        .init(x: 0.56, y: 0.93, w: 40,  h: 40,  dur: 7.2, delay: 3.6),
-        .init(x: 0.05, y: 0.33, w: 34,  h: 48,  dur: 6.0, delay: 4.2),
-        .init(x: 0.33, y: 0.28, w: 88,  h: 120, dur: 9.2, delay: 1.5),
-        .init(x: 0.68, y: 0.30, w: 40,  h: 56,  dur: 6.6, delay: 4.8),
-        .init(x: 0.42, y: 0.60, w: 52,  h: 38,  dur: 7.8, delay: 2.0),
-        .init(x: 0.93, y: 0.66, w: 36,  h: 52,  dur: 6.1, delay: 3.3),
-        .init(x: 0.04, y: 0.74, w: 58,  h: 42,  dur: 8.6, delay: 5.1),
-        .init(x: 0.64, y: 0.55, w: 100, h: 72,  dur: 9.8, delay: 0.4),
-        .init(x: 0.38, y: 0.97, w: 64,  h: 46,  dur: 7.4, delay: 4.5),
-        .init(x: 0.20, y: 0.02, w: 44,  h: 60,  dur: 6.9, delay: 5.6),
+        .init(x: 0.14, y: 0.16, w: 64,  h: 92,  rot: 5,  dy: 16, dur: 7.0, delay: 0.0),
+        .init(x: 0.82, y: 0.12, w: 48,  h: 48,  rot: -7, dy: 12, dur: 6.2, delay: 1.1),
+        .init(x: 0.88, y: 0.44, w: 70,  h: 96,  rot: 4,  dy: 20, dur: 8.4, delay: 2.3),
+        .init(x: 0.10, y: 0.52, w: 44,  h: 62,  rot: -5, dy: 14, dur: 6.8, delay: 3.0),
+        .init(x: 0.24, y: 0.84, w: 78,  h: 56,  rot: 6,  dy: 18, dur: 7.6, delay: 0.7),
+        .init(x: 0.78, y: 0.80, w: 52,  h: 74,  rot: -4, dy: 15, dur: 6.4, delay: 1.9),
+        .init(x: 0.50, y: 0.07, w: 56,  h: 40,  rot: 8,  dy: 10, dur: 8.0, delay: 2.7),
+        .init(x: 0.56, y: 0.93, w: 40,  h: 40,  rot: -6, dy: 12, dur: 7.2, delay: 3.6),
+        .init(x: 0.05, y: 0.33, w: 34,  h: 48,  rot: 5,  dy: 16, dur: 6.0, delay: 4.2),
+        .init(x: 0.33, y: 0.28, w: 88,  h: 120, rot: -3, dy: 22, dur: 9.2, delay: 1.5),
+        .init(x: 0.68, y: 0.30, w: 40,  h: 56,  rot: 7,  dy: 13, dur: 6.6, delay: 4.8),
+        .init(x: 0.42, y: 0.60, w: 52,  h: 38,  rot: -8, dy: 17, dur: 7.8, delay: 2.0),
+        .init(x: 0.93, y: 0.66, w: 36,  h: 52,  rot: 4,  dy: 11, dur: 6.1, delay: 3.3),
+        .init(x: 0.04, y: 0.74, w: 58,  h: 42,  rot: -5, dy: 19, dur: 8.6, delay: 5.1),
+        .init(x: 0.64, y: 0.55, w: 100, h: 72,  rot: 3,  dy: 24, dur: 9.8, delay: 0.4),
+        .init(x: 0.38, y: 0.97, w: 64,  h: 46,  rot: -6, dy: 14, dur: 7.4, delay: 4.5),
+        .init(x: 0.20, y: 0.02, w: 44,  h: 60,  rot: 6,  dy: 12, dur: 6.9, delay: 5.6),
     ]
 
     var body: some View {
@@ -295,11 +413,16 @@ private struct FloatingFramesBackground: View {
                 ForEach(specs.indices, id: \.self) { i in
                     let s = specs[i]
                     RoundedRectangle(cornerRadius: 9)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1.2)
+                        .stroke(LinearGradient(colors: [Color.white.opacity(0.75),
+                                                        StllsPro.accent.opacity(0.55)],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                                lineWidth: 1.2)
                         .frame(width: s.w, height: s.h)
+                        .rotationEffect(.degrees(reduceMotion ? 0 : (on ? s.rot : -s.rot)))
+                        .scaleEffect(reduceMotion ? 1 : (on ? 1.08 : 0.90))
                         .position(x: geo.size.width * s.x, y: geo.size.height * s.y)
-                        .opacity(reduceMotion ? 0.05 : (on ? 0.11 : 0.0))
-                        .scaleEffect(reduceMotion ? 1 : (on ? 1.05 : 0.92))
+                        .offset(y: reduceMotion ? 0 : (on ? -s.dy : s.dy))
+                        .opacity(reduceMotion ? 0.05 : (on ? 0.20 : 0.02))
                         .animation(
                             reduceMotion ? nil :
                                 .easeInOut(duration: s.dur)
@@ -315,24 +438,31 @@ private struct FloatingFramesBackground: View {
     }
 }
 
-// Screen 1 — trial intro
+// Screen 1 — trial intro: editorial left-aligned layout, display-size numeral
 private struct TrialIntroScreen: View {
     let onContinue: () -> Void
     var body: some View {
-        VStack {
-            Wordmark().padding(.top, 24)
+        VStack(alignment: .leading, spacing: 0) {
+            Wordmark().padding(.top, 18)
             Spacer()
-            (Text("We want you to try everything STLLS can do, with all the power it has. Here is a ")
-                + Text("7 day trial").bold().foregroundColor(StllsPro.accent)
-                + Text(" on us."))
-                .font(.system(size: 26, weight: .medium))
-                .multilineTextAlignment(.center)
-                .foregroundColor(.white)
-                .padding(.horizontal, 32)
+            Eyebrow("FREE TRIAL")
+            Text("7 days\non us.")
+                .font(.system(size: 64, weight: .heavy))
+                .foregroundStyle(LinearGradient(colors: [.white, StllsPro.accent],
+                                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                .padding(.top, 10)
+            Text("We want you to try everything STLLS can do, with all the power it has.")
+                .font(.system(size: 17))
+                .foregroundColor(.white.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 18)
+                .padding(.trailing, 24)
             Spacer()
             OnboardCTA(title: "Continue", action: onContinue)
                 .padding(.bottom, 34)
         }
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -340,20 +470,25 @@ private struct TrialIntroScreen: View {
 private struct NotificationPrePrompt: View {
     let onContinue: () -> Void
     var body: some View {
-        VStack {
-            Wordmark().padding(.top, 24)
+        VStack(alignment: .leading, spacing: 0) {
+            Wordmark().padding(.top, 18)
             Spacer()
+            Eyebrow("STAY IN CONTROL")
             Text("Allow notifications to get your reminder")
-                .font(.system(size: 26, weight: .semibold))
-                .multilineTextAlignment(.center)
+                .font(.system(size: 30, weight: .heavy))
                 .foregroundColor(.white)
-                .padding(.horizontal, 32)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+                .padding(.trailing, 24)
             MockPermissionDialog()
-                .padding(.top, 36)
+                .rotationEffect(.degrees(-2.5))
+                .frame(maxWidth: .infinity)
+                .padding(.top, 26)
             Spacer()
             Text("Turn off notifications at any time")
                 .font(.system(size: 13))
                 .foregroundColor(.white.opacity(0.45))
+                .frame(maxWidth: .infinity)
                 .padding(.bottom, 12)
             OnboardCTA(title: "Continue") {
                 UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
@@ -363,6 +498,8 @@ private struct NotificationPrePrompt: View {
             }
             .padding(.bottom, 34)
         }
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -417,23 +554,72 @@ private struct MockPermissionDialog: View {
     }
 }
 
-// Screen 3 — reminder promise
+// Screen 3 — reminder promise: trial timeline + the reminder card
 private struct ReminderPromiseScreen: View {
     let onContinue: () -> Void
     var body: some View {
-        VStack {
-            Wordmark().padding(.top, 24)
+        VStack(alignment: .leading, spacing: 0) {
+            Wordmark().padding(.top, 18)
             Spacer()
-            MockReminderNotification()
+            Eyebrow("NO SURPRISES")
             Text("We'll remind you 2 days before your trial ends.")
-                .font(.system(size: 26, weight: .semibold))
-                .multilineTextAlignment(.center)
+                .font(.system(size: 30, weight: .heavy))
                 .foregroundColor(.white)
-                .padding(.horizontal, 32)
-                .padding(.top, 36)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+                .padding(.trailing, 24)
+            TrialTimeline()
+                .padding(.top, 26)
+            MockReminderNotification()
+                .frame(maxWidth: .infinity)
+                .padding(.top, 26)
             Spacer()
             OnboardCTA(title: "Continue", action: onContinue)
                 .padding(.bottom, 34)
+        }
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// The 7-day trial as a vertical timeline: today → reminder → decision day.
+private struct TrialTimeline: View {
+    private let steps: [(day: String, label: String, filled: Bool)] = [
+        ("Today", "Full access to everything in STLLS", true),
+        ("Day 5", "We send your reminder", false),
+        ("Day 7", "Trial ends — cancel any time before", false),
+    ]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(steps.indices, id: \.self) { i in
+                let s = steps[i]
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(spacing: 0) {
+                        Circle()
+                            .fill(s.filled ? StllsPro.accent : Color.clear)
+                            .overlay(Circle().stroke(StllsPro.accent, lineWidth: 1.5))
+                            .frame(width: 10, height: 10)
+                            .padding(.top, 3)
+                        if i < steps.count - 1 {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.18))
+                                .frame(width: 1.5)
+                                .frame(maxHeight: .infinity)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(s.day)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(StllsPro.accent)
+                        Text(s.label)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.6))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.bottom, i < steps.count - 1 ? 18 : 0)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -460,7 +646,7 @@ private struct MockReminderNotification: View {
             Spacer(minLength: 0)
         }
         .padding(13)
-        .frame(width: 320)
+        .frame(maxWidth: 340)
         .background(Color.white.opacity(0.06))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(StllsPro.accent.opacity(0.45), lineWidth: 1))
         .cornerRadius(16)
@@ -494,31 +680,35 @@ struct PaywallScreen: View {
 
     private var paywall: some View {
         ZStack(alignment: .topTrailing) {
-            LinearGradient(colors: [Color(red: 0.10, green: 0.12, blue: 0.17), StllsPro.bg],
-                           startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
-            FloatingFramesBackground()
-                .opacity(0.6)   // quieter behind the offer content
-                .ignoresSafeArea()
+            OnboardBackdrop(intensity: 0.7)   // quieter behind the offer content
 
             VStack(spacing: 0) {
-                Wordmark().padding(.top, 24)
+                Wordmark()
+                    .padding(.top, 24)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
                 Spacer(minLength: 12)
 
-                Text("Welcome Offer")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundColor(.white)
-                Text("Enjoy full access with STLLS Pro")
-                    .font(.system(size: 15))
-                    .foregroundColor(.white.opacity(0.6))
-                    .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 0) {
+                    Eyebrow("WELCOME OFFER")
+                    Text("Everything STLLS, unlocked.")
+                        .font(.system(size: 32, weight: .heavy))
+                        .foregroundStyle(LinearGradient(colors: [.white, StllsPro.accent],
+                                                        startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
 
                 VStack(alignment: .leading, spacing: 10) {
                     checkRow(trialEligible ? "7-day free trial" : "Full access from day one")
                     checkRow("All features and layouts")
                     checkRow("Cancel anytime from the app")
                 }
-                .padding(.top, 22)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
 
                 VStack(spacing: 10) {
                     if let m = monthly { planCard(m, badge: nil, subtitle: "\(m.displayPrice) per month") }
@@ -535,16 +725,21 @@ struct PaywallScreen: View {
                 Spacer(minLength: 12)
 
                 Button(action: buy) {
-                    Group {
-                        if purchasing { ProgressView().tint(.black) }
-                        else { Text(trialEligible ? "Try For Free" : "Subscribe").bold() }
+                    HStack {
+                        if purchasing {
+                            ProgressView().tint(.black).frame(maxWidth: .infinity)
+                        } else {
+                            Text(trialEligible ? "Try For Free" : "Subscribe")
+                                .font(.system(size: 17, weight: .semibold))
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 15, weight: .bold))
+                        }
                     }
-                    .font(.system(size: 17))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(StllsPro.accent)
+                    .padding(.horizontal, 26)
+                    .padding(.vertical, 17)
+                    .background(Capsule().fill(LinearGradient.stllsCTA))
                     .foregroundColor(.black)
-                    .cornerRadius(14)
                 }
                 .disabled(purchasing || selected == nil)
                 .padding(.horizontal, 24)
@@ -602,10 +797,13 @@ struct PaywallScreen: View {
     }
 
     private func checkRow(_ text: String) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(StllsPro.accent)
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(StllsPro.accent.opacity(0.18))
+                .frame(width: 22, height: 22)
+                .overlay(Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(StllsPro.accent))
             Text(text).font(.system(size: 15)).foregroundColor(.white.opacity(0.9))
         }
     }
@@ -632,15 +830,31 @@ struct PaywallScreen: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 Spacer()
-                Image(systemName: selected?.id == product.id ? "largecircle.fill.circle" : "circle")
-                    .foregroundColor(selected?.id == product.id ? StllsPro.accent : .white.opacity(0.3))
+                ZStack {
+                    Circle()
+                        .fill(selected?.id == product.id ? StllsPro.accent : Color.clear)
+                        .frame(width: 22, height: 22)
+                    if selected?.id == product.id {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.black)
+                    } else {
+                        Circle()
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
+                            .frame(width: 22, height: 22)
+                    }
+                }
             }
             .padding(14)
-            .background(Color.white.opacity(0.05))
-            .overlay(RoundedRectangle(cornerRadius: 13)
-                .stroke(selected?.id == product.id ? StllsPro.accent : Color.white.opacity(0.12),
+            .background(selected?.id == product.id ? StllsPro.accent.opacity(0.08) : Color.white.opacity(0.04))
+            .overlay(RoundedRectangle(cornerRadius: 15)
+                .stroke(selected?.id == product.id
+                            ? AnyShapeStyle(LinearGradient(colors: [StllsPro.accent,
+                                                                    Color(red: 0.55, green: 0.35, blue: 1.0)],
+                                                           startPoint: .topLeading, endPoint: .bottomTrailing))
+                            : AnyShapeStyle(Color.white.opacity(0.12)),
                         lineWidth: 1.5))
-            .cornerRadius(13)
+            .cornerRadius(15)
         }
     }
 
@@ -731,16 +945,19 @@ private struct LockedScreen: View {
                 .font(.system(size: 15))
                 .foregroundColor(.white.opacity(0.6))
             Button(action: onUnlock) {
-                Text("Unlock STLLS Pro")
-                    .font(.system(size: 16, weight: .semibold))
-                    .padding(.horizontal, 30).padding(.vertical, 14)
-                    .background(StllsPro.accent)
-                    .foregroundColor(.black)
-                    .cornerRadius(13)
+                HStack(spacing: 10) {
+                    Text("Unlock STLLS Pro")
+                        .font(.system(size: 16, weight: .semibold))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14, weight: .bold))
+                }
+                .padding(.horizontal, 30).padding(.vertical, 15)
+                .background(Capsule().fill(LinearGradient.stllsCTA))
+                .foregroundColor(.black)
             }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(StllsPro.bg.ignoresSafeArea())
+        .background(OnboardBackdrop(intensity: 0.5))
     }
 }

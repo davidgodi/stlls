@@ -26,8 +26,14 @@ struct StllsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .ignoresSafeArea()
+            ZStack {
+                ContentView()
+                    .ignoresSafeArea()
+                // STLLS Pro gate — renders nothing while StllsPro.enabled is
+                // false or the user is grandfathered/subscribed; otherwise it
+                // covers the app with the onboarding/paywall (Subscription.swift).
+                SubscriptionGate()
+            }
         }
     }
 }

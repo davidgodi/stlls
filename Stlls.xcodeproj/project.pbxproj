@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1B1B1B1B1B1B1B1B1B1B1B1B /* StllsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A6A6A6A6A6A6A6A6A6A6A6A /* StllsApp.swift */; };
 		2B2B2B2B2B2B2B2B2B2B2B2B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7A7A7A7A7A7A7A7A7A7A7A /* ContentView.swift */; };
+		3C3C3C3C3C3C3C3C3C3C3C3C /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */; };
 		3B3B3B3B3B3B3B3B3B3B3B3B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A8A8A8A8A8A8A8A8A8A8A8A /* Assets.xcassets */; };
 		4B4B4B4B4B4B4B4B4B4B4B4B /* web in Resources */ = {isa = PBXBuildFile; fileRef = 0B0B0B0B0B0B0B0B0B0B0B0B /* web */; };
 /* End PBXBuildFile section */
@@ -18,6 +19,8 @@
 		5A5A5A5A5A5A5A5A5A5A5A5A /* Stlls.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Stlls.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A6A6A6A6A6A6A6A6A6A6A6A /* StllsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StllsApp.swift; sourceTree = "<group>"; };
 		7A7A7A7A7A7A7A7A7A7A7A7A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
+		9C9C9C9C9C9C9C9C9C9C9C9C /* StllsPro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StllsPro.storekit; sourceTree = "<group>"; };
 		8A8A8A8A8A8A8A8A8A8A8A8A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9A9A9A9A9A9A9A9A9A9A9A9A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -46,6 +49,8 @@
 			children = (
 				6A6A6A6A6A6A6A6A6A6A6A6A /* StllsApp.swift */,
 				7A7A7A7A7A7A7A7A7A7A7A7A /* ContentView.swift */,
+				8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */,
+				9C9C9C9C9C9C9C9C9C9C9C9C /* StllsPro.storekit */,
 				8A8A8A8A8A8A8A8A8A8A8A8A /* Assets.xcassets */,
 				9A9A9A9A9A9A9A9A9A9A9A9A /* Info.plist */,
 				0B0B0B0B0B0B0B0B0B0B0B0B /* web */,
@@ -157,6 +162,7 @@
 			files = (
 				1B1B1B1B1B1B1B1B1B1B1B1B /* StllsApp.swift in Sources */,
 				2B2B2B2B2B2B2B2B2B2B2B2B /* ContentView.swift in Sources */,
+				3C3C3C3C3C3C3C3C3C3C3C3C /* Subscription.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

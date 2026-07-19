@@ -4523,6 +4523,10 @@
         <line x1="16.5" y1="5.5" x2="22.5" y2="5.5" stroke="var(--accent)"/>
       </svg>
     </button>
+    <div class="car-underrow" id="carWideRow" hidden>
+      <button class="car-tool" id="carWideDn" title="Fewer frames">− frame</button>
+      <button class="car-tool" id="carWideUp" title="More frames">+ frame</button>
+    </div>
     <div class="car-count" id="carCount" hidden>1 / 1</div>
   </div>
   <div class="car-film" id="carFilmRow">
@@ -12550,6 +12554,21 @@ function carGoFrame(f) {
   carRenderFilmSel();
 }
 
+// ── Wide mode: the image is cover-locked to its span of frames ──────────────
+function carWideImg() { return car.imgs.find(o => o.wide) || null; }
+function carWideClamp(o) {
+  const spanW = o.span * carCW();
+  const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+  o.x = Math.min(0, Math.max(spanW - o.w, o.x));
+  o.y = Math.min(0, Math.max(CAR_CH - oh, o.y));
+}
+function carWideFit(o) {
+  const spanW = o.span * carCW();
+  const s = Math.max(spanW / o.img.naturalWidth, CAR_CH / o.img.naturalHeight);
+  o.w = o.img.naturalWidth * s;
+  carWideClamp(o);
+}
+
 function carAddFrame() {
   if (car.frames >= 10) return;
   carPushHist();
@@ -12565,6 +12584,8 @@ function carDeleteFrame(f) {
   const cw = carCW();
   car.imgs.forEach(o => { if (o.x + o.w / 2 >= (f + 1) * cw) o.x -= cw; });
   car.frames--;
+  // a wide image can't span more frames than exist — shrink and re-fit
+  car.imgs.filter(o => o.wide && o.span > car.frames).forEach(o => { o.span = car.frames; carWideFit(o); });
   car.cur = Math.max(0, Math.min(car.frames - 1, f));
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * cw;
   car.sel = null;
@@ -12733,6 +12754,8 @@ function carRender(structural = true) {
     sb.style.width  = (selO.w * k) + 'px';
     sb.style.height = (oh * k) + 'px';
     sb.style.borderRadius = ((selO.r || 0) * k) + 'px';
+    // wide images are reposition-only: no scale handle
+    sb.querySelector('.car-handle').style.display = selO.wide ? 'none' : '';
     // bleeding outside the preview canvas → tight dotted outline
     sb.classList.toggle('out',
       selO.x < 0 || selO.y < 0 ||
@@ -12762,7 +12785,16 @@ function carRender(structural = true) {
 
 function carRenderTools() {
   const sel = carSel();
-  document.getElementById('carSelPanel').classList.toggle('show', !!sel);   // fades over the library
+  const wideO = carWideImg();
+  // wide image: reposition only — no sliders/layer panel for it
+  document.getElementById('carSelPanel').classList.toggle('show', !!sel && !sel.wide);
+  const wideRow = document.getElementById('carWideRow');
+  wideRow.hidden = !wideO || (sel && !sel.wide) || _carBgMode;
+  if (wideO) {
+    document.getElementById('carWideDn').disabled = wideO.span <= 1;
+    document.getElementById('carWideUp').disabled = wideO.span >= 10;
+  }
+  if (sel && sel.wide) return;
   if (sel) {
     const i = car.imgs.indexOf(sel);
     document.getElementById('carSelFwd').disabled = i === car.imgs.length - 1;
@@ -12938,13 +12970,14 @@ async function carImportFiles(files, wide) {
   carPushHist();
   const cw = carCW();
   if (wide) {
-    // one wide image fills the slide height and runs across as many frames as it needs
+    // wide mode: ONE image cover-locked across 2 frames by default; the
+    // −/+ frame row re-fits it, and it can only be repositioned
     const { src, img } = loaded[0];
-    const w = CAR_CH * img.naturalWidth / img.naturalHeight;
-    const x = car.imgs.length ? car.frames * cw : 0;
-    car.imgs.push({ id: genId(), src, img, x, y: 0, w });
-    car.frames = Math.min(10, Math.max(car.frames, Math.ceil((x + w) / cw - 0.02)));
-    car.cur = Math.min(car.frames - 1, Math.floor(x / cw));
+    const o = { id: genId(), src, img, x: 0, y: 0, w: 0, wide: true, span: 2 };
+    car.imgs.push(o);
+    car.frames = Math.min(10, Math.max(car.frames, o.span));
+    carWideFit(o);
+    car.cur = 0;
   } else {
     // photos stack on the current frame, each offset 30% of its width to the right
     let x = car.cur * cw + cw * 0.08;
@@ -13022,6 +13055,28 @@ document.getElementById('carSelBack').addEventListener('click', () => {
   carRender();
 });
 
+// wide mode: −/+ frame changes the image's span and re-fits it
+document.getElementById('carWideUp').addEventListener('click', () => {
+  const o = carWideImg();
+  if (!o || o.span >= 10) return;
+  carPushHist();
+  o.span++;
+  car.frames = Math.min(10, Math.max(car.frames, o.span));
+  carWideFit(o);
+  carRender();
+});
+document.getElementById('carWideDn').addEventListener('click', () => {
+  const o = carWideImg();
+  if (!o || o.span <= 1) return;
+  carPushHist();
+  o.span--;
+  car.frames = Math.max(1, car.frames - 1);
+  car.cur = Math.min(car.cur, car.frames - 1);
+  if (_carSmooth) _carScrollCanon = Math.min(_carScrollCanon, (car.frames - 0.5) * carCW());
+  carWideFit(o);
+  carRender();
+});
+
 let _carRatioT = null;
 carRatioBtn.addEventListener('click', () => {
   carPushHist();
@@ -13038,6 +13093,7 @@ carRatioBtn.addEventListener('click', () => {
     bp.x = (bp.x || 0) * r;
     bp.y = cy - (CAR_CH * bp.scale) / 2;
   }
+  car.imgs.filter(o => o.wide).forEach(carWideFit);   // wide images re-cover their frames
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();   // slide width changed
   carStrip.classList.add('ratio-anim');
   carFilm.classList.add('ratio-anim');
@@ -13421,7 +13477,8 @@ carStage.addEventListener('pointermove', e => {
     const [px, py] = carPt(e);
     m.o.x = m.x0 + px - m.px;
     m.o.y = m.y0 + py - m.py;
-    if (_carSnap) carSnapObj(m.o);
+    if (_carSnap && !m.o.wide) carSnapObj(m.o);
+    if (m.o.wide) carWideClamp(m.o);   // locked inside its frames
     carRender(false);
     return;
   }
@@ -13699,7 +13756,8 @@ function saveCarouselToDB() {
             photo: car.bg?.photo ? { src: car.bg.photo.src, blur: car.bg.photo.blur || 0,
                                      opacity: car.bg.photo.opacity ?? 1, scale: car.bg.photo.scale || 1,
                                      x: car.bg.photo.x || 0, y: car.bg.photo.y || 0 } : null },
-      imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w, r: o.r || 0, bw: o.bw || 0 })) }
+      imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w, r: o.r || 0, bw: o.bw || 0,
+                                 wide: !!o.wide, span: o.span || 0 })) }
   };
   dbPut(_currentProjectId, serial).catch(err => console.warn('IDB save failed', err));
 }
@@ -13788,7 +13846,7 @@ function openCarouselProject(id) {
     if (data?.imgs) {
       imgs = (await Promise.all(data.imgs.map(loadOne))).filter(Boolean)
         .map(o => ({ id: o.id, src: o.src, img: o.img, x: o.x || 0, y: o.y || 0, w: o.w || 500,
-                     r: o.r || 0, bw: o.bw || 0 }));
+                     r: o.r || 0, bw: o.bw || 0, wide: !!o.wide, span: o.span || 0 }));
       frames = Math.max(1, Math.min(10, data.frames || 1));
     } else if (data?.items) {
       const loaded = (await Promise.all(data.items.map(loadOne))).filter(Boolean);

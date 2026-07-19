@@ -1224,14 +1224,15 @@
   }
   .car-thumb .ct-fx.confirm { background: #ff6b5e; font-weight: 600; }
   /* export progress bar — fills as frames save */
+  /* faint separator between the library and the export section — and the
+     export progress fill lives inside it */
   #carExportProg {
-    height: 3px; margin: 4px 16px 8px; border-radius: 2px; overflow: hidden;
-    background: var(--border2); flex-shrink: 0;
+    height: 2px; margin: 2px 0 10px; overflow: hidden;
+    background: var(--border); flex-shrink: 0;
   }
-  #carExportProg[hidden] { display: none !important; }
   #carExportProg i {
     display: block; height: 100%; width: 0%;
-    background: var(--accent); border-radius: 2px; transition: width 0.3s ease;
+    background: var(--accent); transition: width 0.3s ease, opacity 0.4s ease;
   }
   .car-chip {
     display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 9px;
@@ -4486,7 +4487,7 @@
     <div style="display:flex;gap:8px;align-items:center;" id="carFilm"></div>
     <button id="carAddSlide" aria-label="Add media">+</button>
   </div>
-  <div id="carExportProg" hidden><i></i></div>
+  <div id="carExportProg"><i></i></div>
   <div class="car-exportrow">
     <div class="export-selects">
       <label>Format</label>
@@ -13489,10 +13490,8 @@ carExportBtn.addEventListener('click', async () => {
   const W = 1080 * expScale, H = Math.round(1080 * rh / rw) * expScale;
   carExportBtn.disabled = true;
   const label = carExportBtn.textContent;
-  const prog = document.getElementById('carExportProg');
-  const progFill = prog.querySelector('i');
+  const progFill = document.getElementById('carExportProg').querySelector('i');
   progFill.style.width = '0%';
-  prog.hidden = false;
   try {
     for (let f = 0; f < car.frames; f++) {
       carExportBtn.textContent = `${f + 1} / ${car.frames}…`;
@@ -13524,14 +13523,26 @@ carExportBtn.addEventListener('click', async () => {
     carExportBtn.textContent = 'Saved ✓';
     setTimeout(() => {
       carExportBtn.textContent = label; carExportBtn.disabled = false;
-      prog.hidden = true;
+      carExportProgReset(progFill);
     }, 1600);
   } catch (err) {
     console.warn('carousel export failed', err);
     carExportBtn.textContent = label; carExportBtn.disabled = false;
-    prog.hidden = true;
+    carExportProgReset(progFill);
   }
 });
+
+// fade the finished fill out of the separator line, then reset it silently
+function carExportProgReset(fill) {
+  fill.style.opacity = '0';
+  setTimeout(() => {
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+    void fill.offsetWidth;
+    fill.style.transition = '';
+    fill.style.opacity = '1';
+  }, 450);
+}
 
 // ── Persistence + open/close ────────────────────────────────────────────────
 

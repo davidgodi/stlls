@@ -1195,12 +1195,20 @@
     padding-top: max(10px, env(safe-area-inset-top));
   }
   #carouselScreen[hidden] { display: none !important; }
-  .car-top { display: flex; align-items: center; gap: 10px; padding: 6px 14px 8px; flex-shrink: 0; }
-  .car-back {
-    background: none; border: none; color: var(--text-mid); cursor: pointer; padding: 6px;
-    display: flex; align-items: center; -webkit-tap-highlight-color: transparent;
+  .car-top { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 14px 8px; flex-shrink: 0; }
+  /* centred home button, same as the board editor's */
+  .car-home {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; padding: 6px; border-radius: var(--rsm);
+    display: flex; align-items: center;
+    transition: color 0.15s; -webkit-tap-highlight-color: transparent;
   }
-  .car-brand { font-size: 13px; letter-spacing: 0.22em; font-weight: 600; color: var(--text); }
+  .car-home:hover { color: var(--text); }
+  .car-brand {
+    font-size: 13px; font-weight: 500; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text);
+  }
   .car-sub {
     padding: 2px 16px 6px; flex-shrink: 0;
     font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim);
@@ -4467,10 +4475,13 @@
 <!-- CAROUSEL EDITOR -->
 <div id="carouselScreen" hidden>
   <div class="car-top">
-    <button class="car-back" id="carBack" aria-label="Back">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-    </button>
     <span class="car-brand">STLLS</span>
+    <button class="car-home" id="carHomeBtn" aria-label="Go home">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    </button>
     <span style="flex:1"></span>
     <button class="car-chip" id="carUndoBtn" aria-label="Undo / Redo" title="Undo / Redo">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
@@ -13712,7 +13723,7 @@ function closeCarouselAndGoHome() {
   homeScreen.addEventListener('animationend', () => homeScreen.classList.remove('entering'), { once: true });
   setTimeout(() => { carouselScreen.hidden = true; }, 350);
 }
-document.getElementById('carBack').addEventListener('click', closeCarouselAndGoHome);
+document.getElementById('carHomeBtn').addEventListener('click', closeCarouselAndGoHome);
 
 // home leave without the board-editor coach marks
 function leaveHomeToCarousel(then) {

@@ -12558,6 +12558,7 @@ function carSel() { return car.imgs.find(o => o.id === car.sel) || null; }
 function carApplyView(dx = 0) {
   const [W, H] = carSlideDims();
   const cx = carStage.clientWidth / 2, cy = carStage.clientHeight / 2;
+  if (!Number.isFinite(_carScrollCanon)) _carScrollCanon = (car.cur + 0.5) * carCW();
   const cc = _carSmooth ? _carScrollCanon * carK() : (car.cur + 0.5) * W;
   carStrip.style.transform =
     `translate(${cx - cc * _carView + dx}px, ${cy - (H / 2) * _carView}px) scale(${_carView})`;
@@ -12608,6 +12609,7 @@ function carPlaceHandle() {
 
 // One shared navigation entry so count/filmstrip/scroll stay in sync
 function carGoFrame(f) {
+  if (!Number.isFinite(f)) f = 0;
   car.cur = Math.max(0, Math.min(car.frames - 1, f));
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();
   carRender(false);
@@ -12697,6 +12699,7 @@ function carRender(structural = true) {
   document.getElementById('carFullBtn').disabled = !has;
   carExportBtn.disabled = !has;
   carRatioBtn.textContent = car.ratio;
+  if (!Number.isFinite(car.cur)) car.cur = 0;   // never let a NaN reach "x / y"
   car.cur = Math.max(0, Math.min(car.frames - 1, car.cur));
   carCount.hidden = false;
   carCount.textContent = `${car.cur + 1} / ${car.frames}`;
@@ -12855,9 +12858,11 @@ function carRenderTools() {
   const wideRow = document.getElementById('carWideRow');
   wideRow.hidden = !wideO || (sel && !sel.wide) || _carBgMode;
   // wide mode: the −/+ row is the only frame control — no ghost tiles anywhere,
-  // and no add-photos button once the one image is in
+  // no add-photos button once the one image is in, and no Background/Snap chips
   document.getElementById('carAddSlide').style.display = wideO ? 'none' : '';
   document.getElementById('carAddPhotoBtn').style.display = wideO ? 'none' : '';
+  document.getElementById('carBgBtn').style.display = wideO ? 'none' : '';
+  document.getElementById('carSnapBtn').style.display = wideO ? 'none' : '';
   if (wideO) {
     document.getElementById('carWideDn').disabled = wideO.span <= 1;
     document.getElementById('carWideUp').disabled = wideO.span >= 10;
@@ -13266,6 +13271,7 @@ const carBgWheel = document.getElementById('carBgWheel');
 
 function carBgEnter() {
   _carBgMode = true;
+  carResetGestures();
   car.sel = null;
   carBgSync();
   document.getElementById('carBgPanel').hidden = false;
@@ -13276,7 +13282,7 @@ function carBgEnter() {
 }
 function carBgExit() {
   _carBgMode = false;
-  _carBgDrag = _carBgPinch = null;
+  carResetGestures();
   document.getElementById('carBgPanel').hidden = true;
   document.getElementById('carBgBtn').classList.remove('on');
   carouselScreen.classList.remove('bgmode-ui');
@@ -13409,6 +13415,16 @@ function carMarkDragged() {
   _carDragT = setTimeout(() => { _carDragged = false; }, 120);
 }
 
+// Overlays (fullscreen test, background mode) and app switches can swallow a
+// gesture's pointerup — the stale state then makes every new touch look like a
+// second finger. Reset everything whenever such a boundary is crossed.
+function carResetGestures() {
+  _carSwipe = _carMove = _carScale = _carPinch = _carBgDrag = _carBgPinch = null;
+  _carSnapL = null;
+  _carDragged = false;
+  carStrip.classList.remove('no-anim');
+}
+
 // Magnet: snap a moving image's edges/centre to frame boundaries, frame
 // centres, the canvas top/bottom/middle, and other images' edges/centres.
 // Threshold is ~8 screen px, so it feels the same at any zoom. Records the
@@ -13481,7 +13497,10 @@ function carPt(e) {   // screen point → canonical canvas coords
 
 carStage.addEventListener('pointerdown', e => {
   if (!car) return;
-  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
+  // rows, panels and chip buttons handle themselves — a tap on them must never
+  // start a swipe whose pointerup an opening overlay might swallow
+  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel') ||
+      e.target.closest('.car-chip')) return;
   if (_carBgMode) {
     // background mode: one finger moves the bg photo, two fingers scale it
     const bp = car.bg?.photo;
@@ -13686,13 +13705,8 @@ carStage.addEventListener('pointercancel', carPtrEnd);
 // gesture then makes every new touch look like a second finger (pinch) and
 // swiping "stops working". Reset all gesture state whenever visibility flips.
 document.addEventListener('visibilitychange', () => {
-  _carSwipe = _carMove = _carScale = _carPinch = _carBgDrag = _carBgPinch = null;
-  _carSnapL = null;
-  _carDragged = false;
-  if (_carOpen && !carouselScreen.hidden && car) {
-    carStrip.classList.remove('no-anim');
-    carApplyView();
-  }
+  carResetGestures();
+  if (_carOpen && !carouselScreen.hidden && car) carApplyView();
 });
 
 carStage.addEventListener('click', e => {
@@ -13740,6 +13754,7 @@ window.addEventListener('resize', () => { if (_carOpen && !carouselScreen.hidden
 
 document.getElementById('carFullBtn').addEventListener('click', () => {
   if (!car.imgs.length) return;
+  carResetGestures();
   const [rw, rh] = carRatioWH();
   carViewerScroll.innerHTML = '';
   carViewerDots.innerHTML = '';
@@ -13769,9 +13784,12 @@ function carViewerUpdateDots() {
 }
 carViewerScroll.addEventListener('scroll', () => requestAnimationFrame(carViewerUpdateDots));
 document.getElementById('carViewerClose').addEventListener('click', () => {
-  // leave the editor on the frame the test ended on
+  // leave the editor on the frame the test ended on (clientWidth can read 0 if
+  // the viewer is already hidden — never let that produce a NaN frame)
+  const f = Math.round(carViewerScroll.scrollLeft / (carViewerScroll.clientWidth || 1));
   carViewer.hidden = true;
-  carGoFrame(Math.round(carViewerScroll.scrollLeft / carViewerScroll.clientWidth));
+  carResetGestures();
+  carGoFrame(Number.isFinite(f) ? f : 0);
 });
 
 // ── Export: one image per frame, in posting order ───────────────────────────

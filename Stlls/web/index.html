@@ -13392,8 +13392,11 @@ carStage.addEventListener('pointerdown', e => {
       x1: first.lastX, y1: first.lastY, x2: e.clientX, y2: e.clientY, v0: _carView };
     _carPinch.d0 = Math.hypot(_carPinch.x2 - _carPinch.x1, _carPinch.y2 - _carPinch.y1) || 1;
     carStrip.classList.remove('no-anim');
+    // a move that turns into a pinch shouldn't leave the photo nudged
+    if (_carMove) { _carMove.o.x = _carMove.x0; _carMove.o.y = _carMove.y0; }
     _carSwipe = _carMove = _carScale = null;
     carApplyView();
+    carRender(false);
     return;
   }
   if (_carPinch) return;

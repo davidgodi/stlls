@@ -1346,9 +1346,8 @@
     animation: popUpIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   #carBgPanel[hidden] { display: none !important; }
-  #carBgPanel .bgp-close { position: absolute; top: 10px; right: 12px; z-index: 2; }
   #carBgPanel .bgp-swatches {
-    display: flex; overflow-x: auto; gap: 7px; padding: 2px 44px 2px 2px;
+    display: flex; overflow-x: auto; gap: 7px; padding: 2px;
     scrollbar-width: none; -webkit-overflow-scrolling: touch;
   }
   #carBgPanel .bgp-swatches::-webkit-scrollbar { display: none; }
@@ -4549,9 +4548,6 @@
   </div>
   <!-- Background edit mode: docked under the preview so changes are visible live -->
   <div id="carBgPanel" hidden>
-    <button class="bgp-close" id="carBgClose" aria-label="Close background editor">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
     <div class="bgp-swatches" id="carBgSwatches"></div>
     <div class="bgp-upload">
       <button class="bgp-upload-btn" id="carBgUpload">Upload photo</button>
@@ -13154,10 +13150,15 @@ function carBgSync() {
 
 document.getElementById('carBgBtn').addEventListener('click', () => { _carBgMode ? carBgExit() : carBgEnter(); });
 document.getElementById('carBgOk').addEventListener('click', carBgExit);
-document.getElementById('carBgClose').addEventListener('click', carBgExit);
 
 {
   const sw = document.getElementById('carBgSwatches');
+  // colour wheel first, at the far left of the row
+  const custom = document.createElement('button');
+  custom.className = 'bgp-sw bgp-custom';
+  custom.title = 'Custom colour';
+  custom.addEventListener('click', () => carBgWheel.click());
+  sw.appendChild(custom);
   BG_PALETTE.forEach(c => {
     const b = document.createElement('button');
     b.className = 'bgp-sw'; b.dataset.c = c; b.style.background = c;
@@ -13165,11 +13166,6 @@ document.getElementById('carBgClose').addEventListener('click', carBgExit);
     b.addEventListener('click', () => { carPushHist(); car.bg.color = c; carBgSync(); carRender(false); carRenderFilm(); });
     sw.appendChild(b);
   });
-  const custom = document.createElement('button');
-  custom.className = 'bgp-sw bgp-custom';
-  custom.title = 'Custom colour';
-  custom.addEventListener('click', () => carBgWheel.click());
-  sw.appendChild(custom);
   carBgWheel.addEventListener('input', () => { carPushHist(); car.bg.color = carBgWheel.value; carBgSync(); carRender(false); carRenderFilm(); });
 }
 

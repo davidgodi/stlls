@@ -11997,8 +11997,20 @@ function startExportBar() {
 
 let _exportFmt;
 
+// STLLS Pro gate — the native shell sets window.STLLS_PRO (false = free
+// tier). Undefined (browser / Pro disabled) counts as unlocked. Free tier
+// keeps every editor fully usable; only carousel exports and video-clip
+// exports ask for Pro.
+function stllsIsPro() { return window.STLLS_PRO !== false; }
+function stllsAskPro() {
+  try { window.webkit.messageHandlers.showPaywall.postMessage(null); } catch (e) {}
+}
+
 exportBtn.addEventListener('click', () => {
-  if (hasClips()) { doVideoExport(); return; }   // any clip present → looping-video export
+  if (hasClips()) {                              // any clip present → looping-video export
+    if (!stllsIsPro()) { stllsAskPro(); return; }   // free tier: test video boards, export with Pro
+    doVideoExport(); return;
+  }
   if (_projectBoards.length > 1) {
     document.getElementById('exportChoiceModal').hidden = false;
   } else {
@@ -13823,6 +13835,7 @@ document.getElementById('carViewerClose').addEventListener('click', () => {
 
 carExportBtn.addEventListener('click', async () => {
   if (!car.imgs.length || carExportBtn.disabled) return;
+  if (!stllsIsPro()) { stllsAskPro(); return; }   // carousel export is Pro-only
   const [rw, rh] = carRatioWH();
   const fmt = document.getElementById('carExportFmt').value;
   const expScale = +document.getElementById('carExportScale').value || 1;

@@ -2,6 +2,7 @@ import SwiftUI
 import StoreKit
 import UserNotifications
 import Security
+import WebKit
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STLLS Pro — subscription onboarding, paywall & entitlements
@@ -58,6 +59,27 @@ final class EntitlementStore: ObservableObject {
     static let shared = EntitlementStore()
 
     @Published private(set) var state: EntitlementState = .unknown
+
+    /// Freemium: the paywall/onboarding can be dismissed with the X — the app
+    /// then runs in free mode (Pro-only exports gated in the web layer).
+    @Published var paywallDismissed = false
+
+    /// True when every feature is unlocked (subscriber, trial, or
+    /// grandfathered paid-app purchase).
+    var isPro: Bool {
+        !StllsPro.enabled || state == .entitled || state == .grandfathered
+    }
+
+    func presentPaywall() {
+        paywallDismissed = false
+        SubAnalytics.log("paywall_reopened")
+    }
+
+    func dismissPaywall() {
+        paywallDismissed = true
+        SubAnalytics.log("paywall_dismissed_to_free")
+    }
+
     private var updatesTask: Task<Void, Never>?
 
     func start() {
@@ -179,6 +201,14 @@ enum TrialReminder {
     }
 }
 
+// Web bridge: the web layer taps a Pro-gated export → reopen the paywall.
+final class ProMessageHandler: NSObject, WKScriptMessageHandler {
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        Task { @MainActor in EntitlementStore.shared.presentPaywall() }
+    }
+}
+
 // MARK: - Gate (mounted over the whole app in StllsApp)
 
 struct SubscriptionGate: View {
@@ -193,7 +223,9 @@ struct SubscriptionGate: View {
                 case .unknown:
                     StllsPro.bg.ignoresSafeArea()   // brief boot splash while resolving
                 case .locked:
-                    SubscriptionOnboarding()
+                    if !store.paywallDismissed {
+                        SubscriptionOnboarding()
+                    }
                 }
             }
         }
@@ -617,18 +649,13 @@ struct PaywallScreen: View {
     @State private var trialEligible = true
     @State private var purchasing = false
     @State private var showClose = false
-    @State private var dismissedToLocked = false
     @State private var toast: String?
 
     private var monthly: Product? { products.first { $0.id == StllsPro.monthlyID } }
     private var yearly:  Product? { products.first { $0.id == StllsPro.yearlyID } }
 
     var body: some View {
-        if dismissedToLocked {
-            LockedScreen { dismissedToLocked = false }
-        } else {
-            paywall
-        }
+        paywall
     }
 
     private var paywall: some View {
@@ -712,10 +739,11 @@ struct PaywallScreen: View {
                 .padding(.bottom, 26)
             }
 
-            // Review-safe close: appears after a short delay, exits to locked.
+            // Close: appears after a short delay, exits to the free version
+            // (carousel + video exports stay Pro-gated).
             if showClose {
                 Button {
-                    dismissedToLocked = true
+                    store.dismissPaywall()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .bold))
@@ -882,30 +910,3 @@ struct PaywallScreen: View {
     }
 }
 
-// After X: still a hard paywall — just not a trap (spec §3.4).
-private struct LockedScreen: View {
-    let onUnlock: () -> Void
-    var body: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            Wordmark()
-            Text("STLLS Pro unlocks the full app.")
-                .font(.system(size: 15))
-                .foregroundColor(.white.opacity(0.6))
-            Button(action: onUnlock) {
-                HStack(spacing: 10) {
-                    Text("Unlock STLLS Pro")
-                        .font(.system(size: 16, weight: .semibold))
-                    Image(systemName: "arrow.right")
-                        .font(.system(size: 14, weight: .bold))
-                }
-                .padding(.horizontal, 30).padding(.vertical, 15)
-                .background(Capsule().fill(LinearGradient.stllsCTA))
-                .foregroundColor(.black)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(OnboardBackdrop(intensity: 0.5))
-    }
-}

@@ -6,6 +6,7 @@ import PhotosUI
 import UniformTypeIdentifiers
 import AVFoundation
 import UserNotifications
+import Combine
 
 // MARK: - JS → Swift bridge for image & video export
 
@@ -1478,13 +1479,15 @@ class RemindersMessageHandler: NSObject, WKScriptMessageHandler {
 
 // MARK: - UIViewController that hosts WKWebView
 
-class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerDelegate, UIDocumentPickerDelegate {
+class WebViewController: UIViewController, WKUIDelegate, WKNavigationDelegate, PHPickerViewControllerDelegate, UIDocumentPickerDelegate {
 
     private var webView: WKWebView!
     private let exportHandler    = ExportMessageHandler()
     private let videoHandler     = VideoMessageHandler()
     private let schemeHandler    = VideoSchemeHandler()
     private let remindersHandler = RemindersMessageHandler()
+    private let proHandler       = ProMessageHandler()
+    private var proCancellable: AnyCancellable?
     private var filePickerCompletionHandler: (([URL]?) -> Void)?
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
@@ -1510,6 +1513,7 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         userContent.add(videoHandler,     name: "clearCache")
         userContent.add(videoHandler,     name: "setImportSource")
         userContent.add(remindersHandler, name: "scheduleReminders")
+        userContent.add(proHandler,       name: "showPaywall")
 
         let config = WKWebViewConfiguration()
         config.userContentController = userContent
@@ -1524,6 +1528,15 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
         webView.backgroundColor = .clear
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.uiDelegate = self
+        webView.navigationDelegate = self
+
+        // Keep the web layer's Pro flag in sync with the entitlement engine
+        // (drives the carousel/video export gates in index.html).
+        if StllsPro.enabled {
+            proCancellable = EntitlementStore.shared.$state
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.pushProState() }
+        }
 
         exportHandler.webView       = webView
         videoHandler.webView        = webView
@@ -1544,6 +1557,20 @@ class WebViewController: UIViewController, WKUIDelegate, PHPickerViewControllerD
             forResource: "index", withExtension: "html", subdirectory: "web"
         ) else { return }
         webView.loadFileURL(indexURL, allowingReadAccessTo: indexURL.deletingLastPathComponent())
+    }
+
+    // Pro flag → web layer. Undefined means unlocked (browser/dev), so only
+    // an explicit false locks the gated exports.
+    private func pushProState() {
+        guard StllsPro.enabled, let webView else { return }
+        let pro = EntitlementStore.shared.isPro
+        webView.evaluateJavaScript(
+            "window.STLLS_PRO=\(pro);document.dispatchEvent(new CustomEvent('stlls-pro-changed'))",
+            completionHandler: nil)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pushProState()
     }
 
     // MARK: WKUIDelegate — file input (images only; video goes via native bridge)

@@ -1346,8 +1346,9 @@
     animation: popUpIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   #carBgPanel[hidden] { display: none !important; }
+  #carBgPanel .bgp-close { position: absolute; top: 10px; right: 12px; z-index: 2; }
   #carBgPanel .bgp-swatches {
-    display: flex; overflow-x: auto; gap: 7px; padding: 2px;
+    display: flex; overflow-x: auto; gap: 7px; padding: 2px 44px 2px 2px;
     scrollbar-width: none; -webkit-overflow-scrolling: touch;
   }
   #carBgPanel .bgp-swatches::-webkit-scrollbar { display: none; }
@@ -1539,6 +1540,7 @@
     cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .bgp-thumb { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border2); display: block; }
+  .bgp-thumb[hidden] { display: none !important; }
   .bgp-remove {
     width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
     background: var(--surface2); border: 1px solid var(--border2); color: #ff6b5e;
@@ -4547,12 +4549,15 @@
   </div>
   <!-- Background edit mode: docked under the preview so changes are visible live -->
   <div id="carBgPanel" hidden>
+    <button class="bgp-close" id="carBgClose" aria-label="Close background editor">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
     <div class="bgp-swatches" id="carBgSwatches"></div>
     <div class="bgp-upload">
       <button class="bgp-upload-btn" id="carBgUpload">Upload photo</button>
       <img class="bgp-thumb" id="carBgThumb" hidden alt="">
       <button class="bgp-remove" id="carBgRemove" hidden aria-label="Remove background photo">×</button>
-      <button id="carBgOk">Okay</button>
+      <button id="carBgOk">Done</button>
     </div>
     <div id="carBgSliders" hidden>
       <div class="slider-row"><label>Blur</label><input type="range" id="carBgBlur" min="0" max="40" step="1" value="0"><span class="slider-val" id="carBgBlurVal">0</span></div>
@@ -13129,8 +13134,10 @@ function carBgSetScale(ns) {
 function carBgSync() {
   const bg = car.bg || (car.bg = { color: '#000000', photo: null });
   const p = bg.photo;
-  document.getElementById('carBgThumb').hidden = !p;
-  if (p) document.getElementById('carBgThumb').src = p.src;
+  const thumb = document.getElementById('carBgThumb');
+  thumb.hidden = !p;
+  if (p) thumb.src = p.src;
+  else thumb.removeAttribute('src');
   document.getElementById('carBgRemove').hidden = !p;
   document.getElementById('carBgSliders').hidden = !p;
   if (p) {
@@ -13147,6 +13154,7 @@ function carBgSync() {
 
 document.getElementById('carBgBtn').addEventListener('click', () => { _carBgMode ? carBgExit() : carBgEnter(); });
 document.getElementById('carBgOk').addEventListener('click', carBgExit);
+document.getElementById('carBgClose').addEventListener('click', carBgExit);
 
 {
   const sw = document.getElementById('carBgSwatches');

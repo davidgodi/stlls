@@ -1110,7 +1110,8 @@
   .rc-accept:disabled { opacity: 0.35; cursor: default; }
 
   /* ── New-project type chooser (Board vs Carousel) ──────────────────────── */
-  #newTypeModal .bm-card { width: min(360px, calc(100vw - 36px)); }
+  /* New-project buttons on the home screen (Board / Carousel) */
+  .home-newtype { width: min(360px, calc(100vw - 48px)); display: flex; flex-direction: column; }
   .nt-btn {
     width: 100%; display: flex; align-items: center; gap: 16px;
     background: var(--surface2); border: 1px solid var(--border2); border-radius: 14px;
@@ -3475,10 +3476,21 @@
     <div id="homeGreeting"><p id="homeGreetingText"></p></div>
     <div id="homeNewArea">
       <div id="homeNewGroup">
-        <button id="homeNewBtn" aria-label="New project">
-          <canvas id="homeWaveCanvas" aria-hidden="true"></canvas>
-          <span id="homeWavePlus">+</span>
-        </button>
+        <div class="home-newtype">
+          <button class="nt-btn" id="ntBoard">
+            <span class="nt-art"><span class="nt-board" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+            <span class="nt-txt"><b>Board</b><span>Compose stills and clips in one layout</span></span>
+          </button>
+          <button class="nt-btn" id="ntCarousel">
+            <span class="nt-art">
+              <span class="nt-carousel" aria-hidden="true">
+                <span class="nt-track"><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span></span>
+                <span class="nt-add">+</span>
+              </span>
+            </span>
+            <span class="nt-txt"><b>Carousel</b><span>A swipeable set of slides for your post</span></span>
+          </button>
+        </div>
         <span id="homeNewLabel">Create new project</span>
         <div id="guideHome" class="coach" hidden>
           <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -3487,7 +3499,7 @@
           </svg>
           <div class="coach-bubble">
             <strong>Start here</strong>
-            Tap + to create your first board — import stills, arrange the layout, and export.
+            Tap Board to create your first one — import stills, arrange the layout, and export.
             <span class="coach-sub">Every board you make is saved below the line.</span>
           </div>
         </div>
@@ -4452,30 +4464,6 @@
 <div id="layoutPeek" hidden aria-hidden="true"></div>
 
 <!-- NEW PROJECT TYPE CHOOSER — Board vs Carousel, full window -->
-<div id="newTypeModal" class="big-modal" hidden>
-  <div class="bm-card">
-    <div class="bm-head">
-      <span class="bm-title">New Project</span>
-      <button class="bm-close" data-bm-close>Close</button>
-    </div>
-    <div class="bm-body">
-      <button class="nt-btn" id="ntBoard">
-        <span class="nt-art"><span class="nt-board" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
-        <span class="nt-txt"><b>Board</b><span>Compose stills and clips in one layout</span></span>
-      </button>
-      <button class="nt-btn" id="ntCarousel">
-        <span class="nt-art">
-          <span class="nt-carousel" aria-hidden="true">
-            <span class="nt-track"><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span></span>
-            <span class="nt-add">+</span>
-          </span>
-        </span>
-        <span class="nt-txt"><b>Carousel</b><span>A swipeable set of slides for your post</span></span>
-      </button>
-    </div>
-  </div>
-</div>
-
 <!-- CAROUSEL EDITOR -->
 <div id="carouselScreen" hidden>
   <div class="car-top">
@@ -5370,7 +5358,6 @@ function showWelcome() {
 
 // ── Home screen ────────────────────────────────────────────────────────────
 const homeScreen     = document.getElementById('homeScreen');
-const homeNewBtn     = document.getElementById('homeNewBtn');
 const homeNewArea    = document.getElementById('homeNewArea');
 const homeSettingsBtn = document.getElementById('homeSettingsBtn');
 const boardsGrid     = document.getElementById('boardsGrid');
@@ -6149,10 +6136,6 @@ function createNewBoardProject() {
   updateBoardNav();
   leaveHome();
 }
-
-// + opens the project-type chooser; Board runs the standard flow, Carousel is
-// the (not yet built) carousel editor.
-homeNewBtn.addEventListener('click', () => openBigModal(newTypeModal));
 
 // Board menu actions
 document.addEventListener('click', e => {
@@ -7910,27 +7893,20 @@ function hideLibPop(pop) {
 // The backdrop blurs + darkens the app so the line-art previews read clearly.
 const ratioModal   = document.getElementById('ratioModal');
 const layoutModal  = document.getElementById('layoutModal');
-const newTypeModal = document.getElementById('newTypeModal');
 function openBigModal(m)  { m.classList.remove('bm-leaving'); m.hidden = false; }
 function closeBigModal(m) {
   if (m.hidden) return;
   m.classList.add('bm-leaving');
   setTimeout(() => { m.hidden = true; m.classList.remove('bm-leaving'); }, 180);
 }
-[ratioModal, layoutModal, newTypeModal].forEach(m => {
+[ratioModal, layoutModal].forEach(m => {
   m.addEventListener('pointerdown', e => { if (e.target === m) closeBigModal(m); });
   m.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(m));
 });
 
-// ── New-project type chooser ────────────────────────────────────────────────
-document.getElementById('ntBoard').addEventListener('click', () => {
-  closeBigModal(newTypeModal);
-  createNewBoardProject();
-});
-document.getElementById('ntCarousel').addEventListener('click', () => {
-  closeBigModal(newTypeModal);
-  createNewCarouselProject();
-});
+// ── New-project buttons (Board / Carousel) — live on the home screen ────────
+document.getElementById('ntBoard').addEventListener('click', createNewBoardProject);
+document.getElementById('ntCarousel').addEventListener('click', createNewCarouselProject);
 
 // ── Canvas-ratio chooser ─────────────────────────────────────────────────────
 const RATIO_PRESETS = ['16:9', '17:9', '4:3', '3:2', '2.4:1', '2.39:1', '5:4'];

@@ -12734,7 +12734,8 @@ function carRender(structural = true) {
     d.classList.toggle('off', +d.dataset.f === car.cur);
   });
   const g = carStrip.querySelector('.car-ghostadd');
-  g.style.display = car.frames >= 10 ? 'none' : 'flex';   // frame cap reached
+  // hidden at the frame cap — and in wide mode, where the −/+ frame row rules
+  g.style.display = (car.frames >= 10 || carWideImg()) ? 'none' : 'flex';
   g.style.left = (totalW + 12) + 'px';
   g.style.top = '0px';
   g.style.width = W + 'px';

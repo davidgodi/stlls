@@ -1213,7 +1213,7 @@
     width: 34px; height: 34px; padding: 0; border-radius: 50%;
     justify-content: center;
   }
-  /* per-frame delete badge on the library thumbnails; first tap asks */
+  /* per-frame delete badge on the library thumbnails */
   .car-thumb .ct-fx {
     position: absolute; top: 3px; right: 3px; z-index: 2;
     height: 18px; min-width: 18px; padding: 0 5px; border-radius: 9px;
@@ -1221,7 +1221,6 @@
     background: rgba(10, 12, 16, 0.78); color: #fff; font-size: 9px;
     cursor: pointer; white-space: nowrap;
   }
-  .car-thumb .ct-fx.confirm { background: #ff6b5e; font-weight: 600; }
   /* export progress bar — fills as frames save */
   /* faint separator between the library and the export section — and the
      export progress fill lives inside it */
@@ -12435,7 +12434,6 @@ let _carSmooth = true;   // seamless free scrolling is the navigation model
 let _carScrollCanon = 0; // canvas x (canonical units) at stage centre
 let _carHist = [], _carRedoStack = [];   // undo/redo snapshots
 let _carHandle = { hx: 1, hy: 1 };       // which image corner the scale handle sits on
-let _carFrameXConfirm = null;            // frame index awaiting delete confirmation
 
 const CAR_CH = 1000;     // canonical slide height
 const CAR_MINV = 0.35, CAR_MAXV = 2.5;
@@ -12529,8 +12527,7 @@ function carGoFrame(f) {
   car.cur = Math.max(0, Math.min(car.frames - 1, f));
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();
   carRender(false);
-  if (_carFrameXConfirm !== null) { _carFrameXConfirm = null; carRenderFilm(); }
-  else carRenderFilmSel();
+  carRenderFilmSel();
 }
 
 function carAddFrame() {
@@ -12551,7 +12548,6 @@ function carDeleteFrame(f) {
   car.cur = Math.max(0, Math.min(car.frames - 1, f));
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * cw;
   car.sel = null;
-  _carFrameXConfirm = null;
   carRender();
   carRenderFilmSel();
 }
@@ -12882,16 +12878,11 @@ function carRenderFilm(morph = false) {
     b.appendChild(cv);
     b.appendChild(Object.assign(document.createElement('span'), { className: 'ct-n', textContent: f + 1 }));
     if (car.frames > 1) {
-      // ✕ deletes this frame — first tap asks, second tap confirms
-      const confirming = _carFrameXConfirm === f;
-      const xb = Object.assign(document.createElement('span'), {
-        className: 'ct-fx' + (confirming ? ' confirm' : ''),
-        textContent: confirming ? 'Delete?' : '✕'
-      });
+      // ✕ deletes this frame immediately (undo brings it back)
+      const xb = Object.assign(document.createElement('span'), { className: 'ct-fx', textContent: '✕' });
       xb.addEventListener('click', ev => {
         ev.stopPropagation();
-        if (_carFrameXConfirm === f) carDeleteFrame(f);
-        else { _carFrameXConfirm = f; carRenderFilm(); }
+        carDeleteFrame(f);
       });
       b.appendChild(xb);
     }
@@ -13463,7 +13454,6 @@ carStage.addEventListener('click', e => {
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag || _carBgMode) return;   // bg mode: canvas taps only move the bg
   if (e.target.closest('.car-ghostadd')) { carAddFrame(); return; }
-  if (_carFrameXConfirm !== null) { _carFrameXConfirm = null; carRenderFilm(); return; }
   if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
   const objEl = e.target.closest('.car-obj');
   if (objEl) {

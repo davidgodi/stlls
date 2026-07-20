@@ -1558,6 +1558,12 @@
   #carouselScreen.bgmode-ui .car-selpanel { display: none !important; }
   /* carousel tour: lift each step's target above the scrim (210) */
   body.coach-carw-on .car-chip.car-addphoto { z-index: 211; }
+  /* grid tour: lift each step's target above the scrim (z 210) */
+  body.coach-gridw-on #gridAddPhotoBtn { z-index: 211; }
+  body.coach-gridw-on #gridEmptyBtn { z-index: 211; }
+  body.coach-gridl-on .grid-controls,
+  body.coach-gridr-on .grid-controls { position: relative; z-index: 211; }
+  body.coach-gride-on #gridScreen .car-exportrow { position: relative; z-index: 211; background: var(--bg); }
   body.coach-carsel-on #carStrip { z-index: 211; }
   body.coach-carfr-on .car-film { position: relative; z-index: 211; }
   body.coach-carex-on .car-exportrow { position: relative; z-index: 211; }
@@ -4912,6 +4918,49 @@
     </div>
     <button class="export-btn" id="gridExportBtn" disabled>Export</button>
   </div>
+
+  <!-- First-time tour (scrim + guides live inside the grid's stacking context) -->
+  <div id="coachDimGrid" class="coach-dim coach-dim-fixed" hidden></div>
+  <div id="guideGridWelcome" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Add your design</strong>
+      One photo or graphic fills the whole grid — tap <b>+</b> to import it. You can reposition and zoom it afterwards.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
+  <div id="guideGridLayout" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Pick your grid</strong>
+      <b>1×3</b>, <b>2×3</b> or <b>3×3</b> rows. Drag your design to position it, pinch to zoom — the dimmed side edges are hidden on the profile.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
+  <div id="guideGridReels" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Posting Reels too?</strong>
+      Tap <b>Reels</b> and mark those tiles — they export as taller <b>9:16 covers</b> that still line up perfectly on the grid.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
+  <div id="guideGridExport" class="coach coach-fixed" hidden>
+    <div class="coach-bubble">
+      <strong>Export in posting order</strong>
+      Every tile saves to Photos in the order to post it — first saved, first posted — and the seams line up on your profile.
+    </div>
+    <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 2 C 11 11, 11 19, 11 26"/>
+      <path d="M5 20 L 11 27 L 17 20"/>
+    </svg>
+  </div>
 </div>
 
 <!-- Grid upload guide — posting order after export -->
@@ -5168,6 +5217,34 @@ setupCoach('carexport', {
   el: 'guideCarExport', store: 'stlls-guide-carexport', area: '#carouselScreen',
   dim: 'coachDimCar', body: 'coach-carex-on',
   anchor: '.car-exportrow',
+});
+// Grid editor first-time tour: welcome fires on entering an empty editor;
+// layout → reels → export chain from the first import.
+setupCoach('gridwelcome', {
+  el: 'guideGridWelcome', store: 'stlls-guide-gridwelcome', area: '#gridScreen',
+  dim: 'coachDimGrid', body: 'coach-gridw-on',
+  anchor: '#gridAddPhotoBtn', pulse: ['#gridAddPhotoBtn', '#gridEmptyBtn'],
+  showIf: () => !!grid && !grid.img,
+});
+setupCoach('gridlayout', {
+  el: 'guideGridLayout', store: 'stlls-guide-gridlayout', area: '#gridScreen',
+  dim: 'coachDimGrid', body: 'coach-gridl-on',
+  anchor: '#gridScreen [data-grows="2"]', pulse: ['#gridScreen [data-grows]'],
+  next: 'gridreels',
+  showIf: () => !!grid && !!grid.img,
+});
+setupCoach('gridreels', {
+  el: 'guideGridReels', store: 'stlls-guide-gridreels', area: '#gridScreen',
+  dim: 'coachDimGrid', body: 'coach-gridr-on',
+  anchor: '#gridReelsBtn', pulse: ['#gridReelsBtn'],
+  next: 'gridexport',
+  showIf: () => !!grid && !!grid.img,
+});
+setupCoach('gridexport', {
+  el: 'guideGridExport', store: 'stlls-guide-gridexport', area: '#gridScreen',
+  dim: 'coachDimGrid', body: 'coach-gride-on',
+  anchor: '#gridScreen .car-exportrow', pulse: ['#gridExportBtn'],
+  showIf: () => !!grid && !!grid.img,
 });
 // Guided tour — starts when the first stills land (see renderList), then chains.
 // canvas/layout/adjust are "explore then continue" steps: a continue icon
@@ -14880,6 +14957,9 @@ gridFileInput.addEventListener('change', () => {
       const g = gridGeo();
       if (img.naturalWidth < g.canvasW) gridToast('Low resolution — tiles will be upscaled', 2600);
       gridRender(); gridSave();
+      // first design in → continue the tour: layout → reels → export
+      dismissCoach('gridwelcome');
+      showCoach('gridlayout', 900);
     };
     img.src = reader.result;
   };
@@ -15097,7 +15177,7 @@ function createNewGridProject() {
   gridUiSync();
   gridScreen.hidden = false;
   gridRender();
-  leaveHomeToCarousel(() => gridRender());
+  leaveHomeToCarousel(() => { gridRender(); showCoach('gridwelcome', 600); });
 }
 document.getElementById('ntGrid').addEventListener('click', createNewGridProject);
 
@@ -15133,6 +15213,9 @@ function openGridProject(id) {
     gridScreen.hidden = false;
     gridClamp();
     gridRender();
+    // empty project → welcome; one with a design → pick the tour up at layout
+    showCoach('gridwelcome', 600);
+    showCoach('gridlayout', 900);
   });
 }
 

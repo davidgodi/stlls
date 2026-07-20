@@ -1284,8 +1284,11 @@
   #gridCanvas {
     display: block; background: #111; border-radius: 6px;
     max-width: calc(100% - 24px); max-height: calc(100% - 24px);
-    /* layout switches (1×3 ↔ 3×3) morph smoothly, like ratio changes */
-    transition: width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1);
+    /* element-level outline: always visible, follows the radius, and animates
+       with the box during layout morphs — never clipped by bitmap redraws */
+    border: 1px solid rgba(255,255,255,0.42);
+    /* layout morphs are JS-driven (gridMorphRender) so the separator lines
+       redraw crisp every frame instead of stretching with the bitmap */
   }
   /* transient toast messages (low-res warning, marking hint) */
   .grid-hint {
@@ -14443,32 +14446,79 @@ function gridClamp() {
 
 // ── Editor rendering ────────────────────────────────────────────────────────
 
-function gridRender() {
-  if (!grid) return;
-  const g = gridGeo();
+// target display scale for the current geometry within the stage
+function gridFitScale(g) {
   const stage = document.getElementById('gridStage');
   const padTop = parseFloat(getComputedStyle(stage).paddingTop) || 0;   // + button band
   const availW = stage.clientWidth - 24, availH = stage.clientHeight - padTop - 24;
-  if (availW <= 0 || availH <= 0) return;
-  const k = Math.min(availW / g.canvasW, availH / g.canvasH);
-  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
-  const kk = k * dpr;
-  gridCanvasEl.style.width  = (g.canvasW * k) + 'px';
-  gridCanvasEl.style.height = (g.canvasH * k) + 'px';
-  gridCanvasEl.width  = Math.max(1, Math.round(g.canvasW * kk));
-  gridCanvasEl.height = Math.max(1, Math.round(g.canvasH * kk));
-  const ctx = gridCanvasEl.getContext('2d');
-  ctx.setTransform(kk, 0, 0, kk, 0, 0);
+  if (availW <= 0 || availH <= 0) return 0;
+  return Math.min(availW / g.canvasW, availH / g.canvasH);
+}
+
+// draw the whole scene through an (optionally non-uniform) canvas-unit →
+// device-pixel transform; the morph animator squeezes via kx/ky while the
+// separators redraw crisp each frame
+function gridDrawScene(ctx, g, kx, ky) {
+  ctx.setTransform(kx, 0, 0, ky, 0, 0);
   ctx.fillStyle = '#111';
   ctx.fillRect(0, 0, g.canvasW, g.canvasH);
   if (grid.img) {
     const { dx, dy, dw, dh } = gridImgRect();
     ctx.drawImage(grid.img.img, dx, dy, dw, dh);
   }
-  if (grid.overlay) gridDrawOverlay(ctx, g, kk);
+  if (grid.overlay) gridDrawOverlay(ctx, g, (kx + ky) / 2);
   gridDrawReelBadges(ctx, g);
+}
+
+function gridRender() {
+  if (!grid) return;
+  const g = gridGeo();
+  const k = gridFitScale(g);
+  if (!k) return;
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  const kk = k * dpr;
+  gridCanvasEl.style.width  = (g.canvasW * k) + 'px';
+  gridCanvasEl.style.height = (g.canvasH * k) + 'px';
+  gridCanvasEl.width  = Math.max(1, Math.round(g.canvasW * kk));
+  gridCanvasEl.height = Math.max(1, Math.round(g.canvasH * kk));
+  gridDrawScene(gridCanvasEl.getContext('2d'), g, kk, kk);
   document.getElementById('gridEmptyBtn').hidden = !!grid.img;
   gridExportBtn.disabled = !grid.img;
+}
+
+// Layout/mode switches morph the canvas between sizes over 0.35s (ease
+// in-out), redrawing the final geometry through an interpolated transform
+// every frame — the separator lines glide and stay crisp instead of the
+// bitmap stretching.
+let _gridMorphRaf = null;
+function gridMorphRender() {
+  if (!grid) return;
+  const g = gridGeo();
+  const k = gridFitScale(g);
+  if (!k) { gridRender(); return; }
+  const newW = g.canvasW * k, newH = g.canvasH * k;
+  const oldW = parseFloat(gridCanvasEl.style.width)  || newW;
+  const oldH = parseFloat(gridCanvasEl.style.height) || newH;
+  if (Math.abs(oldW - newW) < 0.5 && Math.abs(oldH - newH) < 0.5) { gridRender(); return; }
+  cancelAnimationFrame(_gridMorphRaf);
+  const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+  const t0 = performance.now(), DUR = 350;
+  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const step = now => {
+    if (!grid) return;   // editor closed mid-morph
+    const p = Math.min(1, (now - t0) / DUR);
+    const e = ease(p);
+    const w = oldW + (newW - oldW) * e, h = oldH + (newH - oldH) * e;
+    gridCanvasEl.style.width = w + 'px';
+    gridCanvasEl.style.height = h + 'px';
+    gridCanvasEl.width  = Math.max(1, Math.round(w * dpr));
+    gridCanvasEl.height = Math.max(1, Math.round(h * dpr));
+    gridDrawScene(gridCanvasEl.getContext('2d'), g,
+                  gridCanvasEl.width / g.canvasW, gridCanvasEl.height / g.canvasH);
+    if (p < 1) _gridMorphRaf = requestAnimationFrame(step);
+    else gridRender();
+  };
+  step(t0);
 }
 
 // short-lived stage toast (low-res warning, marking hint)
@@ -14530,13 +14580,29 @@ function gridDrawOverlay(ctx, g, kk) {
       ctx.fillRect(0, (r + 1) * g.cellH + r * g.gap, g.canvasW, g.gap);
     }
   }
-  // visible cell boundaries
+  // separator lines between posts (interior boundaries + visible-area edges);
+  // the preview's outer frame is the element's CSS border, so nothing here
+  // ever sits half-off the bitmap
   ctx.strokeStyle = 'rgba(255,255,255,0.45)';
   ctx.lineWidth = px(1.2);
-  for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
-    const v = gridVisRect(g, r, c);
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
+  ctx.beginPath();
+  const vline = x => { ctx.moveTo(x, 0); ctx.lineTo(x, g.canvasH); };
+  const hline = y => { ctx.moveTo(0, y); ctx.lineTo(g.canvasW, y); };
+  if (g.bleed > 0) {              // edges of the visible area (bleed boundary)
+    vline(g.bleed);
+    vline(g.canvasW - g.bleed);
   }
+  for (let c = 1; c < g.cols; c++) {
+    const x = g.bleed + c * g.cellW + (c - 1) * g.gap;
+    vline(x);
+    if (g.gap > 0) vline(x + g.gap);
+  }
+  for (let r = 1; r < g.rows; r++) {
+    const y = r * g.cellH + (r - 1) * g.gap;
+    hline(y);
+    if (g.gap > 0) hline(y + g.gap);
+  }
+  ctx.stroke();
 }
 
 // ── Gestures: one finger pans the design, pinch / wheel zooms ───────────────
@@ -14593,7 +14659,7 @@ document.addEventListener('visibilitychange', () => {
 document.querySelectorAll('#gridScreen [data-grows]').forEach(btn => {
   btn.addEventListener('click', () => {
     grid.rows = +btn.dataset.grows;
-    gridUiSync(); gridClamp(); gridRender(); gridSave();
+    gridUiSync(); gridClamp(); gridMorphRender(); gridSave();
   });
 });
 document.getElementById('gridOverlayBtn').addEventListener('click', () => {
@@ -14602,7 +14668,7 @@ document.getElementById('gridOverlayBtn').addEventListener('click', () => {
 });
 document.getElementById('gridModeBtn').addEventListener('click', () => {
   grid.mode = grid.mode === '34' ? '45' : '34';
-  gridUiSync(); gridClamp(); gridRender(); gridSave();
+  gridUiSync(); gridClamp(); gridMorphRender(); gridSave();
 });
 document.getElementById('gridReelsBtn').addEventListener('click', () => {
   if (!grid?.img) return;

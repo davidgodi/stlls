@@ -1316,6 +1316,9 @@
   /* the shared .car-addphoto rule positions for the carousel stage — in the
      grid it sits in the reserved band above the preview, upper right */
   #gridAddPhotoBtn { position: absolute; top: 9px; right: 12px; }
+  /* photo selected: the preview frame lights up accent + a Delete tool shows */
+  #gridCanvas.selected { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
+  #gridDeleteBtn { position: absolute; top: 15px; left: 12px; }
 
   /* Profile preview / upload guide modals */
   #gridGuideModal {
@@ -1482,19 +1485,19 @@
     background-repeat: no-repeat;
   }
   /* undo/redo dropdown */
-  #carUndoMenu {
+  #carUndoMenu, #gridUndoMenu {
     position: fixed; z-index: 600; display: flex; flex-direction: column;
     background: var(--surface); border: 1px solid var(--border2); border-radius: 10px;
     padding: 4px; box-shadow: 0 8px 28px rgba(0,0,0,0.45); min-width: 116px;
   }
-  #carUndoMenu[hidden] { display: none !important; }
-  #carUndoMenu button {
+  #carUndoMenu[hidden], #gridUndoMenu[hidden] { display: none !important; }
+  #carUndoMenu button, #gridUndoMenu button {
     background: none; border: none; color: var(--text); font-family: inherit; font-size: 12px;
     padding: 9px 12px; text-align: left; border-radius: 7px; cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
-  #carUndoMenu button:disabled { opacity: 0.35; }
-  #carUndoMenu button:active { background: var(--surface2); }
+  #carUndoMenu button:disabled, #gridUndoMenu button:disabled { opacity: 0.35; }
+  #carUndoMenu button:active, #gridUndoMenu button:active { background: var(--surface2); }
   /* minimal snap guides — hairlines at whatever the magnet grabbed */
   .car-snapline { position: absolute; background: var(--accent); opacity: 0.5; pointer-events: none; display: none; }
   .car-snapline.v { width: 1px; }
@@ -4842,11 +4845,18 @@
       </svg>
     </button>
     <span style="flex:1"></span>
+    <button class="car-chip" id="gridUndoBtn" aria-label="Undo / Redo" title="Undo / Redo">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+    </button>
     <button class="car-chip" id="gridSettingsBtn" aria-label="Settings">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
   </div>
   <div class="car-sub">Grid editor</div>
+  <div id="gridUndoMenu" hidden>
+    <button id="gridUndoDo">Undo</button>
+    <button id="gridRedoDo">Redo</button>
+  </div>
   <div id="gridStage">
     <canvas id="gridCanvas"></canvas>
     <div class="grid-hint" id="gridHint" hidden></div>
@@ -4856,6 +4866,7 @@
         <line x1="4.5" y1="12" x2="19.5" y2="12"/>
       </svg>
     </button>
+    <button class="car-tool danger" id="gridDeleteBtn" hidden>Delete</button>
     <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="7" width="14" height="14" rx="2.5"/>
@@ -14385,6 +14396,45 @@ const gridExportBtn = document.getElementById('gridExportBtn');
 let grid = null;        // { rows, mode:'45'|'34', gap, overlay, reels:{'r,c':true}, img:{src,img,scale,fx,fy}|null }
 let _gridOpen = false;
 let _gridMarking = false;   // Reels marking mode: taps toggle tiles instead of panning
+let _gridSelected = false;  // the (single) photo is selected: accent frame + Delete
+
+// ── Undo/redo (30 steps, board/carousel style) ──────────────────────────────
+let _gridHist = [], _gridRedo = [];
+function gridSnapshot() {
+  return { rows: grid.rows, mode: grid.mode, gap: grid.gap, reels: { ...grid.reels },
+           img: grid.img ? { src: grid.img.src, scale: grid.img.scale, fx: grid.img.fx, fy: grid.img.fy } : null };
+}
+function gridPushHist(snap) {
+  _gridHist.push(snap || gridSnapshot());
+  if (_gridHist.length > 30) _gridHist.shift();
+  _gridRedo = [];
+}
+function gridApplySnap(s) {
+  grid.rows = s.rows; grid.mode = s.mode; grid.gap = s.gap; grid.reels = { ...s.reels };
+  _gridSelected = false;
+  const done = () => { gridSelSync(); gridUiSync(); gridClamp(); gridRender(); gridSave(); };
+  if (!s.img) { grid.img = null; done(); return; }
+  if (grid.img && grid.img.src === s.img.src) {
+    grid.img.scale = s.img.scale; grid.img.fx = s.img.fx; grid.img.fy = s.img.fy;
+    done();
+  } else {
+    const im = new Image();
+    im.onload = () => {
+      if (!grid) return;   // editor closed while the snapshot image loaded
+      grid.img = { src: s.img.src, img: im, scale: s.img.scale, fx: s.img.fx, fy: s.img.fy };
+      done();
+    };
+    im.src = s.img.src;
+  }
+}
+function gridUndo() { if (_gridHist.length) { _gridRedo.push(gridSnapshot()); gridApplySnap(_gridHist.pop()); } }
+function gridRedo() { if (_gridRedo.length) { _gridHist.push(gridSnapshot()); gridApplySnap(_gridRedo.pop()); } }
+
+function gridSelSync() {
+  const on = _gridSelected && !!grid?.img;
+  gridCanvasEl.classList.toggle('selected', on);
+  document.getElementById('gridDeleteBtn').hidden = !on;
+}
 
 function gridGeo() {
   const m45  = grid.mode !== '34';
@@ -14487,38 +14537,70 @@ function gridRender() {
 }
 
 // Layout/mode switches morph the canvas between sizes over 0.35s (ease
-// in-out), redrawing the final geometry through an interpolated transform
-// every frame — the separator lines glide and stay crisp instead of the
-// bitmap stretching.
+// in-out). The IMAGE is never squeezed: its display rect is lerped between
+// the old and new cover-fit placements (same aspect at both ends, so the
+// interpolation stays uniform — it just scales and repositions). Guides
+// redraw crisp toward the final geometry each frame.
 let _gridMorphRaf = null;
-function gridMorphRender() {
+function gridMorphRender(gOld, kOld, imgOld) {
   if (!grid) return;
-  const g = gridGeo();
-  const k = gridFitScale(g);
-  if (!k) { gridRender(); return; }
-  const newW = g.canvasW * k, newH = g.canvasH * k;
-  const oldW = parseFloat(gridCanvasEl.style.width)  || newW;
-  const oldH = parseFloat(gridCanvasEl.style.height) || newH;
+  const gNew = gridGeo();
+  const kNew = gridFitScale(gNew);
+  if (!kNew || !gOld || !kOld) { gridRender(); return; }
+  const oldW = gOld.canvasW * kOld, oldH = gOld.canvasH * kOld;
+  const newW = gNew.canvasW * kNew, newH = gNew.canvasH * kNew;
   if (Math.abs(oldW - newW) < 0.5 && Math.abs(oldH - newH) < 0.5) { gridRender(); return; }
+  const imgNew = grid.img ? gridImgRect() : null;
+  const Ro = imgOld ? { x: imgOld.dx * kOld, y: imgOld.dy * kOld, w: imgOld.dw * kOld, h: imgOld.dh * kOld } : null;
+  const Rn = imgNew ? { x: imgNew.dx * kNew, y: imgNew.dy * kNew, w: imgNew.dw * kNew, h: imgNew.dh * kNew } : null;
   cancelAnimationFrame(_gridMorphRaf);
   const dpr = Math.min(2.5, window.devicePixelRatio || 1);
   const t0 = performance.now(), DUR = 350;
   const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const L = (a, b, e) => a + (b - a) * e;
   const step = now => {
     if (!grid) return;   // editor closed mid-morph
     const p = Math.min(1, (now - t0) / DUR);
     const e = ease(p);
-    const w = oldW + (newW - oldW) * e, h = oldH + (newH - oldH) * e;
+    const w = L(oldW, newW, e), h = L(oldH, newH, e);
     gridCanvasEl.style.width = w + 'px';
     gridCanvasEl.style.height = h + 'px';
     gridCanvasEl.width  = Math.max(1, Math.round(w * dpr));
     gridCanvasEl.height = Math.max(1, Math.round(h * dpr));
-    gridDrawScene(gridCanvasEl.getContext('2d'), g,
-                  gridCanvasEl.width / g.canvasW, gridCanvasEl.height / g.canvasH);
+    const ctx = gridCanvasEl.getContext('2d');
+    // background + image in display space — uniform scale, never squeezed
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, w, h);
+    if (Ro && Rn && grid.img) {
+      ctx.drawImage(grid.img.img, L(Ro.x, Rn.x, e), L(Ro.y, Rn.y, e), L(Ro.w, Rn.w, e), L(Ro.h, Rn.h, e));
+    } else if (Rn && grid.img) {
+      ctx.globalAlpha = e;
+      ctx.drawImage(grid.img.img, Rn.x, Rn.y, Rn.w, Rn.h);
+      ctx.globalAlpha = 1;
+    }
+    // guides glide toward the final geometry, redrawn crisp each frame
+    const kx = gridCanvasEl.width / gNew.canvasW, ky = gridCanvasEl.height / gNew.canvasH;
+    ctx.setTransform(kx, 0, 0, ky, 0, 0);
+    if (grid.overlay) gridDrawOverlay(ctx, gNew, (kx + ky) / 2);
+    gridDrawReelBadges(ctx, gNew);
     if (p < 1) _gridMorphRaf = requestAnimationFrame(step);
     else gridRender();
   };
   step(t0);
+}
+
+// wraps a geometry mutation (rows/mode): history, clamp, morph, save
+function gridChangeLayout(mutate) {
+  gridPushHist();
+  const gOld = gridGeo();
+  const kOld = (parseFloat(gridCanvasEl.style.width) / gOld.canvasW) || gridFitScale(gOld);
+  const imgOld = grid.img ? gridImgRect() : null;
+  mutate();
+  gridClamp();
+  gridUiSync();
+  gridMorphRender(gOld, kOld, imgOld);
+  gridSave();
 }
 
 // short-lived stage toast (low-res warning, marking hint)
@@ -14564,8 +14646,10 @@ function gridDrawReelBadges(ctx, g) {
 
 function gridDrawOverlay(ctx, g, kk) {
   const px = n => n / kk;   // n screen pixels expressed in canvas units
-  // outer bleed margins — exported but hidden on the profile
-  if (g.bleed > 0) {
+  // outer bleed margins — exported but hidden on the profile. Only shown once
+  // a photo is in: on an empty board they read as posts sticking out.
+  const showBleed = g.bleed > 0 && !!grid.img;
+  if (showBleed) {
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillRect(0, 0, g.bleed, g.canvasH);
     ctx.fillRect(g.canvasW - g.bleed, 0, g.bleed, g.canvasH);
@@ -14588,7 +14672,7 @@ function gridDrawOverlay(ctx, g, kk) {
   ctx.beginPath();
   const vline = x => { ctx.moveTo(x, 0); ctx.lineTo(x, g.canvasH); };
   const hline = y => { ctx.moveTo(0, y); ctx.lineTo(g.canvasW, y); };
-  if (g.bleed > 0) {              // edges of the visible area (bleed boundary)
+  if (showBleed) {                // edges of the visible area (bleed boundary)
     vline(g.bleed);
     vline(g.canvasW - g.bleed);
   }
@@ -14609,10 +14693,13 @@ function gridDrawOverlay(ctx, g, kk) {
 
 const _gp = new Map();
 let _gpPinch = null;
+let _gpMoved = false;       // did this gesture actually pan/pinch?
+let _gpDownSnap = null;     // pre-gesture snapshot → one history entry per gesture
 gridCanvasEl.addEventListener('pointerdown', e => {
   if (!grid?.img || _gridMarking) return;
-  gridCanvasEl.setPointerCapture(e.pointerId);
-  _gp.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  try { gridCanvasEl.setPointerCapture(e.pointerId); } catch (_) {}
+  if (_gp.size === 0) { _gpMoved = false; _gpDownSnap = gridSnapshot(); }
+  _gp.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY });
   if (_gp.size === 2) {
     const [a, b] = [..._gp.values()];
     _gpPinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), scale: grid.img.scale };
@@ -14621,13 +14708,16 @@ gridCanvasEl.addEventListener('pointerdown', e => {
 gridCanvasEl.addEventListener('pointermove', e => {
   if (!grid?.img || !_gp.has(e.pointerId)) return;
   const prev = _gp.get(e.pointerId);
-  _gp.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  _gp.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: prev.sx, sy: prev.sy });
+  if (Math.hypot(e.clientX - prev.sx, e.clientY - prev.sy) > 6) _gpMoved = true;
   const g = gridGeo();
   const k = gridCanvasEl.clientWidth / g.canvasW;   // css px per canvas unit
   if (_gp.size === 1) {
+    if (!_gpMoved) return;                          // still within tap slop
     grid.img.fx += (e.clientX - prev.x) / k;
     grid.img.fy += (e.clientY - prev.y) / k;
   } else if (_gp.size === 2 && _gpPinch) {
+    _gpMoved = true;
     const [a, b] = [..._gp.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
     if (_gpPinch.dist > 0) grid.img.scale = _gpPinch.scale * (d / _gpPinch.dist);
@@ -14637,15 +14727,33 @@ gridCanvasEl.addEventListener('pointermove', e => {
 });
 function gridPtrEnd(e) {
   if (!_gp.has(e.pointerId)) return;
+  const wasSingle = _gp.size === 1;
   _gp.delete(e.pointerId);
   if (_gp.size < 2) _gpPinch = null;
-  gridSave();
+  if (_gp.size === 0) {
+    if (_gpMoved) {
+      if (_gpDownSnap) {                            // commit the pre-gesture state
+        _gridHist.push(_gpDownSnap);
+        if (_gridHist.length > 30) _gridHist.shift();
+        _gridRedo = [];
+      }
+      gridSave();
+    } else if (wasSingle && grid?.img && !_gridMarking) {
+      _gridSelected = !_gridSelected;               // a clean tap toggles selection
+      gridSelSync();
+    }
+    _gpDownSnap = null;
+  }
 }
 gridCanvasEl.addEventListener('pointerup', gridPtrEnd);
 gridCanvasEl.addEventListener('pointercancel', gridPtrEnd);
+let _gridWheelT = 0;
 gridCanvasEl.addEventListener('wheel', e => {
   if (!grid?.img || _gridMarking) return;
   e.preventDefault();
+  const now = Date.now();
+  if (now - _gridWheelT > 800) gridPushHist();   // one entry per zoom burst
+  _gridWheelT = now;
   grid.img.scale *= e.deltaY < 0 ? 1.05 : 0.95;
   gridClamp(); gridRender(); gridSave();
 }, { passive: false });
@@ -14658,8 +14766,8 @@ document.addEventListener('visibilitychange', () => {
 
 document.querySelectorAll('#gridScreen [data-grows]').forEach(btn => {
   btn.addEventListener('click', () => {
-    grid.rows = +btn.dataset.grows;
-    gridUiSync(); gridClamp(); gridMorphRender(); gridSave();
+    if (+btn.dataset.grows === grid.rows) return;
+    gridChangeLayout(() => { grid.rows = +btn.dataset.grows; });
   });
 });
 document.getElementById('gridOverlayBtn').addEventListener('click', () => {
@@ -14667,12 +14775,13 @@ document.getElementById('gridOverlayBtn').addEventListener('click', () => {
   gridUiSync(); gridRender();
 });
 document.getElementById('gridModeBtn').addEventListener('click', () => {
-  grid.mode = grid.mode === '34' ? '45' : '34';
-  gridUiSync(); gridClamp(); gridMorphRender(); gridSave();
+  gridChangeLayout(() => { grid.mode = grid.mode === '34' ? '45' : '34'; });
 });
 document.getElementById('gridReelsBtn').addEventListener('click', () => {
   if (!grid?.img) return;
   _gridMarking = !_gridMarking;
+  _gridSelected = false;
+  gridSelSync();
   if (_gridMarking) {
     gridToast('Tap the tiles you’ll post as Reels');
   } else {
@@ -14712,9 +14821,47 @@ gridCanvasEl.addEventListener('click', e => {
   const c = Math.max(0, Math.min(g.cols - 1, Math.floor((cx - g.bleed) / (g.cellW + g.gap))));
   const r = Math.max(0, Math.min(g.rows - 1, Math.floor(cy / (g.cellH + g.gap))));
   const key = r + ',' + c;
+  gridPushHist();
   if (grid.reels[key]) delete grid.reels[key];
   else grid.reels[key] = true;
   gridRender();
+});
+
+// Delete the (selected) photo — back to the empty state, undoable
+document.getElementById('gridDeleteBtn').addEventListener('click', () => {
+  if (!grid?.img) return;
+  gridPushHist();
+  grid.img = null;
+  _gridSelected = false;
+  gridSelSync();
+  gridRender();
+  gridSave();
+});
+
+// Undo/redo chip: board-editor-style dropdown
+const gridUndoMenu = document.getElementById('gridUndoMenu');
+document.getElementById('gridUndoBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  if (!gridUndoMenu.hidden) { gridUndoMenu.hidden = true; return; }
+  document.getElementById('gridUndoDo').disabled = !_gridHist.length;
+  document.getElementById('gridRedoDo').disabled = !_gridRedo.length;
+  const r = e.currentTarget.getBoundingClientRect();
+  gridUndoMenu.style.top = (r.bottom + 6) + 'px';
+  gridUndoMenu.style.left = Math.min(r.left, window.innerWidth - 130) + 'px';
+  gridUndoMenu.hidden = false;
+});
+document.getElementById('gridUndoDo').addEventListener('click', () => { gridUndoMenu.hidden = true; gridUndo(); });
+document.getElementById('gridRedoDo').addEventListener('click', () => { gridUndoMenu.hidden = true; gridRedo(); });
+document.addEventListener('click', e => {
+  if (!gridUndoMenu.hidden && !gridUndoMenu.contains(e.target) && !e.target.closest('#gridUndoBtn'))
+    gridUndoMenu.hidden = true;
+});
+document.addEventListener('keydown', e => {
+  if (!_gridOpen || gridScreen.hidden || !grid) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    e.shiftKey ? gridRedo() : gridUndo();
+  }
 });
 gridFileInput.addEventListener('change', () => {
   const file = gridFileInput.files[0];
@@ -14724,7 +14871,11 @@ gridFileInput.addEventListener('change', () => {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
+      if (!grid) return;
+      gridPushHist();
       grid.img = { src: reader.result, img, scale: 1, fx: 0, fy: 0 };
+      _gridSelected = false;
+      gridSelSync();
       // warn once if the source can't fill the tiles at native quality
       const g = gridGeo();
       if (img.naturalWidth < g.canvasW) gridToast('Low resolution — tiles will be upscaled', 2600);
@@ -14891,11 +15042,11 @@ function gridThumbnail() {
 }
 
 function gridSave() {
-  if (!_currentProjectId || !grid || !grid.img) return;
+  if (!_currentProjectId || !grid) return;
   const meta = projects.find(p => p.id === _currentProjectId);
   if (meta) {
-    const th = gridThumbnail();
-    if (th) meta.thumbnail = th;
+    // photo deleted → thumbnail goes too, so the card doesn't lie
+    meta.thumbnail = grid.img ? (gridThumbnail() || meta.thumbnail) : null;
     meta.updatedAt = Date.now();
     meta.kind = 'grid';
     saveProjects();
@@ -14903,7 +15054,7 @@ function gridSave() {
   dbPut(_currentProjectId, {
     id: _currentProjectId, kind: 'grid',
     grid: { rows: grid.rows, mode: grid.mode, gap: grid.gap, reels: grid.reels || {},
-            img: { src: grid.img.src, scale: grid.img.scale, fx: grid.img.fx, fy: grid.img.fy } },
+            img: grid.img ? { src: grid.img.src, scale: grid.img.scale, fx: grid.img.fx, fy: grid.img.fy } : null },
   }).catch(err => console.warn('IDB save failed', err));
 }
 
@@ -14915,8 +15066,13 @@ function closeGridAndGoHome() {
     saveProjects();
     dbDelete(_currentProjectId).catch(() => {});
   }
+  _gridSelected = false;
+  gridCanvasEl.classList.remove('selected');
+  document.getElementById('gridDeleteBtn').hidden = true;
+  gridUndoMenu.hidden = true;
   grid = null; _gridOpen = false; _currentProjectId = null;
   _gp.clear(); _gpPinch = null; _gridMarking = false;
+  _gridHist = []; _gridRedo = [];
   document.body.classList.remove('grid-open');
   updateGreeting();
   renderProjectsList();
@@ -14934,7 +15090,9 @@ function createNewGridProject() {
   projects.push({ id: _currentProjectId, kind: 'grid', updatedAt: Date.now(), thumbnail: null });
   saveProjects();
   grid = { rows: 3, mode: '45', gap: 0, overlay: true, reels: {}, img: null };
-  _gridOpen = true; _gridMarking = false;
+  _gridOpen = true; _gridMarking = false; _gridSelected = false;
+  _gridHist = []; _gridRedo = [];
+  gridSelSync();
   document.body.classList.add('grid-open');
   gridUiSync();
   gridScreen.hidden = false;
@@ -14956,7 +15114,9 @@ function openGridProject(id) {
       gap: Math.max(0, Math.min(20, data?.gap || 0)),
       overlay: true, reels: data?.reels || {}, img: null,
     };
-    _gridMarking = false;
+    _gridMarking = false; _gridSelected = false;
+    _gridHist = []; _gridRedo = [];
+    gridSelSync();
     if (data?.img?.src) {
       await new Promise(res => {
         const img = new Image();

@@ -1287,11 +1287,25 @@
     /* layout switches (1×3 ↔ 3×3) morph smoothly, like ratio changes */
     transition: width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1);
   }
+  /* transient toast messages (low-res warning, marking hint) */
   .grid-hint {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    color: var(--text-dim); font-size: 13px; pointer-events: none;
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.72); color: #fff;
+    padding: 9px 16px; border-radius: 10px;
+    font-size: 12.5px; pointer-events: none; white-space: nowrap;
   }
   .grid-hint[hidden] { display: none; }
+  /* empty-state call to action — a proper accent button instead of text that
+     disappears into the dark preview */
+  #gridEmptyBtn {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    padding: 13px 26px; border: none; border-radius: 12px;
+    background: var(--accent); color: var(--accent-fg);
+    font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #gridEmptyBtn[hidden] { display: none; }
+  #gridEmptyBtn:active { transform: translate(-50%, -50%) scale(0.96); }
   .grid-controls { flex-shrink: 0; padding: 8px 14px 4px; }
   .grid-chiprow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* the shared .car-addphoto rule positions for the carousel stage — in the
@@ -1388,6 +1402,8 @@
     height: 2px; margin: 2px 0 10px; overflow: hidden;
     background: var(--border); flex-shrink: 0;
   }
+  /* grid: extra air between the control chips and the export section */
+  #gridExportProg { margin-top: 18px; }
   #carExportProg i, #gridExportProg i {
     display: block; height: 100%; width: 0%;
     background: var(--accent); transition: width 0.3s ease, opacity 0.4s ease;
@@ -4828,7 +4844,8 @@
   <div class="car-sub">Grid editor</div>
   <div id="gridStage">
     <canvas id="gridCanvas"></canvas>
-    <div class="grid-hint" id="gridHint">Tap + to add your design</div>
+    <div class="grid-hint" id="gridHint" hidden></div>
+    <button id="gridEmptyBtn">Add your design</button>
     <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="7" width="14" height="14" rx="2.5"/>
@@ -14443,8 +14460,16 @@ function gridRender() {
   }
   if (grid.overlay) gridDrawOverlay(ctx, g, kk);
   gridDrawReelBadges(ctx, g);
-  if (!_gridMarking) gridHint.hidden = !!grid.img;
+  document.getElementById('gridEmptyBtn').hidden = !!grid.img;
   gridExportBtn.disabled = !grid.img;
+}
+
+// short-lived stage toast (low-res warning, marking hint)
+function gridToast(msg, ms = 2400) {
+  gridHint.textContent = msg;
+  gridHint.hidden = false;
+  clearTimeout(gridHint._t);
+  gridHint._t = setTimeout(() => { gridHint.hidden = true; }, ms);
 }
 
 // Reel badges: marked tiles always show one; in marking mode every tile shows
@@ -14576,13 +14601,9 @@ document.getElementById('gridReelsBtn').addEventListener('click', () => {
   if (!grid?.img) return;
   _gridMarking = !_gridMarking;
   if (_gridMarking) {
-    gridHint.textContent = 'Tap the tiles you’ll post as Reels';
-    gridHint.hidden = false;
-    clearTimeout(gridHint._t);
-    gridHint._t = setTimeout(() => { gridHint.hidden = true; }, 2400);
+    gridToast('Tap the tiles you’ll post as Reels');
   } else {
     gridHint.hidden = true;
-    gridHint.textContent = 'Tap + to add your design';
     gridSave();
   }
   gridUiSync(); gridRender();
@@ -14605,6 +14626,7 @@ function gridUiSync() {
 // ── Import ──────────────────────────────────────────────────────────────────
 
 document.getElementById('gridAddPhotoBtn').addEventListener('click', () => gridFileInput.click());
+document.getElementById('gridEmptyBtn').addEventListener('click', () => gridFileInput.click());
 gridCanvasEl.addEventListener('click', e => {
   if (!grid) return;
   if (!grid.img) { gridFileInput.click(); return; }
@@ -14632,11 +14654,7 @@ gridFileInput.addEventListener('change', () => {
       grid.img = { src: reader.result, img, scale: 1, fx: 0, fy: 0 };
       // warn once if the source can't fill the tiles at native quality
       const g = gridGeo();
-      if (img.naturalWidth < g.canvasW) {
-        gridHint.textContent = 'Low resolution — tiles will be upscaled';
-        gridHint.hidden = false;
-        setTimeout(() => { gridHint.hidden = !!grid?.img; gridHint.textContent = 'Tap + to add your design'; }, 2600);
-      }
+      if (img.naturalWidth < g.canvasW) gridToast('Low resolution — tiles will be upscaled', 2600);
       gridRender(); gridSave();
     };
     img.src = reader.result;

@@ -1277,6 +1277,9 @@
     flex: 1; min-height: 0; position: relative;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden; touch-action: none;
+    /* reserved band up top: the + button lives there, above the tallest (3×3)
+       preview, and stays put across 1×3 / 2×3 / 3×3 */
+    padding-top: 52px;
   }
   #gridCanvas {
     display: block; background: #111; border-radius: 6px;
@@ -1291,9 +1294,9 @@
   .grid-hint[hidden] { display: none; }
   .grid-controls { flex-shrink: 0; padding: 8px 14px 4px; }
   .grid-chiprow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  /* the shared .car-addphoto rule floats the button over the carousel stage —
-     in the grid it lives inline in the chip row instead */
-  #gridAddPhotoBtn { position: static; }
+  /* the shared .car-addphoto rule positions for the carousel stage — in the
+     grid it sits in the reserved band above the preview, upper right */
+  #gridAddPhotoBtn { position: absolute; top: 9px; right: 12px; }
 
   /* Profile preview / upload guide modals */
   #gridGuideModal {
@@ -4826,6 +4829,22 @@
   <div id="gridStage">
     <canvas id="gridCanvas"></canvas>
     <div class="grid-hint" id="gridHint">Tap + to add your design</div>
+    <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="7" width="14" height="14" rx="2.5"/>
+        <circle cx="7.5" cy="11.5" r="1.3" fill="currentColor" stroke="none"/>
+        <path d="M3 18l4-4 3 3 3.5-3.5 3.5 3.5"/>
+        <defs>
+          <radialGradient id="apFadeG">
+            <stop offset="55%" stop-color="var(--surface2)"/>
+            <stop offset="100%" stop-color="var(--surface2)" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="19.5" cy="5.5" r="7" fill="url(#apFadeG)" stroke="none"/>
+        <line x1="19.5" y1="2.5" x2="19.5" y2="8.5" stroke="var(--accent)"/>
+        <line x1="16.5" y1="5.5" x2="22.5" y2="5.5" stroke="var(--accent)"/>
+      </svg>
+    </button>
   </div>
   <div class="grid-controls">
     <div class="grid-chiprow">
@@ -4836,22 +4855,6 @@
       <button class="car-chip on" id="gridOverlayBtn">Guides</button>
       <button class="car-chip" id="gridReelsBtn" title="Mark tiles that will be posted as Reels — they export as 9:16 covers that still align on the grid">Reels</button>
       <button class="car-chip" id="gridModeBtn" title="Upload format — 4:5 with bleed (default) or native 3:4 (experimental)">4:5</button>
-      <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="7" width="14" height="14" rx="2.5"/>
-          <circle cx="7.5" cy="11.5" r="1.3" fill="currentColor" stroke="none"/>
-          <path d="M3 18l4-4 3 3 3.5-3.5 3.5 3.5"/>
-          <defs>
-            <radialGradient id="apFadeG">
-              <stop offset="55%" stop-color="var(--surface2)"/>
-              <stop offset="100%" stop-color="var(--surface2)" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-          <circle cx="19.5" cy="5.5" r="7" fill="url(#apFadeG)" stroke="none"/>
-          <line x1="19.5" y1="2.5" x2="19.5" y2="8.5" stroke="var(--accent)"/>
-          <line x1="16.5" y1="5.5" x2="22.5" y2="5.5" stroke="var(--accent)"/>
-        </svg>
-      </button>
     </div>
   </div>
   <div id="gridExportProg"><i></i></div>
@@ -14420,7 +14423,8 @@ function gridRender() {
   if (!grid) return;
   const g = gridGeo();
   const stage = document.getElementById('gridStage');
-  const availW = stage.clientWidth - 24, availH = stage.clientHeight - 24;
+  const padTop = parseFloat(getComputedStyle(stage).paddingTop) || 0;   // + button band
+  const availW = stage.clientWidth - 24, availH = stage.clientHeight - padTop - 24;
   if (availW <= 0 || availH <= 0) return;
   const k = Math.min(availW / g.canvasW, availH / g.canvasH);
   const dpr = Math.min(2.5, window.devicePixelRatio || 1);

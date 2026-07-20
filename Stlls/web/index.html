@@ -1281,6 +1281,8 @@
   #gridCanvas {
     display: block; background: #111; border-radius: 6px;
     max-width: calc(100% - 24px); max-height: calc(100% - 24px);
+    /* layout switches (1×3 ↔ 3×3) morph smoothly, like ratio changes */
+    transition: width 0.35s cubic-bezier(0.4,0,0.2,1), height 0.35s cubic-bezier(0.4,0,0.2,1);
   }
   .grid-hint {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -1320,6 +1322,16 @@
     min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
     background: var(--accent); color: var(--accent-fg);
     font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  .gp-cell .gp-reel {
+    position: absolute; right: 4px; top: 4px;
+    width: 18px; height: 18px; border-radius: 5px;
+    background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.7);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .gp-cell .gp-reel::before {
+    content: ''; display: block; margin-left: 2px;
+    border-left: 7px solid #fff; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent;
   }
   .gp-note { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin: 12px 2px 0; }
 
@@ -4822,6 +4834,7 @@
       <button class="car-chip" data-grows="3">3×3</button>
       <span style="flex:1"></span>
       <button class="car-chip on" id="gridOverlayBtn">Guides</button>
+      <button class="car-chip" id="gridReelsBtn" title="Mark tiles that will be posted as Reels — they export as 9:16 covers that still align on the grid">Reels</button>
       <button class="car-chip" id="gridModeBtn" title="Upload format — 4:5 with bleed (default) or native 3:4 (experimental)">4:5</button>
       <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -14339,8 +14352,9 @@ const gridHint     = document.getElementById('gridHint');
 const gridFileInput = document.getElementById('gridFile');
 const gridExportBtn = document.getElementById('gridExportBtn');
 
-let grid = null;        // { rows, mode:'45'|'34', gap, overlay, img:{src,img,scale,fx,fy}|null }
+let grid = null;        // { rows, mode:'45'|'34', gap, overlay, reels:{'r,c':true}, img:{src,img,scale,fx,fy}|null }
 let _gridOpen = false;
+let _gridMarking = false;   // Reels marking mode: taps toggle tiles instead of panning
 
 function gridGeo() {
   const m45  = grid.mode !== '34';
@@ -14364,6 +14378,23 @@ function gridTileRect(g, r, c) {
 function gridVisRect(g, r, c) {
   return { x: g.bleed + c * (g.cellW + g.gap), y: r * (g.cellH + g.gap), w: g.cellW, h: g.cellH };
 }
+// Reel tiles: posted as 9:16 Reels (1080×1920). The grid crops a reel cover
+// to the same 3:4 thumb — full WIDTH visible, extra height hidden above and
+// below. So a reel export maps the tile's visible cell into the centre 3:4
+// window of a 1080×1920 canvas (scale 1080/cellW = 16/15 in 4:5 mode) and the
+// grid stays perfectly aligned no matter how many tiles are reels.
+function gridIsReel(r, c) { return !!(grid.reels && grid.reels[r + ',' + c]); }
+function gridTileExportSpec(g, r, c) {
+  if (gridIsReel(r, c)) {
+    const s = 1080 / g.cellW;              // export px per canvas unit
+    const v = gridVisRect(g, r, c);
+    const regionH = 1920 / s;              // canvas units covered by the 9:16
+    return { outW: 1080, outH: 1920, scale: s, x: v.x, y: v.y - (regionH - g.cellH) / 2 };
+  }
+  const t = gridTileRect(g, r, c);
+  return { outW: Math.round(t.w), outH: Math.round(t.h), scale: 1, x: t.x, y: t.y };
+}
+
 // image placement in canvas units: cover-fit × user scale, panned by fx/fy
 function gridImgRect() {
   const g = gridGeo(), im = grid.img;
@@ -14407,8 +14438,42 @@ function gridRender() {
     ctx.drawImage(grid.img.img, dx, dy, dw, dh);
   }
   if (grid.overlay) gridDrawOverlay(ctx, g, kk);
-  gridHint.hidden = !!grid.img;
+  gridDrawReelBadges(ctx, g);
+  if (!_gridMarking) gridHint.hidden = !!grid.img;
   gridExportBtn.disabled = !grid.img;
+}
+
+// Reel badges: marked tiles always show one; in marking mode every tile shows
+// one (outline = off, accent = on) as the tap targets.
+function gridDrawReelBadges(ctx, g) {
+  const accent = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#4d9fff').trim();
+  for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
+    const marked = gridIsReel(r, c);
+    if (!marked && !_gridMarking) continue;
+    const v = gridVisRect(g, r, c);
+    const S = 118, m = 30, rad = 26;
+    const bx = v.x + v.w - S - m, by = v.y + m;
+    ctx.beginPath();
+    ctx.moveTo(bx + rad, by);
+    ctx.arcTo(bx + S, by, bx + S, by + S, rad);
+    ctx.arcTo(bx + S, by + S, bx, by + S, rad);
+    ctx.arcTo(bx, by + S, bx, by, rad);
+    ctx.arcTo(bx, by, bx + S, by, rad);
+    ctx.closePath();
+    ctx.fillStyle = marked ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.35)';
+    ctx.fill();
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = marked ? accent : 'rgba(255,255,255,0.55)';
+    ctx.stroke();
+    // play glyph
+    ctx.beginPath();
+    ctx.moveTo(bx + S * 0.38, by + S * 0.28);
+    ctx.lineTo(bx + S * 0.38, by + S * 0.72);
+    ctx.lineTo(bx + S * 0.74, by + S * 0.5);
+    ctx.closePath();
+    ctx.fillStyle = marked ? accent : 'rgba(255,255,255,0.55)';
+    ctx.fill();
+  }
 }
 
 function gridDrawOverlay(ctx, g, kk) {
@@ -14443,7 +14508,7 @@ function gridDrawOverlay(ctx, g, kk) {
 const _gp = new Map();
 let _gpPinch = null;
 gridCanvasEl.addEventListener('pointerdown', e => {
-  if (!grid?.img) return;
+  if (!grid?.img || _gridMarking) return;
   gridCanvasEl.setPointerCapture(e.pointerId);
   _gp.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (_gp.size === 2) {
@@ -14477,7 +14542,7 @@ function gridPtrEnd(e) {
 gridCanvasEl.addEventListener('pointerup', gridPtrEnd);
 gridCanvasEl.addEventListener('pointercancel', gridPtrEnd);
 gridCanvasEl.addEventListener('wheel', e => {
-  if (!grid?.img) return;
+  if (!grid?.img || _gridMarking) return;
   e.preventDefault();
   grid.img.scale *= e.deltaY < 0 ? 1.05 : 0.95;
   gridClamp(); gridRender(); gridSave();
@@ -14503,6 +14568,21 @@ document.getElementById('gridModeBtn').addEventListener('click', () => {
   grid.mode = grid.mode === '34' ? '45' : '34';
   gridUiSync(); gridClamp(); gridRender(); gridSave();
 });
+document.getElementById('gridReelsBtn').addEventListener('click', () => {
+  if (!grid?.img) return;
+  _gridMarking = !_gridMarking;
+  if (_gridMarking) {
+    gridHint.textContent = 'Tap the tiles you’ll post as Reels';
+    gridHint.hidden = false;
+    clearTimeout(gridHint._t);
+    gridHint._t = setTimeout(() => { gridHint.hidden = true; }, 2400);
+  } else {
+    gridHint.hidden = true;
+    gridHint.textContent = 'Tap + to add your design';
+    gridSave();
+  }
+  gridUiSync(); gridRender();
+});
 // NOTE: the spec's gap-compensation slider (0–20 canvas px, discarding gutter
 // content so diagonals stay straight across the profile grid's rendered
 // spacing) was removed from the UI July 2026 — the geometry still supports
@@ -14512,6 +14592,7 @@ function gridUiSync() {
   document.querySelectorAll('#gridScreen [data-grows]').forEach(b =>
     b.classList.toggle('on', +b.dataset.grows === grid.rows));
   document.getElementById('gridOverlayBtn').classList.toggle('on', !!grid.overlay);
+  document.getElementById('gridReelsBtn').classList.toggle('on', _gridMarking);
   const modeBtn = document.getElementById('gridModeBtn');
   modeBtn.textContent = grid.mode === '34' ? '3:4' : '4:5';
   modeBtn.classList.toggle('on', grid.mode === '34');
@@ -14520,7 +14601,22 @@ function gridUiSync() {
 // ── Import ──────────────────────────────────────────────────────────────────
 
 document.getElementById('gridAddPhotoBtn').addEventListener('click', () => gridFileInput.click());
-gridCanvasEl.addEventListener('click', () => { if (grid && !grid.img) gridFileInput.click(); });
+gridCanvasEl.addEventListener('click', e => {
+  if (!grid) return;
+  if (!grid.img) { gridFileInput.click(); return; }
+  if (!_gridMarking) return;
+  // marking mode: map the tap to a cell and toggle its Reel flag
+  const g = gridGeo();
+  const rect = gridCanvasEl.getBoundingClientRect();
+  const cx = (e.clientX - rect.left) * g.canvasW / rect.width;
+  const cy = (e.clientY - rect.top) * g.canvasH / rect.height;
+  const c = Math.max(0, Math.min(g.cols - 1, Math.floor((cx - g.bleed) / (g.cellW + g.gap))));
+  const r = Math.max(0, Math.min(g.rows - 1, Math.floor(cy / (g.cellH + g.gap))));
+  const key = r + ',' + c;
+  if (grid.reels[key]) delete grid.reels[key];
+  else grid.reels[key] = true;
+  gridRender();
+});
 gridFileInput.addEventListener('change', () => {
   const file = gridFileInput.files[0];
   gridFileInput.value = '';
@@ -14592,16 +14688,18 @@ gridExportBtn.addEventListener('click', async () => {
       const [r, c] = order[i];
       gridExportBtn.textContent = `${i + 1} / ${total}…`;
       progTarget = (i + 0.9) / total;
-      const t = gridTileRect(g, r, c);
+      // posts: 1080×1350 (or ×1440 native); reels: 1080×1920 with the visible
+      // cell mapped into the centre 3:4 window. Edges snap only here at raster
+      // time — the spec's rounding rule.
+      const spec = gridTileExportSpec(g, r, c);
       const cvs = document.createElement('canvas');
-      // canvas units are output pixels at 1× (1080 × 1350 / 1440); edges snap
-      // only here at raster time — the spec's rounding rule
-      cvs.width = Math.round(t.w * expScale); cvs.height = Math.round(t.h * expScale);
+      cvs.width = Math.round(spec.outW * expScale); cvs.height = Math.round(spec.outH * expScale);
       const ctx = cvs.getContext('2d');
       ctx.fillStyle = '#000';
       ctx.fillRect(0, 0, cvs.width, cvs.height);
-      ctx.scale(expScale, expScale);
-      ctx.drawImage(grid.img.img, imgRect.dx - t.x, imgRect.dy - t.y, imgRect.dw, imgRect.dh);
+      const kk = spec.scale * expScale;
+      ctx.setTransform(kk, 0, 0, kk, -spec.x * kk, -spec.y * kk);
+      ctx.drawImage(grid.img.img, imgRect.dx, imgRect.dy, imgRect.dw, imgRect.dh);
       await new Promise(resolve => {
         cvs.toBlob(blob => {
           if (window.webkit?.messageHandlers?.exportImage) {
@@ -14611,7 +14709,7 @@ gridExportBtn.addEventListener('click', async () => {
           } else {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = `post_${i + 1}.${fmt}`; a.click();
+            a.href = url; a.download = `post_${i + 1}${gridIsReel(r, c) ? '_reel' : ''}.${fmt}`; a.click();
             setTimeout(() => URL.revokeObjectURL(url), 5000);
             resolve();
           }
@@ -14643,6 +14741,7 @@ function gridOpenGuide() {
   const gg = document.getElementById('ggGrid');
   gg.innerHTML = '';
   const imgRect = gridImgRect();
+  let anyReels = false;
   for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) {
     const postNum = (g.rows - 1 - r) * g.cols + (g.cols - 1 - c) + 1;
     const cell = document.createElement('div');
@@ -14652,9 +14751,16 @@ function gridOpenGuide() {
     num.className = 'gp-num';
     num.textContent = postNum;
     cell.appendChild(num);
+    if (gridIsReel(r, c)) {
+      anyReels = true;
+      const badge = document.createElement('div');
+      badge.className = 'gp-reel';
+      cell.appendChild(badge);
+    }
     gg.appendChild(cell);
   }
   const notes = ['Tiles were saved in posting order — post the first one saved (1) first; the last lands top-left.'];
+  if (anyReels) notes.push('Tiles marked ▶ are 9:16 Reel covers (1080 × 1920) — post them as Reels and their grid thumbnails still align.');
   if (g.rows === 1) notes.push('Tip: pin all three posts to keep the row together at the top of your profile.');
   if (g.rows === 3) notes.push('Post all 9 before anything else — any later post shifts the grid by one, so plan in rows of three.');
   if (grid.mode === '34') notes.push('Native 3:4 uploads are still rolling out — verify your account accepts 1080 × 1440 before relying on it.');
@@ -14701,7 +14807,7 @@ function gridSave() {
   }
   dbPut(_currentProjectId, {
     id: _currentProjectId, kind: 'grid',
-    grid: { rows: grid.rows, mode: grid.mode, gap: grid.gap,
+    grid: { rows: grid.rows, mode: grid.mode, gap: grid.gap, reels: grid.reels || {},
             img: { src: grid.img.src, scale: grid.img.scale, fx: grid.img.fx, fy: grid.img.fy } },
   }).catch(err => console.warn('IDB save failed', err));
 }
@@ -14715,7 +14821,7 @@ function closeGridAndGoHome() {
     dbDelete(_currentProjectId).catch(() => {});
   }
   grid = null; _gridOpen = false; _currentProjectId = null;
-  _gp.clear(); _gpPinch = null;
+  _gp.clear(); _gpPinch = null; _gridMarking = false;
   document.body.classList.remove('grid-open');
   updateGreeting();
   renderProjectsList();
@@ -14732,8 +14838,8 @@ function createNewGridProject() {
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, kind: 'grid', updatedAt: Date.now(), thumbnail: null });
   saveProjects();
-  grid = { rows: 3, mode: '45', gap: 0, overlay: true, img: null };
-  _gridOpen = true;
+  grid = { rows: 3, mode: '45', gap: 0, overlay: true, reels: {}, img: null };
+  _gridOpen = true; _gridMarking = false;
   document.body.classList.add('grid-open');
   gridUiSync();
   gridScreen.hidden = false;
@@ -14753,8 +14859,9 @@ function openGridProject(id) {
       rows: [1, 2, 3].includes(data?.rows) ? data.rows : 3,
       mode: data?.mode === '34' ? '34' : '45',
       gap: Math.max(0, Math.min(20, data?.gap || 0)),
-      overlay: true, img: null,
+      overlay: true, reels: data?.reels || {}, img: null,
     };
+    _gridMarking = false;
     if (data?.img?.src) {
       await new Promise(res => {
         const img = new Image();

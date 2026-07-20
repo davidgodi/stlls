@@ -1295,17 +1295,19 @@
     font-size: 12.5px; pointer-events: none; white-space: nowrap;
   }
   .grid-hint[hidden] { display: none; }
-  /* empty-state call to action — a proper accent button instead of text that
-     disappears into the dark preview */
+  /* empty-state call to action — accent + circle centred in the preview */
   #gridEmptyBtn {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    padding: 13px 26px; border: none; border-radius: 12px;
+    /* 50% is stage-relative; +26px re-centres within the preview area below
+       the 52px +-button band */
+    position: absolute; left: 50%; top: calc(50% + 26px); transform: translate(-50%, -50%);
+    width: 58px; height: 58px; border: none; border-radius: 50%;
     background: var(--accent); color: var(--accent-fg);
-    font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   #gridEmptyBtn[hidden] { display: none; }
-  #gridEmptyBtn:active { transform: translate(-50%, -50%) scale(0.96); }
+  #gridEmptyBtn:active { transform: translate(-50%, -50%) scale(0.92); }
+  #gridEmptyBtn svg { display: block; }
   .grid-controls { flex-shrink: 0; padding: 8px 14px 4px; }
   .grid-chiprow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   /* the shared .car-addphoto rule positions for the carousel stage — in the
@@ -4845,7 +4847,12 @@
   <div id="gridStage">
     <canvas id="gridCanvas"></canvas>
     <div class="grid-hint" id="gridHint" hidden></div>
-    <button id="gridEmptyBtn">Add your design</button>
+    <button id="gridEmptyBtn" aria-label="Add your design">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <line x1="12" y1="4.5" x2="12" y2="19.5"/>
+        <line x1="4.5" y1="12" x2="19.5" y2="12"/>
+      </svg>
+    </button>
     <button class="car-chip car-addphoto" id="gridAddPhotoBtn" aria-label="Add photo">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="7" width="14" height="14" rx="2.5"/>

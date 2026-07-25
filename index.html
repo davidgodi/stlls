@@ -1380,6 +1380,10 @@
     will-change: transform, filter; transform-origin: 0 0;
     backface-visibility: hidden;
   }
+  /* tiled copies of the bg photo (when it can't span every frame): each copy
+     after the first fades in over a feathered left edge so the copies
+     crossfade — the wrapper's blur then blends the composite, not each copy */
+  .car-bgphoto img { position: absolute; top: 0; max-width: none; }
   #carBgSliders { display: flex; flex-direction: column; gap: 4px; }
   #carBgSliders[hidden] { display: none !important; }
   /* Background edit mode: panel docks under the preview, foreground fades */
@@ -1474,6 +1478,10 @@
   #carStrip.ratio-anim .car-ghostadd { transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
   #carStrip.ratio-anim .car-bgphoto {
     transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #carStrip.ratio-anim .car-bgphoto img {
+    transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1),
                 width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   }
   /* board-editor chrome (header, workspace, its fixed bars) stays out of the way
@@ -12742,10 +12750,9 @@ function carRender(structural = true) {
     // background layers sit under every image
     clip.appendChild(Object.assign(document.createElement('div'), { className: 'car-bgcolor' }));
     if (car.bg?.photo?.img) {
-      const bp = document.createElement('img');
-      bp.className = 'car-bgphoto';
-      bp.src = car.bg.photo.img.src;
-      clip.appendChild(bp);
+      // wrapper carries the transform/blur on one compositor layer; the
+      // geometry pass fills it with one <img> per tiled copy of the photo
+      clip.appendChild(Object.assign(document.createElement('div'), { className: 'car-bgphoto' }));
     }
     car.imgs.forEach(o => {
       const d = document.createElement('div');
@@ -12799,10 +12806,37 @@ function carRender(structural = true) {
     const s = bp.scale || 1;
     const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
     bpEl.style.transform = `translate3d(${(bp.x || 0) * k}px, ${(bp.y || 0) * k}px, 0)`;
-    bpEl.style.width = (bw2 * k) + 'px';
-    bpEl.style.height = (bh * k) + 'px';
     bpEl.style.filter = bp.blur ? `blur(${bp.blur * k}px)` : 'none';
     bpEl.style.opacity = bp.opacity ?? 1;
+    // photo narrower than the strip → tile copies side by side; every copy
+    // after the first crossfades in over a feathered left edge, and the
+    // wrapper's blur blends the composite so the seams disappear cleanly
+    const stripC = car.frames * carCW();
+    const feather = carBgFeather(bw2);
+    const step = bw2 - feather;
+    let nLo = 0, nHi = 0;
+    if (bw2 < stripC - 0.5) {
+      nLo = Math.floor(-(bp.x || 0) / step) - 1;
+      nHi = Math.ceil((stripC - (bp.x || 0) - bw2) / step);
+    }
+    const count = nHi - nLo + 1;
+    while (bpEl.children.length > count) bpEl.lastChild.remove();
+    while (bpEl.children.length < count) {
+      const im = document.createElement('img');
+      im.src = bp.img.src;
+      im.draggable = false;
+      bpEl.appendChild(im);
+    }
+    for (let i = 0; i < count; i++) {
+      const im = bpEl.children[i];
+      const n = nLo + i;
+      im.style.left = (n * step * k) + 'px';
+      im.style.width = (bw2 * k) + 'px';
+      im.style.height = (bh * k) + 'px';
+      const mask = n > nLo ? `linear-gradient(to right, transparent 0, #000 ${feather * k}px)` : 'none';
+      im.style.webkitMaskImage = mask;
+      im.style.maskImage = mask;
+    }
   }
   const objEls = clip.querySelectorAll('.car-obj');
   car.imgs.forEach((o, i) => {
@@ -12996,6 +13030,10 @@ function carDrawBlurredImg(ctx, img, x, y, w, h, blurPx, alpha) {
   ctx.restore();
 }
 
+// Feather width (canonical px) for tiled bg-photo seams — kept small so the
+// crossfade reads as a soft edge, not a double exposure
+function carBgFeather(bw2) { return Math.min(Math.max(bw2 * 0.075, 12), 80); }
+
 // Draw one frame's slice of the canvas into a 2d context (k: canonical→target px)
 function carDrawFrame(ctx, f, k) {
   const cw = carCW();
@@ -13006,8 +13044,49 @@ function carDrawFrame(ctx, f, k) {
   if (bp?.img) {
     const s = bp.scale || 1;
     const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
-    carDrawBlurredImg(ctx, bp.img, ((bp.x || 0) - f * cw) * k, (bp.y || 0) * k,
-                      bw2 * k, bh * k, (bp.blur || 0) * k, bp.opacity ?? 1);
+    const stripC = car.frames * cw;
+    if (bw2 >= stripC - 0.5) {
+      carDrawBlurredImg(ctx, bp.img, ((bp.x || 0) - f * cw) * k, (bp.y || 0) * k,
+                        bw2 * k, bh * k, (bp.blur || 0) * k, bp.opacity ?? 1);
+    } else {
+      // photo narrower than the strip: composite feather-seamed copies first,
+      // then blur the composite ONCE so the seams blur together cleanly —
+      // blurring each copy separately would leave dark seams where the
+      // crossfades stack
+      const feather = carBgFeather(bw2);
+      const step = bw2 - feather;
+      const x0 = bp.x || 0;
+      // pad past the frame by the blur's reach so it pulls real pixels, not
+      // transparency, across frame borders (keeps frames seam-identical)
+      const pad = Math.ceil((bp.blur || 0) * 3 + feather);
+      const vx0 = f * cw - pad, vx1 = (f + 1) * cw + pad;
+      const tw = Math.max(2, Math.round(bw2 * k)), th2 = Math.max(2, Math.round(bh * k));
+      // one feathered tile, reused for every copy
+      const tile = document.createElement('canvas');
+      tile.width = tw; tile.height = th2;
+      const tctx = tile.getContext('2d');
+      tctx.imageSmoothingEnabled = true;
+      tctx.imageSmoothingQuality = 'high';
+      tctx.drawImage(bp.img, 0, 0, tw, th2);
+      const fpx = Math.max(1, Math.ceil(feather * k));
+      const ramp = tctx.createLinearGradient(0, 0, fpx, 0);
+      ramp.addColorStop(0, 'rgba(0,0,0,1)');
+      ramp.addColorStop(1, 'rgba(0,0,0,0)');
+      tctx.globalCompositeOperation = 'destination-out';
+      tctx.fillStyle = ramp;
+      tctx.fillRect(0, 0, fpx, th2);
+      const comp = document.createElement('canvas');
+      comp.width = Math.max(2, Math.round((vx1 - vx0) * k));
+      comp.height = th2;
+      const cctx = comp.getContext('2d');
+      const nLo = Math.floor((vx0 - x0 - bw2) / step) - 1;
+      const nHi = Math.ceil((vx1 - x0) / step) + 1;
+      for (let n = nLo; n <= nHi; n++) {
+        cctx.drawImage(tile, Math.round((x0 + n * step - vx0) * k), 0);
+      }
+      carDrawBlurredImg(ctx, comp, (vx0 - f * cw) * k, (bp.y || 0) * k,
+                        comp.width, comp.height, (bp.blur || 0) * k, bp.opacity ?? 1);
+    }
   }
   for (const o of car.imgs) {
     const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;

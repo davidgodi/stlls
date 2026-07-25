@@ -136,7 +136,7 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(PROJECT_DIR)/../story-layout/index.html",
+				"$(PROJECT_DIR)/index.html",
 			);
 			name = "Copy web index";
 			outputFileListPaths = (
@@ -146,7 +146,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cp \"$PROJECT_DIR/../story-layout/index.html\" \"$PROJECT_DIR/Stlls/web/index.html\"\n";
+			shellScript = "cp \"$PROJECT_DIR/index.html\" \"$PROJECT_DIR/Stlls/web/index.html\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

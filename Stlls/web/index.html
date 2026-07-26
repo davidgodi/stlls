@@ -13582,9 +13582,26 @@ function carApplyPreset(p) {
   if (!car) return;
   carPushHist();
   const cw = carCW();
-  // an empty carousel takes the preset's frame count; one with photos only grows
-  car.frames = car.imgs.length ? Math.min(10, Math.max(car.frames, p.frames)) : p.frames;
-  car.slots = p.slots.map(s => ({ id: genId(), x: s[0] * cw, y: s[1] * CAR_CH, w: s[2] * cw, h: s[3] * CAR_CH }));
+  // Photos already on the canvas keep their pixels but not their places: they
+  // re-seat into the new layout's frames in reading order, so changing layout
+  // never means importing again. Frames left over stay empty (tap to fill);
+  // photos left over drop away — the whole switch is a single undo step.
+  const reading = (a, b) =>
+    Math.floor((a.x + a.w / 2) / cw) - Math.floor((b.x + b.w / 2) / cw) || a.y - b.y || a.x - b.x;
+  const carried = car.imgs.filter(o => !o.wide).sort(reading);
+  const wide = car.imgs.filter(o => o.wide);
+  const slots = p.slots
+    .map(s => ({ id: genId(), x: s[0] * cw, y: s[1] * CAR_CH, w: s[2] * cw, h: s[3] * CAR_CH }))
+    .sort(reading);
+  const seated = Math.min(carried.length, slots.length);
+  car.imgs = wide.concat(carried.slice(0, seated).map((o, i) => {
+    const s = slots[i];
+    // a different frame means a fresh cover crop — the old offsets meant
+    // nothing outside the frame they were made in
+    return { ...o, x: s.x, y: s.y, w: s.w, fh: s.h, cs: 1, cx: 0, cy: 0 };
+  }));
+  car.slots = slots.slice(seated);
+  car.frames = Math.min(10, Math.max(p.frames, ...wide.map(o => o.span || 1), 1));
   car.sel = null;
   car.cur = 0;
   if (_carSmooth) _carScrollCanon = 0.5 * cw;

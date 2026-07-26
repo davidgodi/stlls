@@ -4724,7 +4724,7 @@
       <button class="bm-close" data-bm-close>Close</button>
     </div>
     <div class="bm-body">
-      <p class="lay-hint">Pick a starting layout, then tap each empty frame to add its photo.</p>
+      <p class="lay-hint">Pick a starting layout, then tap an empty frame — select several photos at once and they fill the following frames too.</p>
       <div class="lay-grid" id="carLayoutGrid"></div>
       <button class="lay-clear" id="carLayoutClear" hidden>Remove empty frames</button>
     </div>
@@ -13419,28 +13419,43 @@ function carApplyPreset(p) {
   carRenderFilmSel();
 }
 
-// Tap an empty frame → single-photo picker → the photo cover-fills that frame.
-// Fresh single-select input per pick (see carPickWideImage for the iOS why).
+// Place loaded photos into empty frames: the tapped slot first, then every
+// following empty frame in reading order (frame by frame, top-to-bottom,
+// left-to-right), wrapping around — so one multi-select fills the whole layout.
+function carPlaceInSlots(sid, loaded) {
+  if (!car || !loaded.length) return;
+  const cw = carCW();
+  const ordered = [...(car.slots || [])].sort((a, b) =>
+    Math.floor((a.x + a.w / 2) / cw) - Math.floor((b.x + b.w / 2) / cw) || a.y - b.y || a.x - b.x);
+  const si = ordered.findIndex(t => t.id === sid);
+  if (si < 0) return;
+  const targets = ordered.slice(si).concat(ordered.slice(0, si)).slice(0, loaded.length);
+  carPushHist();
+  targets.forEach((s, i) => {
+    const { src, img } = loaded[i];
+    car.imgs.push({ id: genId(), src, img, x: s.x, y: s.y, w: s.w, fh: s.h });
+  });
+  car.slots = car.slots.filter(t => !targets.includes(t));
+  car.sel = null;
+  carRender();
+  carRenderFilm();
+}
+
+// Tap an empty frame → multi-photo picker → photos flow into this frame and
+// the following empty ones (extra photos beyond the empty frames are ignored).
 function carFillSlot(sid) {
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'image/*';
-  inp.multiple = false;
+  inp.multiple = true;
   inp.hidden = true;
   document.body.appendChild(inp);
   inp.addEventListener('change', async () => {
-    const file = inp.files[0];
+    const files = [...inp.files];
     inp.remove();
-    if (!file) return;
-    const loaded = await carReadFile(file);
-    const s = (car?.slots || []).find(t => t.id === sid);
-    if (!loaded || !s) return;
-    carPushHist();
-    car.imgs.push({ id: genId(), src: loaded.src, img: loaded.img, x: s.x, y: s.y, w: s.w, fh: s.h });
-    car.slots = car.slots.filter(t => t !== s);
-    car.sel = null;
-    carRender();
-    carRenderFilm();
+    if (!files.length) return;
+    const loaded = (await Promise.all(files.map(carReadFile))).filter(Boolean);
+    carPlaceInSlots(sid, loaded);
   });
   inp.click();
 }

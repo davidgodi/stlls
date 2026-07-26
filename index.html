@@ -13498,6 +13498,8 @@ const carLayoutClear = document.getElementById('carLayoutClear');
 function carLayoutMiniSVG(p) {
   const sw = 40, sh = 50, W = p.frames * sw;
   let s = `<svg viewBox="-1 -1 ${W + 2} ${sh + 2}" xmlns="http://www.w3.org/2000/svg">`;
+  const bg = carHexColor(p.bg);
+  if (bg) s += `<rect x="0" y="0" width="${W}" height="${sh}" fill="${bg}"/>`;   // the colour it saved
   for (let i = 0; i < p.frames; i++)
     s += `<rect x="${i * sw}" y="0" width="${sw}" height="${sh}" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-width="1"/>`;
   for (const [x, y, w, h] of p.slots)
@@ -13520,8 +13522,15 @@ function carLayoutMiniSVG(p) {
 // ── Saved layouts ───────────────────────────────────────────────────────────
 // The user's own layouts live in localStorage in the same unit space as the
 // stock presets, so both apply through carApplyPreset.
+const CAR_BG_DEFAULT = '#000000';
+// Colours reach markup (the layout previews) and come back from storage, so
+// only a plain hex is ever trusted
+function carHexColor(c) {
+  return (typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c.trim())) ? c.trim() : null;
+}
 let carMyLayouts = [];
 try { carMyLayouts = JSON.parse(localStorage.getItem('stlls-car-layouts') || '[]'); } catch (e) { carMyLayouts = []; }
+carMyLayouts.forEach(l => { const c = carHexColor(l.bg); if (c) l.bg = c; else delete l.bg; });
 function carStoreMyLayouts() {
   try { localStorage.setItem('stlls-car-layouts', JSON.stringify(carMyLayouts)); } catch (e) {}
 }
@@ -13537,7 +13546,13 @@ function carCurrentLayout() {
   for (const s of car.slots || []) boxes.push([s.x / cw, s.y / CAR_CH, s.w / cw, s.h / CAR_CH]);
   if (!boxes.length) return null;
   boxes.sort((a, b) => Math.floor(a[0] + a[2] / 2) - Math.floor(b[0] + b[2] / 2) || a[1] - b[1] || a[0] - b[0]);
-  return { frames: car.frames, slots: boxes };
+  const lay = { frames: car.frames, slots: boxes };
+  // a background colour travels with the layout, but only when one was
+  // actually picked — the untouched default carries no intent (photo
+  // backgrounds are per-project, far too heavy to keep in a layout)
+  const col = carHexColor(car.bg?.color);
+  if (col && col.toLowerCase() !== CAR_BG_DEFAULT) lay.bg = col;
+  return lay;
 }
 
 function carRenderMyLayouts() {
@@ -13602,6 +13617,14 @@ function carApplyPreset(p) {
   }));
   car.slots = slots.slice(seated);
   car.frames = Math.min(10, Math.max(p.frames, ...wide.map(o => o.span || 1), 1));
+  // a layout that saved a background colour brings it along; one that didn't
+  // leaves whatever the user already picked alone
+  const layBg = carHexColor(p.bg);
+  if (layBg) {
+    car.bg = car.bg || { color: CAR_BG_DEFAULT, photo: null };
+    car.bg.color = layBg;
+    if (_carBgMode) carBgSync();
+  }
   car.sel = null;
   car.cur = 0;
   if (_carSmooth) _carScrollCanon = 0.5 * cw;

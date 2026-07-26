@@ -1454,8 +1454,11 @@
   .car-slot:active { border-color: var(--accent); }
   .car-slot .cg-plus { transform: scale(0.8); }
   #carStrip.bgmode .car-slot { pointer-events: none; opacity: 0.35; }
-  /* preset-framed photos: fixed frame, photo cover-crops inside it */
-  .car-obj.framed img { object-fit: cover; }
+  /* framed photos: the image is sized and offset inside its fixed frame, so
+     the crop matches the canvas renderer exactly (geometry pass sets both) */
+  .car-obj.framed img { position: absolute; }
+  /* Reframe mode: dragging pans the photo inside its frame */
+  #carStrip.reframe .car-obj, #carStrip.reframe .car-selbox { cursor: grab; }
   /* layout picker modal */
   #carLayoutModal .lay-hint { margin: 0 0 10px; font-size: 12.5px; color: var(--text-mid); }
   #carLayoutModal .lay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -4577,6 +4580,10 @@
       <button class="car-chip on" id="carSnapBtn" aria-label="Snap to edges">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path fill-rule="evenodd" d="M12 2a9.5 9.5 0 0 0-9.5 9.5V20A2 2 0 0 0 4.5 22h4.6a2 2 0 0 0 2-2v-8.6a.9.9 0 0 1 1.8 0V20a2 2 0 0 0 2 2h4.6a2 2 0 0 0 2-2v-8.5A9.5 9.5 0 0 0 12 2zM4.9 15.4h3.8v2.7H4.9zm10.4 0h3.8v2.7h-3.8z"/></svg>
         Snap
+      </button>
+      <button class="car-chip" id="carReframeBtn" aria-label="Reframe photos inside their frames">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M2 6h14a2 2 0 0 1 2 2v14"/></svg>
+        Reframe
       </button>
       <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
@@ -12603,6 +12610,8 @@ let car = null;          // { ratio:'4:5'|'1:1', frames, imgs:[{id,src,img,x,y,w
 let _carOpen = false;
 let _carView = 1;        // editor zoom
 let _carSnap = true;     // magnet: snap moving images to edges/centres
+let _carReframe = false; // Reframe mode: drags pan/zoom the photo INSIDE its frame
+let _carCropDrag = null, _carCropPinch = null;
 let _carSmooth = true;   // seamless free scrolling is the navigation model
 let _carScrollCanon = 0; // canvas x (canonical units) at stage centre
 let _carHist = [], _carRedoStack = [];   // undo/redo snapshots
@@ -12926,6 +12935,16 @@ function carRender(structural = true) {
     d.style.setProperty('--obw', ((o.bw || 0) * k) + 'px');
     d.classList.toggle('framed', !!o.fh);
     d.classList.toggle('sel', o.id === car.sel);
+    const im = d.querySelector('img');
+    if (o.fh) {
+      const b = carCropBox(o);
+      im.style.left = (b.x * k) + 'px';
+      im.style.top = (b.y * k) + 'px';
+      im.style.width = (b.dw * k) + 'px';
+      im.style.height = (b.dh * k) + 'px';
+    } else if (im.style.width) {
+      im.style.left = im.style.top = im.style.width = im.style.height = '';
+    }
   });
   clip.querySelectorAll('.car-frameline').forEach(l => { l.style.left = (l.dataset.b * W) + 'px'; });
   clip.querySelectorAll('.car-framedim').forEach(d => {
@@ -12959,8 +12978,9 @@ function carRender(structural = true) {
     sb.style.width  = (selO.w * k) + 'px';
     sb.style.height = (oh * k) + 'px';
     sb.style.borderRadius = ((selO.r || 0) * k) + 'px';
-    // wide images are reposition-only: no scale handle
-    sb.querySelector('.car-handle').style.display = selO.wide ? 'none' : '';
+    // wide images are reposition-only, and Reframe works inside the frame:
+    // neither offers the frame-scale handle
+    sb.querySelector('.car-handle').style.display = (selO.wide || _carReframe) ? 'none' : '';
     // bleeding outside the preview canvas → tight dotted outline
     sb.classList.toggle('out',
       selO.x < 0 || selO.y < 0 ||
@@ -13001,6 +13021,9 @@ function carRenderTools() {
   document.getElementById('carAddPhotoBtn').style.display = wideO ? 'none' : '';
   document.getElementById('carBgBtn').style.display = wideO ? 'none' : '';
   document.getElementById('carLayoutBtn').style.display = wideO ? 'none' : '';
+  // wide images crop themselves to the frames — Reframe has nothing to do
+  if (wideO) carReframeOff();
+  document.getElementById('carReframeBtn').style.display = wideO ? 'none' : '';
   document.getElementById('carSnapBtn').style.display = wideO ? 'none' : '';
   if (wideO) {
     document.getElementById('carWideDn').disabled = wideO.span <= 1;
@@ -13112,6 +13135,51 @@ function carDrawBlurredImg(ctx, img, x, y, w, h, blurPx, alpha) {
 // crossfade reads as a soft edge, not a double exposure
 function carBgFeather(bw2) { return Math.min(Math.max(bw2 * 0.075, 12), 80); }
 
+// ── Framed photos (crop inside a fixed frame) ───────────────────────────────
+// A framed photo (o.fh set) keeps its frame and moves the IMAGE inside it:
+// cover-fit, then the user's zoom (o.cs) and pan (o.cx/o.cy, canonical px).
+// Returns the image's draw box relative to the frame's top-left.
+function carCropBox(o) {
+  const base = Math.max(o.w / o.img.naturalWidth, o.fh / o.img.naturalHeight);
+  const s = base * (o.cs || 1);
+  const dw = o.img.naturalWidth * s, dh = o.img.naturalHeight * s;
+  const mx = Math.max(0, (dw - o.w) / 2), my = Math.max(0, (dh - o.fh) / 2);
+  const cx = Math.min(mx, Math.max(-mx, o.cx || 0));
+  const cy = Math.min(my, Math.max(-my, o.cy || 0));
+  return { dw, dh, x: (o.w - dw) / 2 + cx, y: (o.fh - dh) / 2 + cy };
+}
+// Pan can never uncover the frame — clamp to the overflow on each axis
+function carClampCrop(o) {
+  const b = carCropBox(o);
+  const mx = Math.max(0, (b.dw - o.w) / 2), my = Math.max(0, (b.dh - o.fh) / 2);
+  o.cx = Math.min(mx, Math.max(-mx, o.cx || 0));
+  o.cy = Math.min(my, Math.max(-my, o.cy || 0));
+}
+function carSetCropScale(o, ns) {
+  o.cs = Math.min(4, Math.max(1, ns));
+  carClampCrop(o);
+}
+// Reframing a free-floating photo fixes its current box as the frame — a
+// cover fit of the same aspect is identical, so nothing shifts on screen.
+function carMakeFramed(o) {
+  if (!o.fh) o.fh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+}
+// The photo under the pointer (the selection overlay stands in for its photo)
+function carHitPhoto(e) {
+  if (e.target.closest('.car-selbox')) return carSel();
+  const el = e.target.closest('.car-obj');
+  if (!el) return null;
+  const o = car.imgs.find(p => p.id === el.dataset.id);
+  return o && !o.wide ? o : null;
+}
+function carReframeOff() {
+  if (!_carReframe) return;
+  _carReframe = false;
+  document.getElementById('carReframeBtn').classList.remove('on');
+  carStrip.classList.remove('reframe');
+  _carCropDrag = _carCropPinch = null;
+}
+
 // Draw one frame's slice of the canvas into a 2d context (k: canonical→target px)
 // guides=true additionally draws layout-slot outlines (thumbs only — never exports)
 function carDrawFrame(ctx, f, k, guides = false) {
@@ -13184,10 +13252,9 @@ function carDrawFrame(ctx, f, k, guides = false) {
     carRoundRectPath(ctx, x, y, w, h, r);
     ctx.clip();
     if (o.fh) {
-      // framed: photo cover-crops inside its fixed frame (like the DOM's object-fit)
-      const sc = Math.max(o.w / o.img.naturalWidth, o.fh / o.img.naturalHeight);
-      const dw = o.img.naturalWidth * sc * k, dh = o.img.naturalHeight * sc * k;
-      ctx.drawImage(o.img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      // framed: the image is cropped inside its fixed frame (same box as the DOM)
+      const b = carCropBox(o);
+      ctx.drawImage(o.img, x + b.x * k, y + b.y * k, b.dw * k, b.dh * k);
     } else {
       ctx.drawImage(o.img, x, y, w, h);
     }
@@ -13570,6 +13637,16 @@ document.getElementById('carSnapBtn').addEventListener('click', e => {
   _carSnap = !_carSnap;
   e.currentTarget.classList.toggle('on', _carSnap);
 });
+// Reframe: photos stay put; dragging/pinching moves the image inside its frame
+document.getElementById('carReframeBtn').addEventListener('click', e => {
+  if (_carReframe) { carReframeOff(); carRender(false); return; }
+  if (_carBgMode) carBgExit();
+  _carReframe = true;
+  e.currentTarget.classList.add('on');
+  carStrip.classList.add('reframe');
+  _carCropDrag = _carCropPinch = null;
+  carRender(false);
+});
 // Undo/redo chip: board-editor-style dropdown
 const carUndoMenu = document.getElementById('carUndoMenu');
 document.getElementById('carUndoBtn').addEventListener('click', e => {
@@ -13619,6 +13696,7 @@ let _carBgDrag = null, _carBgPinch = null;
 const carBgWheel = document.getElementById('carBgWheel');
 
 function carBgEnter() {
+  carReframeOff();   // the two canvas modes are mutually exclusive
   _carBgMode = true;
   carResetGestures();
   car.sel = null;
@@ -13769,6 +13847,7 @@ function carMarkDragged() {
 // second finger. Reset everything whenever such a boundary is crossed.
 function carResetGestures() {
   _carSwipe = _carMove = _carScale = _carPinch = _carBgDrag = _carBgPinch = null;
+  _carCropDrag = _carCropPinch = null;
   _carSnapL = null;
   _carDragged = false;
   carStrip.classList.remove('no-anim');
@@ -13867,6 +13946,28 @@ carStage.addEventListener('pointerdown', e => {
                    px, py, moved: false, snap0: carSnapshot() };
     return;
   }
+  if (_carReframe) {
+    // second finger while cropping → pinch zooms the crop
+    if (_carCropDrag && !_carCropPinch && e.pointerId !== _carCropDrag.id) {
+      _carCropPinch = { id1: _carCropDrag.id, id2: e.pointerId,
+        x1: _carCropDrag.lastX, y1: _carCropDrag.lastY, x2: e.clientX, y2: e.clientY,
+        o: _carCropDrag.o, s0: _carCropDrag.o.cs || 1, snap0: _carCropDrag.snap0 };
+      _carCropPinch.d0 = Math.hypot(_carCropPinch.x2 - _carCropPinch.x1, _carCropPinch.y2 - _carCropPinch.y1) || 1;
+      _carCropDrag = null;
+      return;
+    }
+    if (_carCropPinch) return;
+    const o = carHitPhoto(e);
+    if (o) {
+      carMakeFramed(o);
+      const [px, py] = carPt(e);
+      _carCropDrag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                       o, cx0: o.cx || 0, cy0: o.cy || 0, px, py, moved: false, snap0: carSnapshot() };
+      if (car.sel !== o.id) { car.sel = o.id; carRender(false); }
+      return;
+    }
+    // empty canvas → falls through to swipe navigation
+  }
   const first = _carSwipe || _carMove || _carScale;
   if (first && !_carPinch && e.pointerId !== first.id) {
     // second finger → pinch-zoom the editor view
@@ -13890,7 +13991,8 @@ carStage.addEventListener('pointerdown', e => {
     const oh0 = sel.fh || sel.w * sel.img.naturalHeight / sel.img.naturalWidth;
     const a = { x: sel.x + sel.w / 2, y: sel.y + oh0 / 2 };
     _carScale = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY, o: sel,
-                  w0: sel.w, fh0: sel.fh || 0, hx: _carHandle.hx, hy: _carHandle.hy, a,
+                  w0: sel.w, fh0: sel.fh || 0, cx0: sel.cx || 0, cy0: sel.cy || 0,
+                  hx: _carHandle.hx, hy: _carHandle.hy, a,
                   d0: Math.hypot(px - a.x, py - a.y) || 1,
                   moved: false, snap0: carSnapshot() };
     return;
@@ -13941,6 +14043,26 @@ carStage.addEventListener('pointermove', e => {
     }
     return;
   }
+  if (_carCropPinch) {
+    if (e.pointerId === _carCropPinch.id1) { _carCropPinch.x1 = e.clientX; _carCropPinch.y1 = e.clientY; }
+    else if (e.pointerId === _carCropPinch.id2) { _carCropPinch.x2 = e.clientX; _carCropPinch.y2 = e.clientY; }
+    else return;
+    const d = Math.hypot(_carCropPinch.x2 - _carCropPinch.x1, _carCropPinch.y2 - _carCropPinch.y1);
+    carSetCropScale(_carCropPinch.o, _carCropPinch.s0 * d / _carCropPinch.d0);
+    carRender(false);
+    return;
+  }
+  if (_carCropDrag && e.pointerId === _carCropDrag.id) {
+    const m = _carCropDrag;
+    m.lastX = e.clientX; m.lastY = e.clientY;
+    if (Math.abs(e.clientX - m.sx) + Math.abs(e.clientY - m.sy) > 4) m.moved = true;
+    const [px, py] = carPt(e);
+    m.o.cx = m.cx0 + px - m.px;
+    m.o.cy = m.cy0 + py - m.py;
+    carClampCrop(m.o);
+    carRender(false);
+    return;
+  }
   if (_carPinch) {
     if (e.pointerId === _carPinch.id1) { _carPinch.x1 = e.clientX; _carPinch.y1 = e.clientY; }
     else if (e.pointerId === _carPinch.id2) { _carPinch.x2 = e.clientX; _carPinch.y2 = e.clientY; }
@@ -13961,6 +14083,11 @@ carStage.addEventListener('pointermove', e => {
     if (_carSnap) {
       o.w = carSnapScaleW(o, a, o.w);
       if (o.fh) o.fh = _carScale.fh0 * o.w / _carScale.w0;
+    }
+    if (o.fh) {   // the crop scales with the frame, so the framing holds
+      const f = o.w / _carScale.w0;
+      o.cx = _carScale.cx0 * f; o.cy = _carScale.cy0 * f;
+      carClampCrop(o);
     }
     const nh = o.fh || o.w * o.img.naturalHeight / o.img.naturalWidth;
     o.x = a.x - o.w / 2;   // the photo's centre stays put
@@ -14005,6 +14132,17 @@ function carPtrEnd(e) {
       _carBgDrag = null;
     }
     carMarkDragged();
+    return;
+  }
+  if (_carCropPinch && (e.pointerId === _carCropPinch.id1 || e.pointerId === _carCropPinch.id2)) {
+    if (_carCropPinch.snap0) carCommitHist(_carCropPinch.snap0);
+    _carCropPinch = null;
+    carMarkDragged(); carRenderFilm();
+    return;
+  }
+  if (_carCropDrag && e.pointerId === _carCropDrag.id) {
+    if (_carCropDrag.moved) { carMarkDragged(); carRenderFilm(); carCommitHist(_carCropDrag.snap0); }
+    _carCropDrag = null;
     return;
   }
   if (_carPinch && (e.pointerId === _carPinch.id1 || e.pointerId === _carPinch.id2)) {
@@ -14096,6 +14234,16 @@ carStage.addEventListener('wheel', e => {
       carRender(false);
     }
     return;
+  }
+  if (_carReframe) {
+    // reframe mode: the wheel zooms the photo's crop, not the editor view
+    const o = carHitPhoto(e) || carSel();
+    if (o && !o.wide) {
+      carMakeFramed(o);
+      carSetCropScale(o, (o.cs || 1) * (e.deltaY < 0 ? 1.05 : 0.95));
+      carRender(false); carRenderFilm();
+      return;
+    }
   }
   _carView = Math.min(CAR_MAXV, Math.max(CAR_MINV, _carView * (e.deltaY < 0 ? 1.06 : 0.94)));
   carApplyView();
@@ -14275,7 +14423,8 @@ function saveCarouselToDB() {
                                      opacity: car.bg.photo.opacity ?? 1, scale: car.bg.photo.scale || 1,
                                      x: car.bg.photo.x || 0, y: car.bg.photo.y || 0 } : null },
       imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w, r: o.r || 0, bw: o.bw || 0,
-                                 wide: !!o.wide, span: o.span || 0, fh: o.fh || 0 })),
+                                 wide: !!o.wide, span: o.span || 0, fh: o.fh || 0,
+                                 cs: o.cs || 1, cx: o.cx || 0, cy: o.cy || 0 })),
       slots: (car.slots || []).map(s => ({ id: s.id, x: s.x, y: s.y, w: s.w, h: s.h })) }
   };
   dbPut(_currentProjectId, serial).catch(err => console.warn('IDB save failed', err));
@@ -14283,6 +14432,7 @@ function saveCarouselToDB() {
 
 function closeCarouselAndGoHome() {
   if (_carBgMode) carBgExit();
+  carReframeOff();
   if (car && (car.imgs.length || (car.slots || []).length)) {
     saveCarouselToDB();
   } else if (_currentProjectId) {
@@ -14365,7 +14515,8 @@ function openCarouselProject(id) {
     if (data?.imgs) {
       imgs = (await Promise.all(data.imgs.map(loadOne))).filter(Boolean)
         .map(o => ({ id: o.id, src: o.src, img: o.img, x: o.x || 0, y: o.y || 0, w: o.w || 500,
-                     r: o.r || 0, bw: o.bw || 0, wide: !!o.wide, span: o.span || 0, fh: o.fh || 0 }));
+                     r: o.r || 0, bw: o.bw || 0, wide: !!o.wide, span: o.span || 0, fh: o.fh || 0,
+                     cs: o.cs || 1, cx: o.cx || 0, cy: o.cy || 0 }));
       frames = Math.max(1, Math.min(10, data.frames || 1));
     } else if (data?.items) {
       const loaded = (await Promise.all(data.items.map(loadOne))).filter(Boolean);

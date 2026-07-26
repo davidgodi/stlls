@@ -14057,7 +14057,11 @@ document.addEventListener('visibilitychange', () => {
 });
 
 carStage.addEventListener('click', e => {
-  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
+  // rows, panels and chip buttons handle themselves (same guard as pointerdown) —
+  // without the chip guard, tapping e.g. Layouts on an empty carousel ALSO
+  // opened the add-photos modal underneath via this handler's empty-state branch
+  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel') ||
+      e.target.closest('.car-chip')) return;
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag || _carBgMode) return;   // bg mode: canvas taps only move the bg
   if (e.target.closest('.car-ghostadd')) { carAddFrame(); return; }

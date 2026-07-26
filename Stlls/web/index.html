@@ -1470,6 +1470,7 @@
   #carLayoutModal .lay-hint { margin: 0 0 10px; font-size: 12.5px; color: var(--text-mid); }
   #carLayoutModal .lay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   #carLayoutModal .lay-item {
+    position: relative;
     background: var(--surface2); border: 1px solid var(--border2); border-radius: 12px;
     padding: 12px 10px 9px; display: flex; flex-direction: column; gap: 7px; align-items: center;
     color: var(--text); cursor: pointer;
@@ -1483,6 +1484,35 @@
     font: inherit; font-size: 13px; cursor: pointer;
   }
   #carLayoutModal .lay-clear[hidden] { display: none !important; }
+  /* saved layouts: ruled off from the stock set, and scroll as they pile up */
+  #carLayoutModal #carLayoutMineWrap[hidden] { display: none !important; }
+  #carLayoutModal .lay-div {
+    display: flex; align-items: center; gap: 10px; margin: 16px 0 11px;
+    color: var(--text-dim); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  #carLayoutModal .lay-div::before, #carLayoutModal .lay-div::after {
+    content: ''; flex: 1; height: 1px; background: var(--border2);
+  }
+  #carLayoutModal .lay-scroll {
+    max-height: 236px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 2px 3px 2px 2px;
+  }
+  #carLayoutModal .lay-del {
+    position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; padding: 0;
+    border-radius: 50%; border: 1px solid var(--border2); background: var(--surface);
+    color: var(--text-mid); font: inherit; font-size: 12px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #carLayoutModal .lay-del:active { color: var(--accent); border-color: var(--accent); }
+  #carLayoutModal .lay-save {
+    margin-top: 14px; width: 100%; padding: 12px; border-radius: 10px;
+    background: var(--accent); border: none; color: var(--accent-fg);
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #carLayoutModal .lay-save:active { transform: scale(0.99); }
+  #carLayoutModal .lay-save[hidden] { display: none !important; }
+  #carLayoutModal .lay-save:disabled { opacity: 0.7; }
   .car-count {
     position: absolute; top: 10px; right: 12px; z-index: 3;
     font-size: 11px; color: var(--text-mid); background: var(--surface);
@@ -4746,6 +4776,11 @@
     <div class="bm-body">
       <p class="lay-hint">Pick a starting layout, then tap an empty frame — select several photos at once and they fill the following frames too.</p>
       <div class="lay-grid" id="carLayoutGrid"></div>
+      <div id="carLayoutMineWrap" hidden>
+        <div class="lay-div"><span>Your layouts</span></div>
+        <div class="lay-grid lay-scroll" id="carLayoutMine"></div>
+      </div>
+      <button class="lay-save" id="carLayoutSave" hidden>Save this layout</button>
       <button class="lay-clear" id="carLayoutClear" hidden>Remove empty frames</button>
     </div>
   </div>
@@ -13482,6 +13517,67 @@ function carLayoutMiniSVG(p) {
   });
 }
 
+// ── Saved layouts ───────────────────────────────────────────────────────────
+// The user's own layouts live in localStorage in the same unit space as the
+// stock presets, so both apply through carApplyPreset.
+let carMyLayouts = [];
+try { carMyLayouts = JSON.parse(localStorage.getItem('stlls-car-layouts') || '[]'); } catch (e) { carMyLayouts = []; }
+function carStoreMyLayouts() {
+  try { localStorage.setItem('stlls-car-layouts', JSON.stringify(carMyLayouts)); } catch (e) {}
+}
+
+// The canvas as a reusable layout: every framed photo's box plus every empty
+// frame, in reading order. Free-floating (unframed) photos have no frame to
+// capture, so they're skipped.
+function carCurrentLayout() {
+  if (!car) return null;
+  const cw = carCW();
+  const boxes = [];
+  for (const o of car.imgs) if (o.fh && !o.wide) boxes.push([o.x / cw, o.y / CAR_CH, o.w / cw, o.fh / CAR_CH]);
+  for (const s of car.slots || []) boxes.push([s.x / cw, s.y / CAR_CH, s.w / cw, s.h / CAR_CH]);
+  if (!boxes.length) return null;
+  boxes.sort((a, b) => Math.floor(a[0] + a[2] / 2) - Math.floor(b[0] + b[2] / 2) || a[1] - b[1] || a[0] - b[0]);
+  return { frames: car.frames, slots: boxes };
+}
+
+function carRenderMyLayouts() {
+  const wrap = document.getElementById('carLayoutMineWrap');
+  const grid = document.getElementById('carLayoutMine');
+  wrap.hidden = !carMyLayouts.length;
+  grid.innerHTML = '';
+  carMyLayouts.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'lay-item';
+    b.innerHTML = carLayoutMiniSVG(p) + `<span>${p.name}</span>`;
+    b.addEventListener('click', () => carApplyPreset(p));
+    const del = document.createElement('button');
+    del.className = 'lay-del';
+    del.textContent = '×';
+    del.setAttribute('aria-label', `Delete ${p.name}`);
+    del.addEventListener('click', ev => {
+      ev.stopPropagation();   // deleting must never also apply the layout
+      carMyLayouts = carMyLayouts.filter(l => l !== p);
+      carStoreMyLayouts();
+      carRenderMyLayouts();
+    });
+    b.appendChild(del);
+    grid.appendChild(b);
+  });
+}
+
+document.getElementById('carLayoutSave').addEventListener('click', e => {
+  const lay = carCurrentLayout();
+  if (!lay) return;
+  const n = carMyLayouts.reduce((m, l) => Math.max(m, +((l.name || '').match(/(\d+)\s*$/)?.[1] || 0)), 0) + 1;
+  lay.name = 'Layout ' + n;
+  carMyLayouts.push(lay);
+  carStoreMyLayouts();
+  carRenderMyLayouts();
+  const b = e.currentTarget, label = b.textContent;
+  b.textContent = 'Saved'; b.disabled = true;
+  setTimeout(() => { b.textContent = label; b.disabled = false; }, 1300);
+});
+
 function carApplyPreset(p) {
   if (!car) return;
   carPushHist();
@@ -13543,6 +13639,10 @@ function carFillSlot(sid) {
 document.getElementById('carLayoutBtn').addEventListener('click', () => {
   if (_carBgMode) carBgExit();
   carLayoutClear.hidden = !(car?.slots || []).length;
+  // savable once the canvas has a frame structure of its own (a preset you
+  // reshaped, or frames you built yourself)
+  document.getElementById('carLayoutSave').hidden = !carCurrentLayout();
+  carRenderMyLayouts();
   openBigModal(carLayoutModal);
 });
 carLayoutClear.addEventListener('click', () => {

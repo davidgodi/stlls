@@ -1248,6 +1248,12 @@
     position: absolute; top: 8px; left: 12px; right: 70px; z-index: 5;
     display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start;
   }
+  /* fullscreen test sits in the stage's lower-right, under the preview */
+  .car-chip.car-fullbtn {
+    position: absolute; right: 12px; bottom: 10px; z-index: 5;
+    width: 34px; height: 34px; padding: 0; border-radius: 9px;
+    justify-content: center;
+  }
   /* add-photos button tucked under the frame counter, upper right */
   .car-chip.car-addphoto {
     position: absolute; top: 44px; right: 12px; z-index: 5;
@@ -1417,6 +1423,7 @@
   #carStrip.bgmode .car-obj { opacity: 0.25; }
   #carStrip.bgmode .car-selbox, #carStrip.bgmode .car-snapline { display: none !important; }
   #carouselScreen.bgmode-ui .car-underrow,
+  #carouselScreen.bgmode-ui .car-fullbtn,
   #carouselScreen.bgmode-ui .car-selpanel { display: none !important; }
   /* carousel tour: lift each step's target above the scrim (210) */
   body.coach-carw-on .car-chip.car-addphoto { z-index: 211; }
@@ -4585,11 +4592,11 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M2 6h14a2 2 0 0 1 2 2v14"/></svg>
         Reframe
       </button>
-      <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-      </button>
       <button class="car-chip" id="carRatioBtn">4:5</button>
     </div>
+    <button class="car-chip car-fullbtn" id="carFullBtn" aria-label="Test fullscreen">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
     <button class="car-chip car-addphoto" id="carAddPhotoBtn" aria-label="Add photos">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="7" width="14" height="14" rx="2.5"/>

@@ -1689,6 +1689,13 @@
   .bgp-sw:active { transform: scale(0.9); }
   .bgp-sw.active { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
   .bgp-sw.bgp-custom { background: conic-gradient(#ff5f5f, #ffd93b, #4be36b, #3bd0ff, #6a6bff, #e05fff, #ff5f5f); }
+  /* The wheel IS the colour input. WebKit only opens the native picker from a
+     tap on a RENDERED input — a hidden one clicked by a proxy button did
+     nothing at all — so the input sits in the row wearing the wheel gradient. */
+  input.bgp-sw.bgp-custom { -webkit-appearance: none; appearance: none; display: block; }
+  input.bgp-sw.bgp-custom::-webkit-color-swatch-wrapper { padding: 0; border: none; }
+  input.bgp-sw.bgp-custom::-webkit-color-swatch { border: none; opacity: 0; }
+  input.bgp-sw.bgp-custom[hidden] { display: none !important; }
   /* live background layer inside the board (under every slot) */
   #boardBgLayer { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
   #boardBgLayer .bg-media { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -8473,12 +8480,14 @@ BG_PALETTE.forEach(c => {
   bgSwatchesEl.appendChild(b);
 });
 {
-  const custom = document.createElement('button');
-  custom.className = 'bgp-sw bgp-custom';
-  custom.title = 'Custom colour';
-  custom.setAttribute('aria-label', 'Custom background colour');
-  custom.addEventListener('click', () => bgColor.click());   // opens the native colour wheel
-  bgSwatchesEl.appendChild(custom);
+  // same story as the carousel's wheel: the input has to be the visible swatch,
+  // because WebKit won't open the picker for a hidden input
+  bgColor.classList.add('bgp-sw', 'bgp-custom');
+  bgColor.hidden = false;
+  bgColor.removeAttribute('aria-hidden');
+  bgColor.title = 'Custom colour';
+  bgColor.setAttribute('aria-label', 'Custom background colour');
+  bgSwatchesEl.appendChild(bgColor);
 }
 bgColor.addEventListener('input', () => applyBgColor(bgColor.value));
 
@@ -13899,6 +13908,9 @@ function carBgSync() {
   }
   document.querySelectorAll('#carBgSwatches .bgp-sw[data-c]').forEach(b =>
     b.classList.toggle('active', b.dataset.c.toLowerCase() === (bg.color || '').toLowerCase()));
+  // the wheel opens on the colour that's actually in use
+  const cur = carHexColor(bg.color);
+  if (cur && cur.length === 7) carBgWheel.value = cur;
 }
 
 document.getElementById('carBgBtn').addEventListener('click', () => { _carBgMode ? carBgExit() : carBgEnter(); });
@@ -13906,12 +13918,14 @@ document.getElementById('carBgOk').addEventListener('click', carBgExit);
 
 {
   const sw = document.getElementById('carBgSwatches');
-  // colour wheel first, at the far left of the row
-  const custom = document.createElement('button');
-  custom.className = 'bgp-sw bgp-custom';
-  custom.title = 'Custom colour';
-  custom.addEventListener('click', () => carBgWheel.click());
-  sw.appendChild(custom);
+  // colour wheel first, at the far left of the row — the input itself, since a
+  // hidden one never opens WebKit's picker no matter who clicks it
+  carBgWheel.classList.add('bgp-sw', 'bgp-custom');
+  carBgWheel.hidden = false;
+  carBgWheel.removeAttribute('aria-hidden');
+  carBgWheel.title = 'Custom colour';
+  carBgWheel.setAttribute('aria-label', 'Custom background colour');
+  sw.appendChild(carBgWheel);
   BG_PALETTE.forEach(c => {
     const b = document.createElement('button');
     b.className = 'bgp-sw'; b.dataset.c = c; b.style.background = c;
@@ -13920,10 +13934,12 @@ document.getElementById('carBgOk').addEventListener('click', carBgExit);
     sw.appendChild(b);
   });
   // iOS fires input continuously and change on dismiss — apply on both, deduped
+  // (the input normalises to lowercase, the palette doesn't: compare loosely)
   const applyWheel = () => {
-    if (!car || carBgWheel.value === car.bg.color) return;
+    const v = carBgWheel.value;
+    if (!car || !v || v.toLowerCase() === (car.bg?.color || '').toLowerCase()) return;
     carPushHist();
-    car.bg.color = carBgWheel.value;
+    car.bg.color = v;
     carBgSync(); carRender(false); carRenderFilm();
   };
   carBgWheel.addEventListener('input', applyWheel);

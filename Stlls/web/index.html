@@ -1387,7 +1387,19 @@
     font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-dim);
   }
   /* Background/Snap/Fullscreen/Ratio float over the top of the preview */
-  .car-overchips { position: absolute; top: 8px; left: 12px; z-index: 5; display: flex; gap: 8px; }
+  /* stops short of the frame counter (top-right) and wraps to a second line
+     rather than running under it — the row outgrew one line when Layouts
+     joined it on narrow phones */
+  .car-overchips {
+    position: absolute; top: 8px; left: 12px; right: 70px; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start;
+  }
+  /* fullscreen test sits in the stage's lower-right, under the preview */
+  .car-chip.car-fullbtn {
+    position: absolute; right: 12px; bottom: 10px; z-index: 5;
+    width: 34px; height: 34px; padding: 0; border-radius: 9px;
+    justify-content: center;
+  }
   /* add-photos button tucked under the frame counter, upper right */
   .car-chip.car-addphoto {
     position: absolute; top: 44px; right: 12px; z-index: 5;
@@ -1528,6 +1540,10 @@
     will-change: transform, filter; transform-origin: 0 0;
     backface-visibility: hidden;
   }
+  /* tiled copies of the bg photo (when it can't span every frame): each copy
+     after the first fades in over a feathered left edge so the copies
+     crossfade — the wrapper's blur then blends the composite, not each copy */
+  .car-bgphoto img { position: absolute; top: 0; max-width: none; }
   #carBgSliders { display: flex; flex-direction: column; gap: 4px; }
   #carBgSliders[hidden] { display: none !important; }
   /* Background edit mode: panel docks under the preview, foreground fades */
@@ -1555,6 +1571,7 @@
   #carStrip.bgmode .car-obj { opacity: 0.25; }
   #carStrip.bgmode .car-selbox, #carStrip.bgmode .car-snapline { display: none !important; }
   #carouselScreen.bgmode-ui .car-underrow,
+  #carouselScreen.bgmode-ui .car-fullbtn,
   #carouselScreen.bgmode-ui .car-selpanel { display: none !important; }
   /* carousel tour: lift each step's target above the scrim (210) */
   body.coach-carw-on .car-chip.car-addphoto { z-index: 211; }
@@ -1588,6 +1605,68 @@
     position: absolute; pointer-events: none;
     display: flex; align-items: center; justify-content: center;
   }
+  /* layout-preset slots: empty photo frames — tap one to fill it */
+  .car-slot {
+    position: absolute; box-sizing: border-box; cursor: pointer;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1.5px dashed var(--text-dim); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .car-slot:active { border-color: var(--accent); }
+  .car-slot .cg-plus { transform: scale(0.8); }
+  #carStrip.bgmode .car-slot { pointer-events: none; opacity: 0.35; }
+  /* framed photos: the image is sized and offset inside its fixed frame, so
+     the crop matches the canvas renderer exactly (geometry pass sets both) */
+  .car-obj.framed img { position: absolute; }
+  /* Reframe mode: dragging pans the photo inside its frame */
+  #carStrip.reframe .car-obj, #carStrip.reframe .car-selbox { cursor: grab; }
+  /* layout picker modal */
+  #carLayoutModal .lay-hint { margin: 0 0 10px; font-size: 12.5px; color: var(--text-mid); }
+  #carLayoutModal .lay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #carLayoutModal .lay-item {
+    position: relative;
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: 12px;
+    padding: 12px 10px 9px; display: flex; flex-direction: column; gap: 7px; align-items: center;
+    color: var(--text); cursor: pointer;
+  }
+  #carLayoutModal .lay-item:active { border-color: var(--accent); }
+  #carLayoutModal .lay-item svg { width: 100%; height: auto; display: block; color: var(--text-mid); }
+  #carLayoutModal .lay-item span { font-size: 11.5px; color: var(--text-mid); letter-spacing: 0.04em; }
+  #carLayoutModal .lay-clear {
+    margin-top: 12px; width: 100%; padding: 11px; border-radius: 10px;
+    background: none; border: 1px solid var(--border2); color: var(--text-mid);
+    font: inherit; font-size: 13px; cursor: pointer;
+  }
+  #carLayoutModal .lay-clear[hidden] { display: none !important; }
+  /* saved layouts: ruled off from the stock set, and scroll as they pile up */
+  #carLayoutModal #carLayoutMineWrap[hidden] { display: none !important; }
+  #carLayoutModal .lay-div {
+    display: flex; align-items: center; gap: 10px; margin: 16px 0 11px;
+    color: var(--text-dim); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  #carLayoutModal .lay-div::before, #carLayoutModal .lay-div::after {
+    content: ''; flex: 1; height: 1px; background: var(--border2);
+  }
+  #carLayoutModal .lay-scroll {
+    max-height: 236px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 2px 3px 2px 2px;
+  }
+  #carLayoutModal .lay-del {
+    position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; padding: 0;
+    border-radius: 50%; border: 1px solid var(--border2); background: var(--surface);
+    color: var(--text-mid); font: inherit; font-size: 12px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #carLayoutModal .lay-del:active { color: var(--accent); border-color: var(--accent); }
+  #carLayoutModal .lay-save {
+    margin-top: 14px; width: 100%; padding: 12px; border-radius: 10px;
+    background: var(--accent); border: none; color: var(--accent-fg);
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #carLayoutModal .lay-save:active { transform: scale(0.99); }
+  #carLayoutModal .lay-save[hidden] { display: none !important; }
+  #carLayoutModal .lay-save:disabled { opacity: 0.7; }
   .car-count {
     position: absolute; top: 10px; right: 12px; z-index: 3;
     font-size: 11px; color: var(--text-mid); background: var(--surface);
@@ -1628,6 +1707,10 @@
   #carStrip.ratio-anim .car-ghostadd { transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1), width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1); }
   #carStrip.ratio-anim .car-bgphoto {
     transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #carStrip.ratio-anim .car-bgphoto img {
+    transition: left 0.45s cubic-bezier(0.4, 0, 0.2, 1),
                 width 0.45s cubic-bezier(0.4, 0, 0.2, 1), height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
   }
   /* board-editor chrome (header, workspace, its fixed bars) stays out of the way
@@ -1762,6 +1845,13 @@
   .bgp-sw:active { transform: scale(0.9); }
   .bgp-sw.active { border-color: var(--accent); box-shadow: 0 0 0 1.5px var(--accent); }
   .bgp-sw.bgp-custom { background: conic-gradient(#ff5f5f, #ffd93b, #4be36b, #3bd0ff, #6a6bff, #e05fff, #ff5f5f); }
+  /* The wheel IS the colour input. WebKit only opens the native picker from a
+     tap on a RENDERED input — a hidden one clicked by a proxy button did
+     nothing at all — so the input sits in the row wearing the wheel gradient. */
+  input.bgp-sw.bgp-custom { -webkit-appearance: none; appearance: none; display: block; }
+  input.bgp-sw.bgp-custom::-webkit-color-swatch-wrapper { padding: 0; border: none; }
+  input.bgp-sw.bgp-custom::-webkit-color-swatch { border: none; opacity: 0; }
+  input.bgp-sw.bgp-custom[hidden] { display: none !important; }
   /* live background layer inside the board (under every slot) */
   #boardBgLayer { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; pointer-events: none; }
   #boardBgLayer .bg-media { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -4706,6 +4796,10 @@
   <div id="carStage">
     <div id="carStrip"></div>
     <div class="car-overchips">
+      <button class="car-chip" id="carLayoutBtn" aria-label="Layouts">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5"/><rect x="14" y="3" width="7" height="8" rx="1.5"/><rect x="14" y="15" width="7" height="6" rx="1.5"/></svg>
+        Layouts
+      </button>
       <button class="car-chip" id="carBgBtn" aria-label="Background">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.7 1.7-1.7h2c3 0 5.5-2.5 5.5-5.5C22 6 17.5 2 12 2z"/><circle cx="8.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="14" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/></svg>
         Background
@@ -4714,11 +4808,15 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path fill-rule="evenodd" d="M12 2a9.5 9.5 0 0 0-9.5 9.5V20A2 2 0 0 0 4.5 22h4.6a2 2 0 0 0 2-2v-8.6a.9.9 0 0 1 1.8 0V20a2 2 0 0 0 2 2h4.6a2 2 0 0 0 2-2v-8.5A9.5 9.5 0 0 0 12 2zM4.9 15.4h3.8v2.7H4.9zm10.4 0h3.8v2.7h-3.8z"/></svg>
         Snap
       </button>
-      <button class="car-chip" id="carFullBtn" aria-label="Test fullscreen">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+      <button class="car-chip" id="carReframeBtn" aria-label="Reframe photos inside their frames">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M2 6h14a2 2 0 0 1 2 2v14"/></svg>
+        Reframe
       </button>
       <button class="car-chip" id="carRatioBtn">4:5</button>
     </div>
+    <button class="car-chip car-fullbtn" id="carFullBtn" aria-label="Test fullscreen">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+    </button>
     <button class="car-chip car-addphoto" id="carAddPhotoBtn" aria-label="Add photos">
       <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="7" width="14" height="14" rx="2.5"/>
@@ -4991,6 +5089,26 @@
       <button class="nt-btn" id="carAddWide">
         <span class="nt-txt"><b>Wide image</b><span>One large image split across frames for a seamless swipe</span></span>
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Carousel layout presets -->
+<div id="carLayoutModal" class="big-modal" hidden>
+  <div class="bm-card">
+    <div class="bm-head">
+      <span class="bm-title">Layouts</span>
+      <button class="bm-close" data-bm-close>Close</button>
+    </div>
+    <div class="bm-body">
+      <p class="lay-hint">Pick a starting layout, then tap an empty frame — select several photos at once and they fill the following frames too.</p>
+      <div class="lay-grid" id="carLayoutGrid"></div>
+      <div id="carLayoutMineWrap" hidden>
+        <div class="lay-div"><span>Your layouts</span></div>
+        <div class="lay-grid lay-scroll" id="carLayoutMine"></div>
+      </div>
+      <button class="lay-save" id="carLayoutSave" hidden>Save this layout</button>
+      <button class="lay-clear" id="carLayoutClear" hidden>Remove empty frames</button>
     </div>
   </div>
 </div>
@@ -8711,12 +8829,14 @@ BG_PALETTE.forEach(c => {
   bgSwatchesEl.appendChild(b);
 });
 {
-  const custom = document.createElement('button');
-  custom.className = 'bgp-sw bgp-custom';
-  custom.title = 'Custom colour';
-  custom.setAttribute('aria-label', 'Custom background colour');
-  custom.addEventListener('click', () => bgColor.click());   // opens the native colour wheel
-  bgSwatchesEl.appendChild(custom);
+  // same story as the carousel's wheel: the input has to be the visible swatch,
+  // because WebKit won't open the picker for a hidden input
+  bgColor.classList.add('bgp-sw', 'bgp-custom');
+  bgColor.hidden = false;
+  bgColor.removeAttribute('aria-hidden');
+  bgColor.title = 'Custom colour';
+  bgColor.setAttribute('aria-label', 'Custom background colour');
+  bgSwatchesEl.appendChild(bgColor);
 }
 bgColor.addEventListener('input', () => applyBgColor(bgColor.value));
 
@@ -12937,6 +13057,8 @@ let car = null;          // { ratio:'4:5'|'1:1', frames, imgs:[{id,src,img,x,y,w
 let _carOpen = false;
 let _carView = 1;        // editor zoom
 let _carSnap = true;     // magnet: snap moving images to edges/centres
+let _carReframe = false; // Reframe mode: drags pan/zoom the photo INSIDE its frame
+let _carCropDrag = null, _carCropPinch = null;
 let _carSmooth = true;   // seamless free scrolling is the navigation model
 let _carScrollCanon = 0; // canvas x (canonical units) at stage centre
 let _carHist = [], _carRedoStack = [];   // undo/redo snapshots
@@ -13068,6 +13190,10 @@ function carDeleteFrame(f) {
   carPushHist();
   const cw = carCW();
   car.imgs.forEach(o => { if (o.x + o.w / 2 >= (f + 1) * cw) o.x -= cw; });
+  car.slots = (car.slots || []).filter(s => {
+    if (s.x + s.w / 2 >= (f + 1) * cw) { s.x -= cw; return true; }
+    return s.x + s.w / 2 < f * cw;   // slots centred on the deleted frame go with it
+  });
   car.frames--;
   // a wide image can't span more frames than exist — shrink and re-fit
   car.imgs.filter(o => o.wide && o.span > car.frames).forEach(o => { o.span = car.frames; carWideFit(o); });
@@ -13085,7 +13211,8 @@ function carSnapshot() {
   return {
     ratio: car.ratio, frames: car.frames, cur: car.cur,
     bg: { color: car.bg?.color || '#000000', photo: car.bg?.photo ? { ...car.bg.photo } : null },
-    imgs: car.imgs.map(o => ({ ...o }))
+    imgs: car.imgs.map(o => ({ ...o })),
+    slots: (car.slots || []).map(s => ({ ...s }))
   };
 }
 function carCommitHist(snap) {
@@ -13100,6 +13227,7 @@ function carRestore(s) {
   car.cur = Math.max(0, Math.min(s.frames - 1, s.cur));
   car.bg = { color: s.bg.color, photo: s.bg.photo ? { ...s.bg.photo } : null };
   car.imgs = s.imgs.map(o => ({ ...o }));
+  car.slots = (s.slots || []).map(t => ({ ...t }));
   car.sel = null;
   if (_carSmooth) _carScrollCanon = (car.cur + 0.5) * carCW();
   carRender();
@@ -13138,11 +13266,18 @@ function carRender(structural = true) {
     // background layers sit under every image
     clip.appendChild(Object.assign(document.createElement('div'), { className: 'car-bgcolor' }));
     if (car.bg?.photo?.img) {
-      const bp = document.createElement('img');
-      bp.className = 'car-bgphoto';
-      bp.src = car.bg.photo.img.src;
-      clip.appendChild(bp);
+      // wrapper carries the transform/blur on one compositor layer; the
+      // geometry pass fills it with one <img> per tiled copy of the photo
+      clip.appendChild(Object.assign(document.createElement('div'), { className: 'car-bgphoto' }));
     }
+    // layout-preset slots sit under the photos — tap one to fill it
+    (car.slots || []).forEach(s => {
+      const d = document.createElement('div');
+      d.className = 'car-slot';
+      d.dataset.sid = s.id;
+      d.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
+      clip.appendChild(d);
+    });
     car.imgs.forEach(o => {
       const d = document.createElement('div');
       d.className = 'car-obj';
@@ -13169,7 +13304,7 @@ function carRender(structural = true) {
     g.className = 'car-ghostadd';
     g.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
     carStrip.appendChild(g);
-    if (!has) {
+    if (!has && !(car.slots || []).length) {
       const ep = document.createElement('div');
       ep.className = 'car-emptyplus';
       ep.appendChild(Object.assign(document.createElement('span'), { className: 'cg-plus', textContent: '+' }));
@@ -13195,22 +13330,68 @@ function carRender(structural = true) {
     const s = bp.scale || 1;
     const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
     bpEl.style.transform = `translate3d(${(bp.x || 0) * k}px, ${(bp.y || 0) * k}px, 0)`;
-    bpEl.style.width = (bw2 * k) + 'px';
-    bpEl.style.height = (bh * k) + 'px';
     bpEl.style.filter = bp.blur ? `blur(${bp.blur * k}px)` : 'none';
     bpEl.style.opacity = bp.opacity ?? 1;
+    // photo narrower than the strip → tile copies side by side; every copy
+    // after the first crossfades in over a feathered left edge, and the
+    // wrapper's blur blends the composite so the seams disappear cleanly
+    const stripC = car.frames * carCW();
+    const feather = carBgFeather(bw2);
+    const step = bw2 - feather;
+    let nLo = 0, nHi = 0;
+    if (bw2 < stripC - 0.5) {
+      nLo = Math.floor(-(bp.x || 0) / step) - 1;
+      nHi = Math.ceil((stripC - (bp.x || 0) - bw2) / step);
+    }
+    const count = nHi - nLo + 1;
+    while (bpEl.children.length > count) bpEl.lastChild.remove();
+    while (bpEl.children.length < count) {
+      const im = document.createElement('img');
+      im.src = bp.img.src;
+      im.draggable = false;
+      bpEl.appendChild(im);
+    }
+    for (let i = 0; i < count; i++) {
+      const im = bpEl.children[i];
+      const n = nLo + i;
+      im.style.left = (n * step * k) + 'px';
+      im.style.width = (bw2 * k) + 'px';
+      im.style.height = (bh * k) + 'px';
+      const mask = n > nLo ? `linear-gradient(to right, transparent 0, #000 ${feather * k}px)` : 'none';
+      im.style.webkitMaskImage = mask;
+      im.style.maskImage = mask;
+    }
   }
+  const slotEls = clip.querySelectorAll('.car-slot');
+  (car.slots || []).forEach((s, i) => {
+    const d = slotEls[i]; if (!d) return;
+    d.style.left   = (s.x * k) + 'px';
+    d.style.top    = (s.y * k) + 'px';
+    d.style.width  = (s.w * k) + 'px';
+    d.style.height = (s.h * k) + 'px';
+  });
   const objEls = clip.querySelectorAll('.car-obj');
   car.imgs.forEach((o, i) => {
     const d = objEls[i]; if (!d) return;
-    const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+    const oh = o.fh || o.w * o.img.naturalHeight / o.img.naturalWidth;
     d.style.left   = (o.x * k) + 'px';
     d.style.top    = (o.y * k) + 'px';
     d.style.width  = (o.w * k) + 'px';
     d.style.height = (oh * k) + 'px';
     d.style.setProperty('--orad', ((o.r || 0) * k) + 'px');
     d.style.setProperty('--obw', ((o.bw || 0) * k) + 'px');
+    d.classList.toggle('framed', !!o.fh);
     d.classList.toggle('sel', o.id === car.sel);
+    const im = d.querySelector('img');
+    if (o.fh) {
+      const b = carCropBox(o);
+      im.style.left = (b.x * k) + 'px';
+      im.style.top = (b.y * k) + 'px';
+      im.style.width = (b.dw * k) + 'px';
+      im.style.height = (b.dh * k) + 'px';
+    } else if (im.style.width) {
+      im.style.left = im.style.top = im.style.width = im.style.height = '';
+    }
   });
   clip.querySelectorAll('.car-frameline').forEach(l => { l.style.left = (l.dataset.b * W) + 'px'; });
   clip.querySelectorAll('.car-framedim').forEach(d => {
@@ -13238,14 +13419,15 @@ function carRender(structural = true) {
   clip.classList.toggle('widesel', !!(selO && selO.wide));
   sb.classList.toggle('show', !!selO && !selO.wide);
   if (selO && !selO.wide) {
-    const oh = selO.w * selO.img.naturalHeight / selO.img.naturalWidth;
+    const oh = selO.fh || selO.w * selO.img.naturalHeight / selO.img.naturalWidth;
     sb.style.left   = (selO.x * k) + 'px';
     sb.style.top    = (selO.y * k) + 'px';
     sb.style.width  = (selO.w * k) + 'px';
     sb.style.height = (oh * k) + 'px';
     sb.style.borderRadius = ((selO.r || 0) * k) + 'px';
-    // wide images are reposition-only: no scale handle
-    sb.querySelector('.car-handle').style.display = selO.wide ? 'none' : '';
+    // wide images are reposition-only, and Reframe works inside the frame:
+    // neither offers the frame-scale handle
+    sb.querySelector('.car-handle').style.display = (selO.wide || _carReframe) ? 'none' : '';
     // bleeding outside the preview canvas → tight dotted outline
     sb.classList.toggle('out',
       selO.x < 0 || selO.y < 0 ||
@@ -13285,6 +13467,10 @@ function carRenderTools() {
   document.getElementById('carAddSlide').style.display = wideO ? 'none' : '';
   document.getElementById('carAddPhotoBtn').style.display = wideO ? 'none' : '';
   document.getElementById('carBgBtn').style.display = wideO ? 'none' : '';
+  document.getElementById('carLayoutBtn').style.display = wideO ? 'none' : '';
+  // wide images crop themselves to the frames — Reframe has nothing to do
+  if (wideO) carReframeOff();
+  document.getElementById('carReframeBtn').style.display = wideO ? 'none' : '';
   document.getElementById('carSnapBtn').style.display = wideO ? 'none' : '';
   if (wideO) {
     document.getElementById('carWideDn').disabled = wideO.span <= 1;
@@ -13392,8 +13578,58 @@ function carDrawBlurredImg(ctx, img, x, y, w, h, blurPx, alpha) {
   ctx.restore();
 }
 
+// Feather width (canonical px) for tiled bg-photo seams — kept small so the
+// crossfade reads as a soft edge, not a double exposure
+function carBgFeather(bw2) { return Math.min(Math.max(bw2 * 0.075, 12), 80); }
+
+// ── Framed photos (crop inside a fixed frame) ───────────────────────────────
+// A framed photo (o.fh set) keeps its frame and moves the IMAGE inside it:
+// cover-fit, then the user's zoom (o.cs) and pan (o.cx/o.cy, canonical px).
+// Returns the image's draw box relative to the frame's top-left.
+function carCropBox(o) {
+  const base = Math.max(o.w / o.img.naturalWidth, o.fh / o.img.naturalHeight);
+  const s = base * (o.cs || 1);
+  const dw = o.img.naturalWidth * s, dh = o.img.naturalHeight * s;
+  const mx = Math.max(0, (dw - o.w) / 2), my = Math.max(0, (dh - o.fh) / 2);
+  const cx = Math.min(mx, Math.max(-mx, o.cx || 0));
+  const cy = Math.min(my, Math.max(-my, o.cy || 0));
+  return { dw, dh, x: (o.w - dw) / 2 + cx, y: (o.fh - dh) / 2 + cy };
+}
+// Pan can never uncover the frame — clamp to the overflow on each axis
+function carClampCrop(o) {
+  const b = carCropBox(o);
+  const mx = Math.max(0, (b.dw - o.w) / 2), my = Math.max(0, (b.dh - o.fh) / 2);
+  o.cx = Math.min(mx, Math.max(-mx, o.cx || 0));
+  o.cy = Math.min(my, Math.max(-my, o.cy || 0));
+}
+function carSetCropScale(o, ns) {
+  o.cs = Math.min(4, Math.max(1, ns));
+  carClampCrop(o);
+}
+// Reframing a free-floating photo fixes its current box as the frame — a
+// cover fit of the same aspect is identical, so nothing shifts on screen.
+function carMakeFramed(o) {
+  if (!o.fh) o.fh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+}
+// The photo under the pointer (the selection overlay stands in for its photo)
+function carHitPhoto(e) {
+  if (e.target.closest('.car-selbox')) return carSel();
+  const el = e.target.closest('.car-obj');
+  if (!el) return null;
+  const o = car.imgs.find(p => p.id === el.dataset.id);
+  return o && !o.wide ? o : null;
+}
+function carReframeOff() {
+  if (!_carReframe) return;
+  _carReframe = false;
+  document.getElementById('carReframeBtn').classList.remove('on');
+  carStrip.classList.remove('reframe');
+  _carCropDrag = _carCropPinch = null;
+}
+
 // Draw one frame's slice of the canvas into a 2d context (k: canonical→target px)
-function carDrawFrame(ctx, f, k) {
+// guides=true additionally draws layout-slot outlines (thumbs only — never exports)
+function carDrawFrame(ctx, f, k, guides = false) {
   const cw = carCW();
   // background: colour, then the (blurred/faded/scaled) photo
   ctx.fillStyle = car.bg?.color || '#000000';
@@ -13402,17 +13638,73 @@ function carDrawFrame(ctx, f, k) {
   if (bp?.img) {
     const s = bp.scale || 1;
     const bh = CAR_CH * s, bw2 = bh * bp.img.naturalWidth / bp.img.naturalHeight;
-    carDrawBlurredImg(ctx, bp.img, ((bp.x || 0) - f * cw) * k, (bp.y || 0) * k,
-                      bw2 * k, bh * k, (bp.blur || 0) * k, bp.opacity ?? 1);
+    const stripC = car.frames * cw;
+    if (bw2 >= stripC - 0.5) {
+      carDrawBlurredImg(ctx, bp.img, ((bp.x || 0) - f * cw) * k, (bp.y || 0) * k,
+                        bw2 * k, bh * k, (bp.blur || 0) * k, bp.opacity ?? 1);
+    } else {
+      // photo narrower than the strip: composite feather-seamed copies first,
+      // then blur the composite ONCE so the seams blur together cleanly —
+      // blurring each copy separately would leave dark seams where the
+      // crossfades stack
+      const feather = carBgFeather(bw2);
+      const step = bw2 - feather;
+      const x0 = bp.x || 0;
+      // pad past the frame by the blur's reach so it pulls real pixels, not
+      // transparency, across frame borders (keeps frames seam-identical)
+      const pad = Math.ceil((bp.blur || 0) * 3 + feather);
+      const vx0 = f * cw - pad, vx1 = (f + 1) * cw + pad;
+      const tw = Math.max(2, Math.round(bw2 * k)), th2 = Math.max(2, Math.round(bh * k));
+      // one feathered tile, reused for every copy
+      const tile = document.createElement('canvas');
+      tile.width = tw; tile.height = th2;
+      const tctx = tile.getContext('2d');
+      tctx.imageSmoothingEnabled = true;
+      tctx.imageSmoothingQuality = 'high';
+      tctx.drawImage(bp.img, 0, 0, tw, th2);
+      const fpx = Math.max(1, Math.ceil(feather * k));
+      const ramp = tctx.createLinearGradient(0, 0, fpx, 0);
+      ramp.addColorStop(0, 'rgba(0,0,0,1)');
+      ramp.addColorStop(1, 'rgba(0,0,0,0)');
+      tctx.globalCompositeOperation = 'destination-out';
+      tctx.fillStyle = ramp;
+      tctx.fillRect(0, 0, fpx, th2);
+      const comp = document.createElement('canvas');
+      comp.width = Math.max(2, Math.round((vx1 - vx0) * k));
+      comp.height = th2;
+      const cctx = comp.getContext('2d');
+      const nLo = Math.floor((vx0 - x0 - bw2) / step) - 1;
+      const nHi = Math.ceil((vx1 - x0) / step) + 1;
+      for (let n = nLo; n <= nHi; n++) {
+        cctx.drawImage(tile, Math.round((x0 + n * step - vx0) * k), 0);
+      }
+      carDrawBlurredImg(ctx, comp, (vx0 - f * cw) * k, (bp.y || 0) * k,
+                        comp.width, comp.height, (bp.blur || 0) * k, bp.opacity ?? 1);
+    }
+  }
+  if (guides) for (const s of car.slots || []) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = Math.max(1, 3 * k);
+    ctx.setLineDash([12 * k, 10 * k]);
+    carRoundRectPath(ctx, (s.x - f * cw) * k, s.y * k, s.w * k, s.h * k, 8 * k);
+    ctx.stroke();
+    ctx.restore();
   }
   for (const o of car.imgs) {
-    const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+    const oh = o.fh || o.w * o.img.naturalHeight / o.img.naturalWidth;
     const x = (o.x - f * cw) * k, y = o.y * k, w = o.w * k, h = oh * k;
     const r = (o.r || 0) * k, bw = (o.bw || 0) * k;
     ctx.save();
     carRoundRectPath(ctx, x, y, w, h, r);
     ctx.clip();
-    ctx.drawImage(o.img, x, y, w, h);
+    if (o.fh) {
+      // framed: the image is cropped inside its fixed frame (same box as the DOM)
+      const b = carCropBox(o);
+      ctx.drawImage(o.img, x + b.x * k, y + b.y * k, b.dw * k, b.dh * k);
+    } else {
+      ctx.drawImage(o.img, x, y, w, h);
+    }
     if (bw > 0) {
       // stroke centred on the edge, clipped → a clean inner border like the DOM
       carRoundRectPath(ctx, x, y, w, h, r);
@@ -13436,7 +13728,7 @@ function carRenderFilm(morph = false) {
       cvs.width = tw; cvs.height = th;
       const ctx = cvs.getContext('2d');
       ctx.fillStyle = '#000'; ctx.fillRect(0, 0, tw, th);
-      carDrawFrame(ctx, f, kk);
+      carDrawFrame(ctx, f, kk, true);
       b.style.width = tw + 'px';
     });
     return;
@@ -13450,7 +13742,7 @@ function carRenderFilm(morph = false) {
     cv.width = tw; cv.height = th;
     const ctx = cv.getContext('2d');
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, tw, th);
-    carDrawFrame(ctx, f, kk);
+    carDrawFrame(ctx, f, kk, true);
     b.appendChild(cv);
     b.appendChild(Object.assign(document.createElement('span'), { className: 'ct-n', textContent: f + 1 }));
     if (car.frames > 1) {
@@ -13556,6 +13848,259 @@ document.getElementById('carAddWide').addEventListener('click', () => { closeBig
 carAddModal.addEventListener('pointerdown', e => { if (e.target === carAddModal) closeBigModal(carAddModal); });
 carAddModal.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(carAddModal));
 
+// ── Layout presets ──────────────────────────────────────────────────────────
+// Slot rects in unit space: x/w in slide-widths, y/h in canvas-height
+// fractions — converted to canonical px against the CURRENT ratio on apply.
+const CAR_PRESETS = [
+  { name: 'Gallery', frames: 5, slots: [
+    [0.14, 0.10, 0.72, 0.80],
+    [1, 0, 1, 1],
+    [2.12, 0.08, 0.76, 0.40], [2.12, 0.52, 0.76, 0.40],
+    [3, 0, 1, 1],
+    [4.14, 0.10, 0.72, 0.80]] },
+  { name: 'Flow', frames: 5, slots: [
+    [0, 0, 0.52, 0.58], [0.52, 0, 0.48, 0.58],
+    [1.18, 0.14, 0.64, 0.72],
+    [2, 0, 1.55, 1],
+    [3.64, 0.30, 0.28, 0.40],
+    [4, 0, 1, 1]] },
+  { name: 'Duets', frames: 4, slots: [
+    [0.06, 0.08, 0.42, 0.84], [0.52, 0.08, 0.42, 0.84],
+    [1.06, 0.08, 0.42, 0.84], [1.52, 0.08, 0.42, 0.84],
+    [2.06, 0.08, 0.42, 0.84], [2.52, 0.08, 0.42, 0.84],
+    [3.06, 0.08, 0.42, 0.84], [3.52, 0.08, 0.42, 0.84]] },
+  { name: 'Panorama', frames: 4, slots: [
+    [0.10, 0.12, 0.80, 0.76],
+    [1, 0, 2, 1],
+    [3.10, 0.12, 0.80, 0.76]] },
+  { name: 'Accents', frames: 4, slots: [
+    [0, 0, 1, 1],
+    [1.26, 0.30, 0.48, 0.40],
+    [2, 0, 1, 1],
+    [3.10, 0.14, 0.44, 0.36], [3.46, 0.55, 0.44, 0.36]] },
+  { name: 'Columns', frames: 4, slots: [
+    [0.06, 0.08, 0.46, 0.84], [0.58, 0.24, 0.36, 0.52],
+    [1, 0, 1, 1],
+    [2.06, 0.24, 0.36, 0.52], [2.48, 0.08, 0.46, 0.84],
+    [3, 0, 1, 1]] },
+  { name: 'Mosaic', frames: 4, slots: [
+    [0.06, 0.06, 0.42, 0.42], [0.52, 0.06, 0.42, 0.42],
+    [0.06, 0.52, 0.42, 0.42], [0.52, 0.52, 0.42, 0.42],
+    [1, 0, 1, 1],
+    [2.07, 0.08, 0.26, 0.84], [2.37, 0.08, 0.26, 0.84], [2.67, 0.08, 0.26, 0.84],
+    [3, 0, 1, 1]] },
+  { name: 'Rhythm', frames: 5, slots: [
+    [0, 0, 0.66, 1], [0.72, 0.22, 0.24, 0.40],
+    [1.08, 0.34, 0.84, 0.55],
+    [2, 0, 1, 1],
+    [3.08, 0.10, 0.84, 0.55],
+    [4.04, 0.34, 0.24, 0.40], [4.34, 0, 0.66, 1]] },
+];
+
+const carLayoutModal = document.getElementById('carLayoutModal');
+const carLayoutClear = document.getElementById('carLayoutClear');
+
+function carLayoutMiniSVG(p) {
+  const sw = 40, sh = 50, W = p.frames * sw;
+  let s = `<svg viewBox="-1 -1 ${W + 2} ${sh + 2}" xmlns="http://www.w3.org/2000/svg">`;
+  const bg = carHexColor(p.bg);
+  if (bg) s += `<rect x="0" y="0" width="${W}" height="${sh}" fill="${bg}"/>`;   // the colour it saved
+  for (let i = 0; i < p.frames; i++)
+    s += `<rect x="${i * sw}" y="0" width="${sw}" height="${sh}" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-width="1"/>`;
+  for (const [x, y, w, h] of p.slots)
+    s += `<rect x="${x * sw}" y="${y * sh}" width="${w * sw}" height="${h * sh}" rx="1.5"
+      fill="currentColor" fill-opacity="0.26" stroke="currentColor" stroke-opacity="0.55" stroke-width="1"/>`;
+  return s + '</svg>';
+}
+
+{
+  const grid = document.getElementById('carLayoutGrid');
+  CAR_PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'lay-item';
+    b.innerHTML = carLayoutMiniSVG(p) + `<span>${p.name}</span>`;
+    b.addEventListener('click', () => carApplyPreset(p));
+    grid.appendChild(b);
+  });
+}
+
+// ── Saved layouts ───────────────────────────────────────────────────────────
+// The user's own layouts live in localStorage in the same unit space as the
+// stock presets, so both apply through carApplyPreset.
+const CAR_BG_DEFAULT = '#000000';
+// Colours reach markup (the layout previews) and come back from storage, so
+// only a plain hex is ever trusted
+function carHexColor(c) {
+  return (typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c.trim())) ? c.trim() : null;
+}
+let carMyLayouts = [];
+try { carMyLayouts = JSON.parse(localStorage.getItem('stlls-car-layouts') || '[]'); } catch (e) { carMyLayouts = []; }
+carMyLayouts.forEach(l => { const c = carHexColor(l.bg); if (c) l.bg = c; else delete l.bg; });
+function carStoreMyLayouts() {
+  try { localStorage.setItem('stlls-car-layouts', JSON.stringify(carMyLayouts)); } catch (e) {}
+}
+
+// The canvas as a reusable layout: every framed photo's box plus every empty
+// frame, in reading order. Free-floating (unframed) photos have no frame to
+// capture, so they're skipped.
+function carCurrentLayout() {
+  if (!car) return null;
+  const cw = carCW();
+  const boxes = [];
+  for (const o of car.imgs) if (o.fh && !o.wide) boxes.push([o.x / cw, o.y / CAR_CH, o.w / cw, o.fh / CAR_CH]);
+  for (const s of car.slots || []) boxes.push([s.x / cw, s.y / CAR_CH, s.w / cw, s.h / CAR_CH]);
+  if (!boxes.length) return null;
+  boxes.sort((a, b) => Math.floor(a[0] + a[2] / 2) - Math.floor(b[0] + b[2] / 2) || a[1] - b[1] || a[0] - b[0]);
+  const lay = { frames: car.frames, slots: boxes };
+  // a background colour travels with the layout, but only when one was
+  // actually picked — the untouched default carries no intent (photo
+  // backgrounds are per-project, far too heavy to keep in a layout)
+  const col = carHexColor(car.bg?.color);
+  if (col && col.toLowerCase() !== CAR_BG_DEFAULT) lay.bg = col;
+  return lay;
+}
+
+function carRenderMyLayouts() {
+  const wrap = document.getElementById('carLayoutMineWrap');
+  const grid = document.getElementById('carLayoutMine');
+  wrap.hidden = !carMyLayouts.length;
+  grid.innerHTML = '';
+  carMyLayouts.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'lay-item';
+    b.innerHTML = carLayoutMiniSVG(p) + `<span>${p.name}</span>`;
+    b.addEventListener('click', () => carApplyPreset(p));
+    const del = document.createElement('button');
+    del.className = 'lay-del';
+    del.textContent = '×';
+    del.setAttribute('aria-label', `Delete ${p.name}`);
+    del.addEventListener('click', ev => {
+      ev.stopPropagation();   // deleting must never also apply the layout
+      carMyLayouts = carMyLayouts.filter(l => l !== p);
+      carStoreMyLayouts();
+      carRenderMyLayouts();
+    });
+    b.appendChild(del);
+    grid.appendChild(b);
+  });
+}
+
+document.getElementById('carLayoutSave').addEventListener('click', e => {
+  const lay = carCurrentLayout();
+  if (!lay) return;
+  const n = carMyLayouts.reduce((m, l) => Math.max(m, +((l.name || '').match(/(\d+)\s*$/)?.[1] || 0)), 0) + 1;
+  lay.name = 'Layout ' + n;
+  carMyLayouts.push(lay);
+  carStoreMyLayouts();
+  carRenderMyLayouts();
+  const b = e.currentTarget, label = b.textContent;
+  b.textContent = 'Saved'; b.disabled = true;
+  setTimeout(() => { b.textContent = label; b.disabled = false; }, 1300);
+});
+
+function carApplyPreset(p) {
+  if (!car) return;
+  carPushHist();
+  const cw = carCW();
+  // Photos already on the canvas keep their pixels but not their places: they
+  // re-seat into the new layout's frames in reading order, so changing layout
+  // never means importing again. Frames left over stay empty (tap to fill);
+  // photos left over drop away — the whole switch is a single undo step.
+  const reading = (a, b) =>
+    Math.floor((a.x + a.w / 2) / cw) - Math.floor((b.x + b.w / 2) / cw) || a.y - b.y || a.x - b.x;
+  const carried = car.imgs.filter(o => !o.wide).sort(reading);
+  const wide = car.imgs.filter(o => o.wide);
+  const slots = p.slots
+    .map(s => ({ id: genId(), x: s[0] * cw, y: s[1] * CAR_CH, w: s[2] * cw, h: s[3] * CAR_CH }))
+    .sort(reading);
+  const seated = Math.min(carried.length, slots.length);
+  car.imgs = wide.concat(carried.slice(0, seated).map((o, i) => {
+    const s = slots[i];
+    // a different frame means a fresh cover crop — the old offsets meant
+    // nothing outside the frame they were made in
+    return { ...o, x: s.x, y: s.y, w: s.w, fh: s.h, cs: 1, cx: 0, cy: 0 };
+  }));
+  car.slots = slots.slice(seated);
+  car.frames = Math.min(10, Math.max(p.frames, ...wide.map(o => o.span || 1), 1));
+  // a layout that saved a background colour brings it along; one that didn't
+  // leaves whatever the user already picked alone
+  const layBg = carHexColor(p.bg);
+  if (layBg) {
+    car.bg = car.bg || { color: CAR_BG_DEFAULT, photo: null };
+    car.bg.color = layBg;
+    if (_carBgMode) carBgSync();
+  }
+  car.sel = null;
+  car.cur = 0;
+  if (_carSmooth) _carScrollCanon = 0.5 * cw;
+  closeBigModal(carLayoutModal);
+  dismissCoach('carwelcome');
+  carRender();
+  carRenderFilm();
+  carRenderFilmSel();
+}
+
+// Place loaded photos into empty frames: the tapped slot first, then every
+// following empty frame in reading order (frame by frame, top-to-bottom,
+// left-to-right), wrapping around — so one multi-select fills the whole layout.
+function carPlaceInSlots(sid, loaded) {
+  if (!car || !loaded.length) return;
+  const cw = carCW();
+  const ordered = [...(car.slots || [])].sort((a, b) =>
+    Math.floor((a.x + a.w / 2) / cw) - Math.floor((b.x + b.w / 2) / cw) || a.y - b.y || a.x - b.x);
+  const si = ordered.findIndex(t => t.id === sid);
+  if (si < 0) return;
+  const targets = ordered.slice(si).concat(ordered.slice(0, si)).slice(0, loaded.length);
+  carPushHist();
+  targets.forEach((s, i) => {
+    const { src, img } = loaded[i];
+    car.imgs.push({ id: genId(), src, img, x: s.x, y: s.y, w: s.w, fh: s.h });
+  });
+  car.slots = car.slots.filter(t => !targets.includes(t));
+  car.sel = null;
+  carRender();
+  carRenderFilm();
+}
+
+// Tap an empty frame → multi-photo picker → photos flow into this frame and
+// the following empty ones (extra photos beyond the empty frames are ignored).
+function carFillSlot(sid) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.multiple = true;
+  inp.hidden = true;
+  document.body.appendChild(inp);
+  inp.addEventListener('change', async () => {
+    const files = [...inp.files];
+    inp.remove();
+    if (!files.length) return;
+    const loaded = (await Promise.all(files.map(carReadFile))).filter(Boolean);
+    carPlaceInSlots(sid, loaded);
+  });
+  inp.click();
+}
+
+document.getElementById('carLayoutBtn').addEventListener('click', () => {
+  if (_carBgMode) carBgExit();
+  carLayoutClear.hidden = !(car?.slots || []).length;
+  // savable once the canvas has a frame structure of its own (a preset you
+  // reshaped, or frames you built yourself)
+  document.getElementById('carLayoutSave').hidden = !carCurrentLayout();
+  carRenderMyLayouts();
+  openBigModal(carLayoutModal);
+});
+carLayoutClear.addEventListener('click', () => {
+  if (!car) return;
+  carPushHist();
+  car.slots = [];
+  closeBigModal(carLayoutModal);
+  carRender();
+  carRenderFilm();
+});
+carLayoutModal.addEventListener('pointerdown', e => { if (e.target === carLayoutModal) closeBigModal(carLayoutModal); });
+carLayoutModal.querySelector('[data-bm-close]').addEventListener('click', () => closeBigModal(carLayoutModal));
+
 // ── Frame count + selection tools ───────────────────────────────────────────
 
 document.getElementById('carSelDelete').addEventListener('click', () => {
@@ -13644,6 +14189,16 @@ document.getElementById('carSnapBtn').addEventListener('click', e => {
   _carSnap = !_carSnap;
   e.currentTarget.classList.toggle('on', _carSnap);
 });
+// Reframe: photos stay put; dragging/pinching moves the image inside its frame
+document.getElementById('carReframeBtn').addEventListener('click', e => {
+  if (_carReframe) { carReframeOff(); carRender(false); return; }
+  if (_carBgMode) carBgExit();
+  _carReframe = true;
+  e.currentTarget.classList.add('on');
+  carStrip.classList.add('reframe');
+  _carCropDrag = _carCropPinch = null;
+  carRender(false);
+});
 // Undo/redo chip: board-editor-style dropdown
 const carUndoMenu = document.getElementById('carUndoMenu');
 document.getElementById('carUndoBtn').addEventListener('click', e => {
@@ -13693,6 +14248,7 @@ let _carBgDrag = null, _carBgPinch = null;
 const carBgWheel = document.getElementById('carBgWheel');
 
 function carBgEnter() {
+  carReframeOff();   // the two canvas modes are mutually exclusive
   _carBgMode = true;
   carResetGestures();
   car.sel = null;
@@ -13748,6 +14304,9 @@ function carBgSync() {
   }
   document.querySelectorAll('#carBgSwatches .bgp-sw[data-c]').forEach(b =>
     b.classList.toggle('active', b.dataset.c.toLowerCase() === (bg.color || '').toLowerCase()));
+  // the wheel opens on the colour that's actually in use
+  const cur = carHexColor(bg.color);
+  if (cur && cur.length === 7) carBgWheel.value = cur;
 }
 
 document.getElementById('carBgBtn').addEventListener('click', () => { _carBgMode ? carBgExit() : carBgEnter(); });
@@ -13755,12 +14314,14 @@ document.getElementById('carBgOk').addEventListener('click', carBgExit);
 
 {
   const sw = document.getElementById('carBgSwatches');
-  // colour wheel first, at the far left of the row
-  const custom = document.createElement('button');
-  custom.className = 'bgp-sw bgp-custom';
-  custom.title = 'Custom colour';
-  custom.addEventListener('click', () => carBgWheel.click());
-  sw.appendChild(custom);
+  // colour wheel first, at the far left of the row — the input itself, since a
+  // hidden one never opens WebKit's picker no matter who clicks it
+  carBgWheel.classList.add('bgp-sw', 'bgp-custom');
+  carBgWheel.hidden = false;
+  carBgWheel.removeAttribute('aria-hidden');
+  carBgWheel.title = 'Custom colour';
+  carBgWheel.setAttribute('aria-label', 'Custom background colour');
+  sw.appendChild(carBgWheel);
   BG_PALETTE.forEach(c => {
     const b = document.createElement('button');
     b.className = 'bgp-sw'; b.dataset.c = c; b.style.background = c;
@@ -13769,10 +14330,12 @@ document.getElementById('carBgOk').addEventListener('click', carBgExit);
     sw.appendChild(b);
   });
   // iOS fires input continuously and change on dismiss — apply on both, deduped
+  // (the input normalises to lowercase, the palette doesn't: compare loosely)
   const applyWheel = () => {
-    if (!car || carBgWheel.value === car.bg.color) return;
+    const v = carBgWheel.value;
+    if (!car || !v || v.toLowerCase() === (car.bg?.color || '').toLowerCase()) return;
     carPushHist();
-    car.bg.color = carBgWheel.value;
+    car.bg.color = v;
     carBgSync(); carRender(false); carRenderFilm();
   };
   carBgWheel.addEventListener('input', applyWheel);
@@ -13843,6 +14406,7 @@ function carMarkDragged() {
 // second finger. Reset everything whenever such a boundary is crossed.
 function carResetGestures() {
   _carSwipe = _carMove = _carScale = _carPinch = _carBgDrag = _carBgPinch = null;
+  _carCropDrag = _carCropPinch = null;
   _carSnapL = null;
   _carDragged = false;
   carStrip.classList.remove('no-anim');
@@ -13856,13 +14420,13 @@ let _carSnapL = null;   // { x: canonical|null, y: canonical|null }
 function carSnapObj(o) {
   const th = 8 / (carK() * _carView);
   const cw = carCW();
-  const oh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+  const oh = o.fh || o.w * o.img.naturalHeight / o.img.naturalWidth;
   const xCand = [], yCand = [0, CAR_CH, CAR_CH / 2];
   for (let i = 0; i <= car.frames; i++) xCand.push(i * cw);
   for (let i = 0; i < car.frames; i++) xCand.push((i + 0.5) * cw);
   for (const p of car.imgs) {
     if (p === o) continue;
-    const ph = p.w * p.img.naturalHeight / p.img.naturalWidth;
+    const ph = p.fh || p.w * p.img.naturalHeight / p.img.naturalWidth;
     xCand.push(p.x, p.x + p.w, p.x + p.w / 2);
     yCand.push(p.y, p.y + ph, p.y + ph / 2);
   }
@@ -13889,7 +14453,7 @@ function carSnapObj(o) {
 function carSnapScaleW(o, a, w) {
   const th = 8 / (carK() * _carView);
   const cw = carCW();
-  const asp = o.img.naturalHeight / o.img.naturalWidth;
+  const asp = o.fh ? o.fh / o.w : o.img.naturalHeight / o.img.naturalWidth;
   let best = th, bw = null, lineX = null, lineY = null;
   const consider = (wc, edgeDist, lx, ly) => {
     if (wc >= 80 && wc <= cw * 10 && edgeDist < best) { best = edgeDist; bw = wc; lineX = lx; lineY = ly; }
@@ -13941,6 +14505,28 @@ carStage.addEventListener('pointerdown', e => {
                    px, py, moved: false, snap0: carSnapshot() };
     return;
   }
+  if (_carReframe) {
+    // second finger while cropping → pinch zooms the crop
+    if (_carCropDrag && !_carCropPinch && e.pointerId !== _carCropDrag.id) {
+      _carCropPinch = { id1: _carCropDrag.id, id2: e.pointerId,
+        x1: _carCropDrag.lastX, y1: _carCropDrag.lastY, x2: e.clientX, y2: e.clientY,
+        o: _carCropDrag.o, s0: _carCropDrag.o.cs || 1, snap0: _carCropDrag.snap0 };
+      _carCropPinch.d0 = Math.hypot(_carCropPinch.x2 - _carCropPinch.x1, _carCropPinch.y2 - _carCropPinch.y1) || 1;
+      _carCropDrag = null;
+      return;
+    }
+    if (_carCropPinch) return;
+    const o = carHitPhoto(e);
+    if (o) {
+      carMakeFramed(o);
+      const [px, py] = carPt(e);
+      _carCropDrag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                       o, cx0: o.cx || 0, cy0: o.cy || 0, px, py, moved: false, snap0: carSnapshot() };
+      if (car.sel !== o.id) { car.sel = o.id; carRender(false); }
+      return;
+    }
+    // empty canvas → falls through to swipe navigation
+  }
   const first = _carSwipe || _carMove || _carScale;
   if (first && !_carPinch && e.pointerId !== first.id) {
     // second finger → pinch-zoom the editor view
@@ -13961,10 +14547,11 @@ carStage.addEventListener('pointerdown', e => {
   if (sel && e.target.classList.contains('car-handle')) {
     const [px, py] = carPt(e);
     // scale about the photo's CENTRE — it grows/shrinks in place
-    const oh0 = sel.w * sel.img.naturalHeight / sel.img.naturalWidth;
+    const oh0 = sel.fh || sel.w * sel.img.naturalHeight / sel.img.naturalWidth;
     const a = { x: sel.x + sel.w / 2, y: sel.y + oh0 / 2 };
     _carScale = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY, o: sel,
-                  w0: sel.w, hx: _carHandle.hx, hy: _carHandle.hy, a,
+                  w0: sel.w, fh0: sel.fh || 0, cx0: sel.cx || 0, cy0: sel.cy || 0,
+                  hx: _carHandle.hx, hy: _carHandle.hy, a,
                   d0: Math.hypot(px - a.x, py - a.y) || 1,
                   moved: false, snap0: carSnapshot() };
     return;
@@ -14015,6 +14602,26 @@ carStage.addEventListener('pointermove', e => {
     }
     return;
   }
+  if (_carCropPinch) {
+    if (e.pointerId === _carCropPinch.id1) { _carCropPinch.x1 = e.clientX; _carCropPinch.y1 = e.clientY; }
+    else if (e.pointerId === _carCropPinch.id2) { _carCropPinch.x2 = e.clientX; _carCropPinch.y2 = e.clientY; }
+    else return;
+    const d = Math.hypot(_carCropPinch.x2 - _carCropPinch.x1, _carCropPinch.y2 - _carCropPinch.y1);
+    carSetCropScale(_carCropPinch.o, _carCropPinch.s0 * d / _carCropPinch.d0);
+    carRender(false);
+    return;
+  }
+  if (_carCropDrag && e.pointerId === _carCropDrag.id) {
+    const m = _carCropDrag;
+    m.lastX = e.clientX; m.lastY = e.clientY;
+    if (Math.abs(e.clientX - m.sx) + Math.abs(e.clientY - m.sy) > 4) m.moved = true;
+    const [px, py] = carPt(e);
+    m.o.cx = m.cx0 + px - m.px;
+    m.o.cy = m.cy0 + py - m.py;
+    carClampCrop(m.o);
+    carRender(false);
+    return;
+  }
   if (_carPinch) {
     if (e.pointerId === _carPinch.id1) { _carPinch.x1 = e.clientX; _carPinch.y1 = e.clientY; }
     else if (e.pointerId === _carPinch.id2) { _carPinch.x2 = e.clientX; _carPinch.y2 = e.clientY; }
@@ -14031,8 +14638,17 @@ carStage.addEventListener('pointermove', e => {
     const o = _carScale.o, a = _carScale.a;
     const d = Math.hypot(px - a.x, py - a.y);
     o.w = Math.min(carCW() * 10, Math.max(80, _carScale.w0 * d / _carScale.d0));
-    if (_carSnap) o.w = carSnapScaleW(o, a, o.w);
-    const nh = o.w * o.img.naturalHeight / o.img.naturalWidth;
+    if (o.fh) o.fh = _carScale.fh0 * o.w / _carScale.w0;   // frame keeps its aspect
+    if (_carSnap) {
+      o.w = carSnapScaleW(o, a, o.w);
+      if (o.fh) o.fh = _carScale.fh0 * o.w / _carScale.w0;
+    }
+    if (o.fh) {   // the crop scales with the frame, so the framing holds
+      const f = o.w / _carScale.w0;
+      o.cx = _carScale.cx0 * f; o.cy = _carScale.cy0 * f;
+      carClampCrop(o);
+    }
+    const nh = o.fh || o.w * o.img.naturalHeight / o.img.naturalWidth;
     o.x = a.x - o.w / 2;   // the photo's centre stays put
     o.y = a.y - nh / 2;
     _carScale.moved = true;
@@ -14075,6 +14691,17 @@ function carPtrEnd(e) {
       _carBgDrag = null;
     }
     carMarkDragged();
+    return;
+  }
+  if (_carCropPinch && (e.pointerId === _carCropPinch.id1 || e.pointerId === _carCropPinch.id2)) {
+    if (_carCropPinch.snap0) carCommitHist(_carCropPinch.snap0);
+    _carCropPinch = null;
+    carMarkDragged(); carRenderFilm();
+    return;
+  }
+  if (_carCropDrag && e.pointerId === _carCropDrag.id) {
+    if (_carCropDrag.moved) { carMarkDragged(); carRenderFilm(); carCommitHist(_carCropDrag.snap0); }
+    _carCropDrag = null;
     return;
   }
   if (_carPinch && (e.pointerId === _carPinch.id1 || e.pointerId === _carPinch.id2)) {
@@ -14133,18 +14760,24 @@ document.addEventListener('visibilitychange', () => {
 });
 
 carStage.addEventListener('click', e => {
-  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel')) return;   // rows/panel handle themselves
+  // rows, panels and chip buttons handle themselves (same guard as pointerdown) —
+  // without the chip guard, tapping e.g. Layouts on an empty carousel ALSO
+  // opened the add-photos modal underneath via this handler's empty-state branch
+  if (e.target.closest('.car-underrow') || e.target.closest('.car-selpanel') ||
+      e.target.closest('.car-chip')) return;
   const wasDrag = _carDragged; _carDragged = false;
   if (!car || wasDrag || _carBgMode) return;   // bg mode: canvas taps only move the bg
   if (e.target.closest('.car-ghostadd')) { carAddFrame(); return; }
   if (e.target.closest('.car-selbox')) return;     // tap on the selected image keeps it
+  const slotEl = e.target.closest('.car-slot');
+  if (slotEl) { carFillSlot(slotEl.dataset.sid); return; }
   const objEl = e.target.closest('.car-obj');
   if (objEl) {
     if (car.sel !== objEl.dataset.id) { car.sel = objEl.dataset.id; carRender(false); }
     return;
   }
   if (car.sel) { car.sel = null; carRender(false); return; }
-  if (!car.imgs.length) { openBigModal(carAddModal); return; }
+  if (!car.imgs.length && !(car.slots || []).length) { openBigModal(carAddModal); return; }
   const [px] = carPt(e);
   const f = Math.floor(px / carCW());
   if (f >= 0 && f < car.frames && f !== car.cur) carGoFrame(f);
@@ -14160,6 +14793,16 @@ carStage.addEventListener('wheel', e => {
       carRender(false);
     }
     return;
+  }
+  if (_carReframe) {
+    // reframe mode: the wheel zooms the photo's crop, not the editor view
+    const o = carHitPhoto(e) || carSel();
+    if (o && !o.wide) {
+      carMakeFramed(o);
+      carSetCropScale(o, (o.cs || 1) * (e.deltaY < 0 ? 1.05 : 0.95));
+      carRender(false); carRenderFilm();
+      return;
+    }
   }
   _carView = Math.min(CAR_MAXV, Math.max(CAR_MINV, _carView * (e.deltaY < 0 ? 1.06 : 0.94)));
   carApplyView();
@@ -14317,13 +14960,13 @@ function carThumbnail() {
   ctx.save();
   ctx.translate((SIZE - cw * k) / 2, (SIZE - CAR_CH * k) / 2);
   ctx.beginPath(); ctx.rect(0, 0, cw * k, CAR_CH * k); ctx.clip();
-  carDrawFrame(ctx, car.cur, k);
+  carDrawFrame(ctx, car.cur, k, true);
   ctx.restore();
   return cvs.toDataURL('image/jpeg', 0.82);
 }
 
 function saveCarouselToDB() {
-  if (!_currentProjectId || !car || !car.imgs.length) return;
+  if (!_currentProjectId || !car || (!car.imgs.length && !(car.slots || []).length)) return;
   const meta = projects.find(p => p.id === _currentProjectId);
   if (meta) {
     const th = carThumbnail();
@@ -14340,14 +14983,17 @@ function saveCarouselToDB() {
                                      opacity: car.bg.photo.opacity ?? 1, scale: car.bg.photo.scale || 1,
                                      x: car.bg.photo.x || 0, y: car.bg.photo.y || 0 } : null },
       imgs: car.imgs.map(o => ({ id: o.id, src: o.src, x: o.x, y: o.y, w: o.w, r: o.r || 0, bw: o.bw || 0,
-                                 wide: !!o.wide, span: o.span || 0 })) }
+                                 wide: !!o.wide, span: o.span || 0, fh: o.fh || 0,
+                                 cs: o.cs || 1, cx: o.cx || 0, cy: o.cy || 0 })),
+      slots: (car.slots || []).map(s => ({ id: s.id, x: s.x, y: s.y, w: s.w, h: s.h })) }
   };
   dbPut(_currentProjectId, serial).catch(err => console.warn('IDB save failed', err));
 }
 
 function closeCarouselAndGoHome() {
   if (_carBgMode) carBgExit();
-  if (car && car.imgs.length) {
+  carReframeOff();
+  if (car && (car.imgs.length || (car.slots || []).length)) {
     saveCarouselToDB();
   } else if (_currentProjectId) {
     projects = projects.filter(p => p.id !== _currentProjectId);
@@ -14380,7 +15026,7 @@ function createNewCarouselProject() {
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, kind: 'carousel', updatedAt: Date.now(), thumbnail: null });
   saveProjects();
-  car = { ratio: '4:5', frames: 1, imgs: [], cur: 0, sel: null, bg: { color: '#000000', photo: null } };
+  car = { ratio: '4:5', frames: 1, imgs: [], slots: [], cur: 0, sel: null, bg: { color: '#000000', photo: null } };
   _carOpen = true; _carView = 1;
   _carHist = []; _carRedoStack = [];
   _carScrollCanon = 0.5 * carCW();
@@ -14429,7 +15075,8 @@ function openCarouselProject(id) {
     if (data?.imgs) {
       imgs = (await Promise.all(data.imgs.map(loadOne))).filter(Boolean)
         .map(o => ({ id: o.id, src: o.src, img: o.img, x: o.x || 0, y: o.y || 0, w: o.w || 500,
-                     r: o.r || 0, bw: o.bw || 0, wide: !!o.wide, span: o.span || 0 }));
+                     r: o.r || 0, bw: o.bw || 0, wide: !!o.wide, span: o.span || 0, fh: o.fh || 0,
+                     cs: o.cs || 1, cx: o.cx || 0, cy: o.cy || 0 }));
       frames = Math.max(1, Math.min(10, data.frames || 1));
     } else if (data?.items) {
       const loaded = (await Promise.all(data.items.map(loadOne))).filter(Boolean);
@@ -14443,7 +15090,9 @@ function openCarouselProject(id) {
                           scale: p.scale || 1, x: p.x || 0,
                           y: p.y ?? (CAR_CH - CAR_CH * (p.scale || 1)) / 2 };   // pre-x/y saves were centred
     }
-    car = { ratio, frames, imgs, cur: 0, sel: null, bg };
+    const slots = (data?.slots || []).map(s => ({
+      id: s.id || genId(), x: s.x || 0, y: s.y || 0, w: s.w || 100, h: s.h || 100 }));
+    car = { ratio, frames, imgs, slots, cur: 0, sel: null, bg };
     _carHist = []; _carRedoStack = [];
     _carScrollCanon = 0.5 * carCW();
     carStrip.classList.add('smooth');

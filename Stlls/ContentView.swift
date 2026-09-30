@@ -97,6 +97,8 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         // Board-wide clip playback mode: 'loop' (default, unchanged) | 'freeze' (play once,
         // hold the last frame).
         let playMode = (body["playMode"] as? String) ?? "loop"
+        // Optional camera frame (readouts around the board) — static layer + live timecode.
+        let hud = parseHud(body["hud"])
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
@@ -248,7 +250,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 .appendingPathComponent(UUID().uuidString + ".mp4")
             self.renderComposition(comp, videoComp: videoComp, size: CGSize(width: width, height: height),
                                    duration: duration, bitrate: bitrate,
-                                   stillsLayer: stillsLayer, overlay: overlay,
+                                   stillsLayer: stillsLayer, overlay: overlay, hud: hud,
                                    outURL: outURL, temps: temps)
         }
     }
@@ -354,6 +356,80 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         ctx.draw(overlay, in: CGRect(origin: .zero, size: size))
     }
 
+    // MARK: Camera frame (HUD)
+    // The web renders the static frame + readouts into one transparent image and
+    // computes where the moving parts go (top-left coords, board px). The timecode
+    // and the blinking REC dot change every frame, so they're drawn here per sample.
+
+    struct HudSpec {
+        typealias TC  = (x: CGFloat, y: CGFloat, start: Int, base: Int, font: UIFont)?
+        typealias Dot = (cx: CGFloat, cy: CGFloat, r: CGFloat, color: CGColor)?
+        let image: CGImage?
+        let color: CGColor
+        let tc: TC
+        let dot: Dot
+    }
+
+    private func parseHud(_ value: Any?) -> HudSpec? {
+        guard let d = value as? [String: Any] else { return nil }
+        let num = { (o: [String: Any], k: String) -> CGFloat? in (o[k] as? NSNumber).map { CGFloat($0.doubleValue) } }
+        let image = (d["image"] as? String)
+            .flatMap { Data(base64Encoded: $0) }
+            .flatMap { UIImage(data: $0) }?.cgImage
+        var tc: HudSpec.TC = nil
+        if let t = d["tc"] as? [String: Any], let x = num(t, "x"), let y = num(t, "y"), let size = num(t, "size") {
+            // SF Mono, medium — the same face and weight as the web's `500 ui-monospace`
+            tc = (x, y, (t["start"] as? NSNumber)?.intValue ?? 0,
+                  max(1, (t["base"] as? NSNumber)?.intValue ?? 24),
+                  UIFont.monospacedSystemFont(ofSize: size, weight: .medium))
+        }
+        var dot: HudSpec.Dot = nil
+        if let o = d["dot"] as? [String: Any], let cx = num(o, "cx"), let cy = num(o, "cy"), let r = num(o, "r") {
+            dot = (cx, cy, r, UIColor(hexString: (o["color"] as? String) ?? "#ff3b30").cgColor)
+        }
+        if image == nil && tc == nil && dot == nil { return nil }
+        return HudSpec(image: image, color: UIColor(hexString: (d["color"] as? String) ?? "#ffffff").cgColor,
+                       tc: tc, dot: dot)
+    }
+
+    // Timecode `t` seconds in, plus the REC dot (on for the first half of each second).
+    private func drawHudLive(_ hud: HudSpec, t: Double, into pixelBuffer: CVPixelBuffer, size: CGSize) {
+        guard hud.tc != nil || hud.dot != nil else { return }
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
+        let bpr = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let info = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let ctx = CGContext(data: base, width: Int(size.width), height: Int(size.height),
+                                  bitsPerComponent: 8, bytesPerRow: bpr,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: info) else { return }
+        let t = max(0, t)
+        // User space here is bottom-up (see drawOverlay), the web's coords top-down: y → height − y.
+        if let tc = hud.tc {
+            let frames = tc.start + Int((t * Double(tc.base)).rounded(.down))
+            let attrs: [NSAttributedString.Key: Any] = [
+                NSAttributedString.Key(kCTFontAttributeName as String): tc.font,
+                NSAttributedString.Key(kCTForegroundColorAttributeName as String): hud.color,
+            ]
+            let line = CTLineCreateWithAttributedString(
+                NSAttributedString(string: Self.timecode(frames, base: tc.base), attributes: attrs))
+            ctx.textMatrix = .identity
+            ctx.textPosition = CGPoint(x: tc.x, y: size.height - tc.y)   // baseline, like fillText
+            CTLineDraw(line, ctx)
+        }
+        if let dot = hud.dot, t.truncatingRemainder(dividingBy: 1) < 0.5 {
+            ctx.setFillColor(dot.color)
+            ctx.fillEllipse(in: CGRect(x: dot.cx - dot.r, y: size.height - dot.cy - dot.r,
+                                       width: dot.r * 2, height: dot.r * 2))
+        }
+    }
+
+    // HH:MM:SS:FF, non-drop, wrapping at 24 h — mirrors the web's hudTcString.
+    private static func timecode(_ frames: Int, base: Int) -> String {
+        let b = max(1, base), f = max(0, frames), all = f / b
+        return String(format: "%02d:%02d:%02d:%02d", (all / 3600) % 24, (all / 60) % 60, all % 60, f % b)
+    }
+
     // Reader/writer transcode so we can honour an explicit average bitrate (presets
     // don't expose one). Falls back to AVAssetExportSession (highest quality) if the
     // reader/writer can't be set up.
@@ -362,6 +438,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                                    size: CGSize, duration: Double, bitrate: Int,
                                    stillsLayer: CGImage? = nil,
                                    overlay: CGImage? = nil,
+                                   hud: HudSpec? = nil,
                                    outURL: URL, temps: [URL]) {
         let cleanup = { temps.forEach { try? FileManager.default.removeItem(at: $0) } }
         do {
@@ -370,8 +447,8 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                 videoTracks: comp.tracks(withMediaType: .video),
                 videoSettings: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA])
             readerOutput.videoComposition = videoComp
-            // Need writable frame buffers to stamp the stills layer / rounded-corner overlay.
-            readerOutput.alwaysCopiesSampleData = (overlay != nil || stillsLayer != nil)
+            // Need writable frame buffers to stamp the stills layer / rounded-corner overlay / camera frame.
+            readerOutput.alwaysCopiesSampleData = (overlay != nil || stillsLayer != nil || hud != nil)
             guard reader.canAdd(readerOutput) else { throw NSError(domain: "stlls", code: 1) }
             reader.add(readerOutput)
 
@@ -420,6 +497,10 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
                         if let imgBuf = CMSampleBufferGetImageBuffer(sample) {
                             if let stillsLayer { self.drawOverlay(stillsLayer, into: imgBuf, size: size) }
                             if let overlay     { self.drawOverlay(overlay,     into: imgBuf, size: size) }
+                            if let hud {       // camera frame last: it sits over everything
+                                if let img = hud.image { self.drawOverlay(img, into: imgBuf, size: size) }
+                                self.drawHudLive(hud, t: pt, into: imgBuf, size: size)
+                            }
                         }
                         writerInput.append(sample)
                         let p = duration > 0 ? min(1.0, pt / duration) : 0

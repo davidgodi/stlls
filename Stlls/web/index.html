@@ -1803,14 +1803,58 @@
     width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; padding: 0;
     border: 1px solid var(--border2); cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
-  #bgPanel {
+  #bgPanel, #hudPanel {
     position: absolute; inset: 0; z-index: 260;   /* above the sections' popover stacking */
     background: var(--surface);
     display: flex; flex-direction: column;
     animation: bmFade 0.2s ease;
   }
-  #bgPanel[hidden] { display: none !important; }
-  #bgPanel.bgp-leaving { opacity: 0; transition: opacity 0.2s ease; }   /* mirror of the 0.2s fade-in */
+  #bgPanel[hidden], #hudPanel[hidden] { display: none !important; }
+  #bgPanel.bgp-leaving, #hudPanel.bgp-leaving { opacity: 0; transition: opacity 0.2s ease; }   /* mirror of the 0.2s fade-in */
+  /* ── Camera frame ── */
+  .hud-btn {
+    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; padding: 0;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .hud-btn.on { color: var(--text); border-color: var(--accent); }
+  .hud-btn.on .hud-btn-dot { fill: #ff3b30; }   /* a live REC dot while the frame is on */
+  #hudLayer { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; }   /* under the frame-edit handles (6) */
+  .hud-head-r { display: flex; align-items: center; gap: 10px; }
+  .hud-switch {
+    position: relative; width: 38px; height: 22px; border-radius: 11px; padding: 0; flex-shrink: 0;
+    background: var(--surface2); border: 1px solid var(--border2); cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease; -webkit-tap-highlight-color: transparent;
+  }
+  .hud-switch > span {
+    position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--text-mid); transition: transform 0.2s ease, background 0.2s ease;
+  }
+  .hud-switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+  .hud-switch[aria-checked="true"] > span { transform: translateX(16px); background: var(--accent-fg); }
+  .hud-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .hud-preset {
+    padding: 9px 2px; border-radius: 8px; font-family: inherit; font-size: 11.5px;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .hud-preset.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px var(--accent); }
+  .hud-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 8px; }
+  .hud-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .hud-f > span { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
+  .hud-f input {
+    width: 100%; box-sizing: border-box; min-width: 0;
+    /* 16px so iOS never zooms the page on focus */
+    font: 500 16px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    padding: 7px 9px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border2); color: var(--text);
+  }
+  .hud-f input:focus { outline: none; border-color: var(--accent); }
+  .hud-f input.hud-upper { text-transform: uppercase; }
+  .hud-f-rec { justify-content: space-between; }
+  .hud-f-rec .hud-switch { margin-bottom: 7px; }
+  .hud-note { font-size: 11px; line-height: 1.45; color: var(--text-dim); margin: 10px 0 0; }
   .bgp-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 6px; flex-shrink: 0; }
   .bgp-title { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-mid); font-weight: 600; }
   .bgp-close {
@@ -4018,6 +4062,38 @@
     </div>
     <input type="file" id="bgFileInput" accept="image/*" hidden>
 
+    <!-- CAMERA FRAME — camera-monitor readouts around the board. Same cover-the-tools
+         pattern as the background panel, so the board stays in view while tuning. -->
+    <div id="hudPanel" hidden>
+      <div class="bgp-head">
+        <span class="bgp-title">Camera frame</span>
+        <div class="hud-head-r">
+          <button class="hud-switch" id="hudToggle" role="switch" aria-checked="false" aria-label="Show the camera frame"><span></span></button>
+          <button class="bgp-close" id="hudPanelClose" aria-label="Close camera frame settings">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="bgp-body">
+        <div class="bgp-sec">Preset</div>
+        <div class="hud-presets" id="hudPresets"></div>
+        <div class="bgp-sec">Readouts</div>
+        <div class="hud-fields">
+          <label class="hud-f"><span>FPS</span><input id="hudF-fps" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal"></label>
+          <label class="hud-f"><span>Shutter</span><input id="hudF-shutter" maxlength="7" autocomplete="off" spellcheck="false"></label>
+          <label class="hud-f"><span>ISO</span><input id="hudF-iso" maxlength="6" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
+          <label class="hud-f"><span>WB</span><input id="hudF-wb" maxlength="6" autocomplete="off" spellcheck="false"></label>
+          <label class="hud-f"><span>FOV</span><input id="hudF-fov" maxlength="7" autocomplete="off" spellcheck="false"></label>
+          <label class="hud-f"><span>Cam</span><input id="hudF-cam" class="hud-upper" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+          <label class="hud-f"><span>Timecode</span><input id="hudF-tc" maxlength="11" autocomplete="off" spellcheck="false" inputmode="numeric" placeholder="00:00:00:00"></label>
+          <div class="hud-f hud-f-rec"><span>REC</span><button class="hud-switch" id="hudRec" role="switch" aria-checked="true" aria-label="Show the REC indicator"><span></span></button></div>
+        </div>
+        <p class="hud-note">Clear a value to hide it. On video boards the timecode runs from its start value and the REC dot blinks.</p>
+        <div class="bgp-sec">Colour</div>
+        <div class="bgp-swatches" id="hudSwatches"></div>
+      </div>
+    </div>
+
     <!-- IMAGES -->
     <div class="ps" id="psImages">
       <div class="section-label">Images</div>
@@ -4197,6 +4273,9 @@
           <label>Corners</label>
           <input type="range" id="radiusSlider" min="0" max="64" value="0" step="2">
           <span class="slider-val" id="radiusVal">0</span>
+          <button id="hudBtn" class="hud-btn" title="Camera frame" aria-label="Camera frame settings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><circle class="hud-btn-dot" cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
+          </button>
           <button id="bgBtn" class="bg-btn" title="Background" aria-label="Background settings"></button>
           <input type="color" id="bgColor" value="#000000" hidden aria-hidden="true">
         </div>
@@ -5682,6 +5761,7 @@ const state = {
   clipPlayMode: 'loop', // 'loop' | 'freeze' — board-wide clip playback behaviour
   presetLayout: false,  // true when the layout came from the chooser: deletes keep the shape (frame reopens as +)
   bgMedia: null,        // { type:'image'|'video', src, blob, blur (canonical px), opacity 0–1 } — board background media
+  hud: null,            // camera frame: { on, preset, fps, shutter, iso, wb, fov, cam, rec, tc, color } — see HUD_PRESETS
   // Custom frame sizes (frame-edit mode). Each is an array of fractions summing to 1,
   // or null for uniform. Arrays are only honoured when their length matches the current
   // slot count, so adding/removing images safely falls back to uniform.
@@ -6035,6 +6115,7 @@ function serializeBoards(boards) {
     presetLayout:   !!board.presetLayout,
     bgMedia:        (board.bgMedia && board.bgMedia.blob) ? { type: board.bgMedia.type, blob: board.bgMedia.blob,
                      blur: board.bgMedia.blur || 0, opacity: board.bgMedia.opacity ?? 1 } : null,
+    hud:            board.hud ? { ...board.hud } : null,
     slotFracs:      cloneSlotFracs(board.slotFracs),
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
@@ -6144,6 +6225,7 @@ async function deserializeBoards(savedBoards) {
       presetLayout:   !!board.presetLayout,
       bgMedia:        (board.bgMedia && board.bgMedia.blob)
                         ? { ...board.bgMedia, src: URL.createObjectURL(board.bgMedia.blob) } : null,
+      hud:            board.hud ? { ...hudDefaults(), ...board.hud } : null,   // defaults fill fields added later
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
       detection: (board.detection && board.detection.shots?.length &&
@@ -6301,6 +6383,7 @@ function generateThumbnail() {
     const top  = (h - img.naturalHeight * totalS) / 2 + t.fy * h;
     ctx.drawImage(img, -left / totalS, -top / totalS, w / totalS, h / totalS, x, y, w, h);
   });
+  drawHud(ctx, tW, tH);   // still inside the cover transform, so it crops with the board
   ctx.restore();
   return cvs.toDataURL('image/jpeg', 0.82);
 }
@@ -6335,6 +6418,7 @@ function saveCurrentBoardSnapshot() {
     clipPlayMode:   state.clipPlayMode || 'loop',
     presetLayout:   !!state.presetLayout,
     bgMedia:        state.bgMedia,
+    hud:            state.hud ? { ...state.hud } : null,
     slotFracs:      cloneSlotFracs(state.slotFracs),
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
@@ -6379,8 +6463,9 @@ function renderBoardSnapshot(canvas, boardData, bw, bh) {
     images: state.images, ratio: state.ratio, layout: state.layout,
     gridCols: state.gridCols, gridRows: state.gridRows,
     gap: state.gap, padding: state.padding, bg: state.bg,
-    slotFracs: state.slotFracs,
+    slotFracs: state.slotFracs, hud: state.hud,
   };
+  state.hud     = boardData.hud || null;   // before getSlots: the frame's bands inset the layout
   state.images  = boardData.images;
   state.ratio   = boardData.ratio;
   state.layout  = boardData.layout;
@@ -6406,8 +6491,10 @@ function renderBoardSnapshot(canvas, boardData, bw, bh) {
     ctx.drawImage(img, x + sx, y + sy, iW, iH);
     ctx.restore();
   });
+  drawHud(ctx, W, H);
 
   // Restore original state — no DOM side-effects from this function
+  state.hud     = saved.hud;
   state.images  = saved.images;
   state.ratio   = saved.ratio;
   state.layout  = saved.layout;
@@ -6442,6 +6529,7 @@ function loadBoardState(board) {
   state.clipPlayMode = board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop');
   state.presetLayout = !!board.presetLayout;
   state.bgMedia = board.bgMedia || null;
+  state.hud     = board.hud ? { ...hudDefaults(), ...board.hud } : null;
   state.slotFracs    = cloneSlotFracs(board.slotFracs);
   if (typeof resetBoardClock === 'function') resetBoardClock();   // duration cycle restarts per board
   state.images         = board.images.slice();
@@ -6491,6 +6579,7 @@ function loadBoardState(board) {
   layoutPreview.style.background = state.bg;
   if (typeof syncBgSwatch === 'function') syncBgSwatch();
   if (typeof updateBgUI === 'function') updateBgUI();
+  if (typeof syncHudUI === 'function') syncHudUI();
   undoHistory.length = 0; redoHistory.length = 0;
   updateUndoBtn();
   renderList();
@@ -6627,7 +6716,7 @@ function addNewBoard() {
     return;
   }
   saveCurrentBoardSnapshot();
-  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, bgMedia: null, images: [] };
+  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, bgMedia: null, hud: state.hud ? { ...state.hud } : null, images: [] };
   _projectBoards.push(newBoard);
   switchToBoard(_projectBoards.length - 1, 'left');
 }
@@ -6961,24 +7050,262 @@ function canonicalDims() {
   return [CANONICAL_W, Math.max(2, 2 * Math.round(CANONICAL_W * rh / rw / 2))];
 }
 
-function getSlots(totalW, totalH) {
+// ── Camera frame (HUD) ─────────────────────────────────────────────────────
+// Camera-monitor readouts around the whole board: FPS / shutter / ISO / WB above,
+// focal length / camera / REC / timecode below, and a thin frame line around the
+// content. One renderer (hudLayout → drawHudStatic + drawHudLive) serves the live
+// preview, photo exports, thumbnails and the web video fallback. The native video
+// export takes the static part as an image and draws the ticking timecode and the
+// blinking REC dot itself, at positions this same layout computes.
+
+const HUD_FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';   // SF Mono on iOS, matching Swift
+// Geometry in canonical board px (1080 wide); scales with the board
+const HUD_G = { side: 48, band: 118, value: 30, label: 18, gapToFrame: 20, stroke: 4 };
+const HUD_REC_COLOR = '#ff3b30';
+const HUD_PRESETS = {
+  cinema: { name: 'Cinema',  fps: '23.976', shutter: '180.0', iso: '800', wb: '5600', fov: '35mm', cam: 'STLLS_A001' },
+  iphone: { name: 'iPhone',  fps: '30',     shutter: '1/60',  iso: '64',  wb: '5000', fov: '24mm', cam: 'IPHONE' },
+  film:   { name: 'Film',    fps: '24',     shutter: '172.8', iso: '500', wb: '3200', fov: '50mm', cam: 'SUPER16' },
+  slowmo: { name: 'Slow-mo', fps: '120',    shutter: '1/240', iso: '400', wb: '5600', fov: '24mm', cam: 'STLLS_B002' },
+};
+const HUD_FIELDS = ['fps', 'shutter', 'iso', 'wb', 'fov', 'cam'];
+
+function hudDefaults() {
+  const p = HUD_PRESETS.cinema;
+  return { on: true, preset: 'cinema', fps: p.fps, shutter: p.shutter, iso: p.iso, wb: p.wb,
+           fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff' };
+}
+function hudOn() { return !!(state.hud && state.hud.on); }
+
+// Readout bands the frame reserves (target px at scale `sc`)
+function hudBands(sc) {
+  if (!hudOn()) return { top: 0, bottom: 0, side: 0 };
+  return { top: HUD_G.band * sc, bottom: HUD_G.band * sc, side: HUD_G.side * sc };
+}
+
+// Timecode counts on the whole-number rate nearest the FPS readout (23.976 → 24);
+// high-speed rates count at 30, like footage conformed to a project.
+function hudTcBase() {
+  const f = parseFloat(state.hud && state.hud.fps);
+  if (!isFinite(f) || f <= 0) return 24;
+  const r = Math.round(f);
+  return r > 60 ? 30 : Math.max(1, r);
+}
+function hudTcFrames(str, base) {
+  const m = String(str || '').trim().match(/^(\d{1,2})[:;.](\d{1,2})[:;.](\d{1,2})[:;.](\d{1,2})$/);
+  if (!m) return null;
+  const [h, mi, s, f] = m.slice(1).map(Number);
+  if (mi > 59 || s > 59) return null;
+  return ((h * 60 + mi) * 60 + s) * base + Math.min(f, base - 1);
+}
+function hudTcString(frames, base) {
+  frames = Math.max(0, Math.floor(frames));
+  const f = frames % base, all = Math.floor(frames / base);
+  const p = n => String(n).padStart(2, '0');
+  return `${p(Math.floor(all / 3600) % 24)}:${p(Math.floor(all / 60) % 60)}:${p(all % 60)}:${p(f)}`;
+}
+
+// Measure and place everything for a W×H board. Each row spreads edge to edge
+// across the frame (space-between); a row that can't fit shrinks as a unit.
+function hudLayout(ctx, W, H) {
+  const h = state.hud, sc = W / CANONICAL_W;
+  const ins = boardInsets(W);
+  const frame = { x: ins.l, y: ins.t, w: W - ins.l - ins.r, h: H - ins.t - ins.b };
+  const base = hudTcBase(), start = hudTcFrames(h.tc, base) || 0;
+  const val = s => String(s == null ? '' : s).trim();
+  const pair = (label, v) => ({ kind: 'pair', label, value: v });
+  const topItems = [['FPS', h.fps], ['SHUTTER', h.shutter], ['ISO', h.iso], ['WB', h.wb]]
+    .filter(([, v]) => val(v)).map(([l, v]) => pair(l, val(v)));
+  const botItems = [];
+  if (val(h.fov)) botItems.push(pair('FOV', val(h.fov)));
+  if (val(h.cam)) botItems.push(pair('CAM', val(h.cam).toUpperCase()));
+  if (h.rec !== false) botItems.push({ kind: 'rec' });
+  if (val(h.tc)) botItems.push({ kind: 'tc', value: hudTcString(start, base) });
+
+  const row = (items, baseline) => {
+    let k = 1;
+    const measure = () => {
+      for (const it of items) {
+        it.vS = HUD_G.value * sc * k; it.lS = HUD_G.label * sc * k;
+        ctx.font = `500 ${it.vS}px ${HUD_FONT}`;
+        if (it.kind === 'pair') {
+          it.vw = ctx.measureText(it.value).width;
+          ctx.font = `400 ${it.lS}px ${HUD_FONT}`;
+          it.lw = ctx.measureText(it.label).width;
+          it.w = it.lw + it.vS * 0.42 + it.vw;
+        } else if (it.kind === 'rec') {
+          it.r = it.vS * 0.2;
+          it.w = it.r * 2 + it.vS * 0.34 + ctx.measureText('REC').width;
+        } else {
+          it.w = ctx.measureText(it.value).width;
+        }
+      }
+    };
+    measure();
+    const gaps = Math.max(0, items.length - 1), minGap = HUD_G.value * sc * 0.8;
+    const sum = () => items.reduce((a, it) => a + it.w, 0);
+    if (sum() > 0 && sum() + minGap * gaps > frame.w) {
+      k = Math.max(0.4, (frame.w - minGap * gaps) / sum());
+      measure();
+    }
+    const gap = gaps ? (frame.w - sum()) / gaps : 0;
+    const y = baseline(k);
+    let x = frame.x;
+    for (const it of items) { it.x = x; it.y = y; x += it.w + gap; }
+    return items;
+  };
+  const top = row(topItems, () => frame.y - HUD_G.gapToFrame * sc);
+  // bottom row hangs below the frame: its cap height (~0.72em) sits under the gap
+  const bottom = row(botItems, k => frame.y + frame.h + HUD_G.gapToFrame * sc + HUD_G.value * sc * k * 0.72);
+  return { color: h.color || '#ffffff', sc, frame, top, bottom, base, start };
+}
+
+// Frame line, labels, values and the word REC — everything that never changes
+// while a video plays.
+function drawHudStatic(ctx, L) {
+  ctx.save();
+  ctx.fillStyle = ctx.strokeStyle = L.color;
+  ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  const s = HUD_G.stroke * L.sc, f = L.frame;
+  ctx.lineWidth = s;
+  ctx.strokeRect(f.x - s / 2, f.y - s / 2, f.w + s, f.h + s);   // just outside the content
+  for (const it of [...L.top, ...L.bottom]) {
+    if (it.kind === 'pair') {
+      ctx.globalAlpha = 0.6;
+      ctx.font = `400 ${it.lS}px ${HUD_FONT}`;
+      ctx.fillText(it.label, it.x, it.y);
+      ctx.globalAlpha = 1;
+      ctx.font = `500 ${it.vS}px ${HUD_FONT}`;
+      ctx.fillText(it.value, it.x + it.lw + it.vS * 0.42, it.y);
+    } else if (it.kind === 'rec') {
+      ctx.font = `500 ${it.vS}px ${HUD_FONT}`;
+      ctx.fillText('REC', it.x + it.r * 2 + it.vS * 0.34, it.y);
+    }
+  }
+  ctx.restore();
+}
+
+// Where the time-varying parts go (shared with the native exporter)
+function hudLive(L) {
+  const tc = L.bottom.find(it => it.kind === 'tc');
+  const rec = L.bottom.find(it => it.kind === 'rec');
+  return {
+    tc: tc ? { x: tc.x, y: tc.y, size: tc.vS } : null,
+    dot: rec ? { cx: rec.x + rec.r, cy: rec.y - rec.vS * 0.36, r: rec.r } : null,   // centred on the caps
+  };
+}
+// Timecode `t` seconds into the loop, and the REC dot: blinking at 1 Hz while a
+// video plays, solid on stills (t == null).
+function drawHudLive(ctx, L, t) {
+  const live = hudLive(L);
+  ctx.save();
+  if (live.tc) {
+    ctx.fillStyle = L.color;
+    ctx.font = `500 ${live.tc.size}px ${HUD_FONT}`;
+    ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    ctx.fillText(hudTcString(L.start + (t == null ? 0 : Math.floor(t * L.base)), L.base), live.tc.x, live.tc.y);
+  }
+  if (live.dot && (t == null || (t % 1) < 0.5)) {
+    ctx.fillStyle = HUD_REC_COLOR;
+    ctx.beginPath(); ctx.arc(live.dot.cx, live.dot.cy, live.dot.r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function drawHud(ctx, W, H, t = null) {
+  if (!hudOn()) return;
+  const L = hudLayout(ctx, W, H);
+  drawHudStatic(ctx, L);
+  drawHudLive(ctx, L, t);
+}
+
+// Preview: a canvas over the slots (under the frame-edit handles). The static
+// layer is cached; video boards redraw only the live parts on each clip tick.
+let _hudCache = null;   // { key, canvas, L, dpr }
+function ensureHudLayer() {
+  let cv = document.getElementById('hudLayer');
+  if (!hudOn()) { if (cv) cv.remove(); _hudCache = null; return null; }
+  if (!cv) { cv = document.createElement('canvas'); cv.id = 'hudLayer'; }
+  if (cv.parentNode !== layoutPreview) layoutPreview.appendChild(cv);
+  return cv;
+}
+// Video boards follow the board clock, so the preview counts exactly like the
+// export and wraps at the clip duration; stills hold the start timecode.
+function hudPreviewTime() {
+  if (!hasClips() || !_boardClockT0) return null;
+  return ((performance.now() - _boardClockT0) / 1000) % Math.max(1, state.clipDuration || 15);
+}
+function drawHudPreview() {
+  const cv = ensureHudLayer();
+  if (!cv || previewW < 10) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const pw = Math.round(previewW * dpr), ph = Math.round(previewH * dpr);
+  const key = [pw, ph, state.padding, state.ratio, JSON.stringify(state.customRatio), JSON.stringify(state.hud)].join('|');
+  if (!_hudCache || _hudCache.key !== key) {
+    const st = document.createElement('canvas'); st.width = pw; st.height = ph;
+    const sctx = st.getContext('2d');
+    sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const L = hudLayout(sctx, previewW, previewH);
+    drawHudStatic(sctx, L);
+    _hudCache = { key, canvas: st, L, dpr };
+  }
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+  cv.style.width = previewW + 'px'; cv.style.height = previewH + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, pw, ph);
+  ctx.drawImage(_hudCache.canvas, 0, 0);
+  ctx.setTransform(_hudCache.dpr, 0, 0, _hudCache.dpr, 0, 0);
+  drawHudLive(ctx, _hudCache.L, hudPreviewTime());
+}
+
+// Native video export: the static frame + readouts as one transparent layer,
+// plus where to draw what changes every frame (Swift renders those itself).
+function _hudExportPayload(W, H) {
+  if (!hudOn()) return null;
+  try {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const cc = c.getContext('2d');
+    const L = hudLayout(cc, W, H);
+    drawHudStatic(cc, L);
+    const live = hudLive(L);
+    return {
+      image: c.toDataURL('image/png').split(',')[1],
+      color: L.color,
+      tc:  live.tc  ? { x: live.tc.x, y: live.tc.y, size: live.tc.size, start: L.start, base: L.base } : null,
+      dot: live.dot ? { cx: live.dot.cx, cy: live.dot.cy, r: live.dot.r, color: HUD_REC_COLOR } : null,
+    };
+  } catch (e) { return null; }
+}
+
+// The content box every layout fills: padding on all sides, plus the camera
+// frame's readout bands when it's on. getSlots, the grid tracks and frame-edit
+// drags all measure from here, so the preview, handles and exports agree.
+function boardInsets(totalW) {
   const [cW] = canonicalDims();
   const sc  = totalW / cW;
   const pad = state.padding * sc;
+  const b = hudBands(sc);
+  return { l: pad + b.side, r: pad + b.side, t: pad + b.top, b: pad + b.bottom };
+}
+
+function getSlots(totalW, totalH) {
+  const [cW] = canonicalDims();
+  const sc  = totalW / cW;
+  const ins = boardInsets(totalW);
   const gap = state.gap * sc;
   const n   = state.images.length;
   if (n === 0) return [];
 
-  const iW = totalW - pad * 2;
-  const iH = totalH - pad * 2;
+  const iW = totalW - ins.l - ins.r;
+  const iH = totalH - ins.t - ins.b;
 
   if (state.layout === 'vertical') {
     const avail = iH - gap * (n - 1);
     const fr = _fr(state.slotFracs?.vertical, n);
-    let y = pad;
+    let y = ins.t;
     return state.images.map((item, i) => {
       const h = avail * (fr ? fr[i] : 1 / n);
-      const s = { item, x: pad, y, w: iW, h };
+      const s = { item, x: ins.l, y, w: iW, h };
       y += h + gap;
       return s;
     });
@@ -6987,10 +7314,10 @@ function getSlots(totalW, totalH) {
   if (state.layout === 'horizontal') {
     const avail = iW - gap * (n - 1);
     const fr = _fr(state.slotFracs?.horizontal, n);
-    let x = pad;
+    let x = ins.l;
     return state.images.map((item, i) => {
       const w = avail * (fr ? fr[i] : 1 / n);
-      const s = { item, x, y: pad, w, h: iH };
+      const s = { item, x, y: ins.t, w, h: iH };
       x += w + gap;
       return s;
     });
@@ -7029,14 +7356,15 @@ function _gridTracks(totalW, totalH) {
   const [cW] = canonicalDims();
   const sc  = totalW / cW;
   const pad = state.padding * sc;
+  const ins = boardInsets(totalW);
   const gap = state.gap * sc;
   const cols = Math.max(1, state.gridCols);
   const rows = Math.max(1, state.gridRows);
-  const availW = (totalW - pad * 2) - gap * (cols - 1);
-  const availH = (totalH - pad * 2) - gap * (rows - 1);
+  const availW = (totalW - ins.l - ins.r) - gap * (cols - 1);
+  const availH = (totalH - ins.t - ins.b) - gap * (rows - 1);
   const cFr = _fr(state.slotFracs?.gridCols, cols);
   const rFr = _fr(state.slotFracs?.gridRows, rows);
-  const xs = [pad], ws = [], ys = [pad], hs = [];
+  const xs = [ins.l], ws = [], ys = [ins.t], hs = [];
   for (let c = 0; c < cols; c++) { ws[c] = availW * (cFr ? cFr[c] : 1 / cols); xs[c + 1] = xs[c] + ws[c] + gap; }
   for (let r = 0; r < rows; r++) { hs[r] = availH * (rFr ? rFr[r] : 1 / rows); ys[r + 1] = ys[r] + hs[r] + gap; }
   return { pad, gap, cols, rows, xs, ws, ys, hs, availW, availH };
@@ -7571,6 +7899,7 @@ function buildLayout() {
   exportBtn.disabled = !state.images.some(it => !it.placeholder && !it.emptySlot);
   updateFrameEditBtn();
   renderFrameHandles();
+  drawHudPreview();   // camera frame over the slots (removes itself when off)
 }
 
 // ── Frame-edit mode ─────────────────────────────────────────────────────────
@@ -7636,19 +7965,21 @@ function renderFrameHandles() {
     }
   } else {
     const t = _gridTracks(previewW, previewH);
-    const innerH = previewH - t.pad, innerW = previewW - t.pad;
+    // span the tracks themselves — padding alone misses the camera frame's bands
+    const gx0 = t.xs[0], gx1 = t.xs[t.cols - 1] + t.ws[t.cols - 1];
+    const gy0 = t.ys[0], gy1 = t.ys[t.rows - 1] + t.hs[t.rows - 1];
     for (let c = 0; c < t.cols - 1; c++) {           // column boundaries
       const bx = t.xs[c] + t.ws[c] + t.gap / 2;
       const v = mk('fh-v', { kind: 'gridCols', index: c });
-      v.style.top = t.pad + 'px';
-      v.style.height = (innerH - t.pad) + 'px';
+      v.style.top = gy0 + 'px';
+      v.style.height = (gy1 - gy0) + 'px';
       v.style.left = (bx - 15) + 'px';
     }
     for (let r = 0; r < t.rows - 1; r++) {           // row boundaries
       const by = t.ys[r] + t.hs[r] + t.gap / 2;
       const h = mk('fh-h', { kind: 'gridRows', index: r });
-      h.style.left = t.pad + 'px';
-      h.style.width = (innerW - t.pad) + 'px';
+      h.style.left = gx0 + 'px';
+      h.style.width = (gx1 - gx0) + 'px';
       h.style.top = (by - 15) + 'px';
     }
   }
@@ -7675,8 +8006,8 @@ function attachFrameDrag(el, cfg) {
       const slots = getSlots(previewW, previewH);
       count = state.images.length;
       horizontalDrag = (cfg.kind === 'horizontal');
-      const pad = state.padding * sc;
-      avail = (horizontalDrag ? previewW : previewH) - pad * 2 - gap * (count - 1);
+      const ins = boardInsets(previewW);
+      avail = (horizontalDrag ? previewW - ins.l - ins.r : previewH - ins.t - ins.b) - gap * (count - 1);
       startEdge = horizontalDrag ? slots[cfg.index].x : slots[cfg.index].y;
       pairSpan  = horizontalDrag
         ? slots[cfg.index].w + slots[cfg.index + 1].w
@@ -8854,6 +9185,119 @@ document.getElementById('bgPanelClose').addEventListener('click', () => {
     bgPanel.hidden = true;                   // …then actually hide
   }, 200);
 });
+
+// ── Camera frame panel ───────────────────────────────────────────────────────
+const hudPanel      = document.getElementById('hudPanel');
+const hudBtn        = document.getElementById('hudBtn');
+const hudToggle     = document.getElementById('hudToggle');
+const hudRecEl      = document.getElementById('hudRec');
+const hudPresetsEl  = document.getElementById('hudPresets');
+const hudSwatchesEl = document.getElementById('hudSwatches');
+const HUD_INPUT_KEYS = [...HUD_FIELDS, 'tc'];
+const hudInputs = Object.fromEntries(HUD_INPUT_KEYS.map(k => [k, document.getElementById('hudF-' + k)]));
+const HUD_COLORS = ['#ffffff', '#f2e9dc', '#ffcc00', '#000000'];
+// Custom text colour: the input IS the wheel swatch (a hidden input never opens WebKit's picker)
+const hudColorEl = document.createElement('input');
+hudColorEl.type = 'color';
+hudColorEl.className = 'bgp-sw bgp-custom';
+hudColorEl.title = 'Custom colour';
+hudColorEl.setAttribute('aria-label', 'Custom camera frame colour');
+
+function hudEnsure() { if (!state.hud) state.hud = hudDefaults(); return state.hud; }
+
+function syncHudUI() {
+  const on = hudOn(), v = state.hud || hudDefaults();
+  hudBtn.classList.toggle('on', on);
+  hudToggle.setAttribute('aria-checked', String(on));
+  for (const k of HUD_INPUT_KEYS) {
+    if (document.activeElement !== hudInputs[k]) hudInputs[k].value = v[k] == null ? '' : v[k];
+  }
+  hudRecEl.setAttribute('aria-checked', String(v.rec !== false));
+  hudPresetsEl.querySelectorAll('.hud-preset').forEach(b => b.classList.toggle('active', b.dataset.p === v.preset));
+  const col = (v.color || '').toLowerCase();
+  hudSwatchesEl.querySelectorAll('.bgp-sw[data-c]').forEach(b => b.classList.toggle('active', b.dataset.c === col));
+  if (/^#[0-9a-f]{6}$/.test(col)) hudColorEl.value = col;
+}
+
+// Readout edits only redraw; switching the frame on or off reflows the board.
+// Editing anything while it's off switches it on, so every change is visible.
+function hudEdit(fn) {
+  const h = hudEnsure(), wasOn = h.on;
+  fn(h);
+  h.on = true;
+  syncHudUI();
+  if (!wasOn) buildLayout(); else drawHudPreview();
+}
+function hudMatchPreset(h) {
+  return Object.keys(HUD_PRESETS).find(id => HUD_FIELDS.every(f => HUD_PRESETS[id][f] === h[f])) || 'custom';
+}
+
+Object.entries(HUD_PRESETS).forEach(([id, p]) => {
+  const b = document.createElement('button');
+  b.className = 'hud-preset'; b.dataset.p = id; b.textContent = p.name;
+  b.addEventListener('click', () => hudEdit(h => { HUD_FIELDS.forEach(f => { h[f] = p[f]; }); h.preset = id; }));
+  hudPresetsEl.appendChild(b);
+});
+
+for (const k of HUD_FIELDS) {
+  hudInputs[k].addEventListener('input', () => hudEdit(h => { h[k] = hudInputs[k].value; h.preset = hudMatchPreset(h); }));
+}
+// Timecode: typed freely, tidied on blur — a value that doesn't parse goes back to
+// the last good one instead of silently becoming 00:00:00:00.
+let _hudTcPrev = '';
+hudInputs.tc.addEventListener('focus', () => { _hudTcPrev = state.hud ? state.hud.tc : ''; });
+hudInputs.tc.addEventListener('input', () => hudEdit(h => { h.tc = hudInputs.tc.value; }));
+hudInputs.tc.addEventListener('blur', () => {
+  if (!state.hud) return;
+  const raw = String(state.hud.tc || '').trim();
+  if (raw) {
+    const fr = hudTcFrames(raw, hudTcBase());
+    state.hud.tc = fr == null ? _hudTcPrev : hudTcString(fr, hudTcBase());
+  } else {
+    state.hud.tc = '';   // empty hides the timecode
+  }
+  syncHudUI(); drawHudPreview();
+});
+// Return/Done closes the keyboard (the fields are single-line)
+HUD_INPUT_KEYS.forEach(k => hudInputs[k].addEventListener('keydown', e => { if (e.key === 'Enter') hudInputs[k].blur(); }));
+
+hudRecEl.addEventListener('click', () => hudEdit(h => { h.rec = h.rec === false; }));
+
+HUD_COLORS.forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'bgp-sw'; b.dataset.c = c; b.style.background = c;
+  b.setAttribute('aria-label', 'Camera frame colour ' + c);
+  b.addEventListener('click', () => hudEdit(h => { h.color = c; }));
+  hudSwatchesEl.appendChild(b);
+});
+hudSwatchesEl.appendChild(hudColorEl);
+hudColorEl.addEventListener('input', () => hudEdit(h => { h.color = hudColorEl.value; }));
+
+hudToggle.addEventListener('click', () => {
+  const h = hudEnsure();
+  h.on = !h.on;
+  syncHudUI();
+  buildLayout();
+});
+// First open adds the frame straight away, so the button always shows something;
+// after that the switch owns on/off.
+hudBtn.addEventListener('click', () => {
+  hudPanel.classList.remove('bgp-leaving');
+  if (!state.hud) { state.hud = hudDefaults(); buildLayout(); }
+  syncHudUI();
+  hudPanel.hidden = false;
+});
+document.getElementById('hudPanelClose').addEventListener('click', () => {
+  if (hudPanel.hidden || hudPanel.classList.contains('bgp-leaving')) return;
+  if (document.activeElement && hudPanel.contains(document.activeElement)) document.activeElement.blur();
+  hudPanel.classList.add('bgp-leaving');
+  setTimeout(() => {
+    if (!hudPanel.classList.contains('bgp-leaving')) return;   // reopened mid-fade
+    hudPanel.classList.remove('bgp-leaving');
+    hudPanel.hidden = true;
+  }, 200);
+});
+syncHudUI();
 
 document.getElementById('bgUploadBtn').addEventListener('click', () => { bgFileInput.value = ''; bgFileInput.click(); });
 bgFileInput.addEventListener('change', () => {
@@ -11091,6 +11535,7 @@ function _tickBoardClock() {
   if (timelineFillEl && !timelineBarEl.hidden) {
     timelineFillEl.style.width = ((elapsed / durMs) * 100).toFixed(2) + '%';
   }
+  if (hudOn()) drawHudPreview();   // timecode + REC dot tick with the export clock
 }
 
 function _resetClipPlayers() {
@@ -11706,6 +12151,8 @@ function resetCurrentBoard() {
   state.boardType = 'photo';
   state.clipDuration = 15;
   state.clipPlayMode = 'loop';
+  state.hud = null;
+  if (typeof syncHudUI === 'function') syncHudUI();
   state.slotFracs = { vertical: null, horizontal: null, gridCols: null, gridRows: null };
   setFrameEdit(false);
   // Reset UI controls
@@ -12553,10 +13000,15 @@ function paintBoard(ctx, W, H, expScale, exportImgs) {
     ctx.drawImage(img, -left / totalS, -top / totalS, rw / totalS, rh2 / totalS, rx, ry, rw, rh2);
     if (slotR > 0) ctx.restore();
   });
+  drawHud(ctx, W, H);   // camera frame on top (a still: start timecode, solid REC dot)
 }
 
 async function doExportAll() {
   saveCurrentBoardSnapshot();
+  // the camera frame is free to try in the editor, Pro to export
+  if (_projectBoards.some(b => b.images.length && b.hud && b.hud.on) && !stllsIsPro()) {
+    stllsAskPro(); return;
+  }
   const expScale = +exportScaleEl.value;
   _exportFmt = exportFmt.value;
   const mime = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
@@ -12608,6 +13060,7 @@ async function doExportAll() {
 }
 
 async function doExport() {
+  if (hudOn() && !stllsIsPro()) { stllsAskPro(); return; }   // camera frame: free to try, Pro to export
   if (!throttle('export', 3000)) return;  // max one export every 3s
   const expScale = +exportScaleEl.value;
   _exportFmt     = exportFmt.value;
@@ -12843,6 +13296,7 @@ async function doVideoExportNative() {
     radius: state.radius || 0, gap: state.gap || 0,
     playMode: state.clipPlayMode || 'loop',   // 'loop' | 'freeze' — applies to every clip
     bgImage: _bgExportImage(W, H),            // pre-rendered bg media layer (or null)
+    hud: _hudExportPayload(W, H),             // camera frame: static layer + live timecode/REC (or null)
     clips,
   });
   // Swift drives window.exportProgress(...) then window.exportComplete(success).
@@ -12882,6 +13336,7 @@ async function doVideoExport() {
   cvs.width = W; cvs.height = H;
   const ctx = cvs.getContext('2d', { alpha: false });
   const slots = getSlots(W, H);
+  let hudT0 = null;   // recording start — the camera frame's timecode counts from here
 
   const drawExportFrame = () => {
     ctx.fillStyle = state.bg || '#000'; ctx.fillRect(0, 0, W, H);
@@ -12900,6 +13355,7 @@ async function doVideoExport() {
       const top  = (h - dh * totalS) / 2 + t.fy * h;
       try { ctx.drawImage(drawable, -left / totalS, -top / totalS, w / totalS, h / totalS, x, y, w, h); } catch (e) {}
     }
+    drawHud(ctx, W, H, hudT0 == null ? 0 : (performance.now() - hudT0) / 1000);
   };
 
   // Show the bar, then WARM UP: restart each clip and let it decode its first frame
@@ -12929,6 +13385,7 @@ async function doVideoExport() {
   rec.start(200);
 
   const startT = performance.now();
+  hudT0 = startT;
   function loop() {
     if (_videoExportCancel) { try { rec.stop(); } catch (e) {} return; }
     drawExportFrame();

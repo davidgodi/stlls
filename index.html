@@ -894,6 +894,7 @@
      Adjust sliders stay usable — both help while placing the dividers. */
   body.frame-edit-on .slot { pointer-events: none; }
   body.frame-edit-on #boardTypeChip,
+  body.frame-edit-on #camChip,
   body.frame-edit-on #boardActionsBtn,
   body.frame-edit-on #boardIndicator,
   body.frame-edit-on #psCanvas {
@@ -2086,6 +2087,18 @@
     animation: popUpIn 0.5s cubic-bezier(0.16,1,0.3,1);
   }
   #gridOptsWrap[hidden] { display: none !important; }
+  /* Camera mode: the Layout section becomes the frame's (shape + size), and a single
+     frame has no gaps or other layouts to show */
+  #camFrameOpts { display: flex; flex-direction: column; gap: 8px; }
+  #camFrameOpts[hidden] { display: none !important; }
+  /* a select sizes itself to its longest option — never let that widen the half-panel */
+  body.cam-layout #psLayout, #camFrameOpts { min-width: 0; }
+  #camFrameOpts select { width: 100%; min-width: 0; }
+  #camFrameOpts .slider-row { min-width: 0; }
+  #camFrameOpts .slider-row label { min-width: 0; }
+  #camFrameOpts .slider-row input[type=range] { min-width: 0; width: auto; flex: 1 1 0; }
+  body.cam-layout #psLayout .btn-row { display: none; }
+  body.cam-layout .slider-row:has(#gapSlider) { display: none; }
   /* Maximise the width: both steppers stretch, value stays centred */
   #gridOptsWrap .grid-steppers { gap: 8px; }
   #gridOptsWrap .stepper { flex: 1; display: flex; align-items: stretch; }
@@ -2236,6 +2249,22 @@
   /* Lift the preview (and the switch chip inside it) above the coach scrim */
   body.coach-switch-on #previewOuter { z-index: 211; }
   #boardTypeChip[hidden] { display: none !important; }
+  /* Camera mode switch — sits under the Photo/Video switch (its mode name flashes to
+     the right), same chrome; JS keeps it tucked under the switch when that moves. */
+  #camChip {
+    position: absolute; top: 41px; left: 7px; z-index: 11;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 9px; padding: 3px; box-shadow: var(--btn-shadow);
+  }
+  #camChip button {
+    width: 32px; height: 24px; border: none; border-radius: 6px; padding: 0;
+    background: transparent; color: var(--text-mid); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    -webkit-tap-highlight-color: transparent; transition: background 0.3s ease, color 0.3s ease;
+  }
+  #camChip.on button { background: #1c1c1e; color: #fff; box-shadow: 0 0 0 1px var(--border2) inset; }
+  #camChip .cam-dot { fill: currentColor; transition: fill 0.3s ease; }
+  #camChip.on .cam-dot { fill: #ff3b30; }   /* a live REC dot while the camera editor is on */
   #boardTypeChip.below-indicator { top: 44px; }
   /* Sliding gradient thumb. Gradients can't be transitioned, so swapping the active segment's
      background looked like a hard cut. A thumb that translates between the two segments animates
@@ -4029,6 +4058,12 @@
         </button>
         <span id="boardTypeLabel" aria-hidden="true"></span>
       </div>
+      <!-- Camera editor switch — under the Photo/Video switch: one frame + readouts -->
+      <div id="camChip">
+        <button id="camChipBtn" aria-pressed="false" aria-label="Camera editor" title="Camera">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><circle class="cam-dot" cx="12" cy="12" r="2.8" stroke="none"/></svg>
+        </button>
+      </div>
       <!-- Cap toast — shown briefly when 10-board limit is hit -->
       <div id="boardCapMsg" hidden>Projects are limited to 10 boards</div>
     </div>
@@ -4089,6 +4124,8 @@
           <div class="hud-f hud-f-rec"><span>REC</span><button class="hud-switch" id="hudRec" role="switch" aria-checked="true" aria-label="Show the REC indicator"><span></span></button></div>
         </div>
         <p class="hud-note">Clear a value to hide it. On video boards the timecode runs from its start value and the REC dot blinks.</p>
+        <div class="bgp-sec">Text</div>
+        <div class="slider-row"><label>Size</label><input type="range" id="hudSize" min="60" max="160" step="5" value="100"><span class="slider-val" id="hudSizeVal">100</span></div>
         <div class="bgp-sec">Colour</div>
         <div class="bgp-swatches" id="hudSwatches"></div>
       </div>
@@ -4231,6 +4268,19 @@
           <button class="btn btn-icon" id="layoutLibBtn" aria-label="Layouts" title="Layouts">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
+        </div>
+        <!-- CAMERA FRAME OPTIONS — in camera mode this section is the frame's: shape + size -->
+        <div id="camFrameOpts" hidden>
+          <select id="camShape" aria-label="Frame shape">
+            <option value="original">Original</option>
+            <option value="16:9">16:9</option>
+            <option value="2.39:1">2.39:1</option>
+            <option value="4:3">4:3</option>
+            <option value="1:1">1:1</option>
+            <option value="4:5">4:5</option>
+            <option value="9:16">9:16</option>
+          </select>
+          <div class="slider-row"><label>Size</label><input type="range" id="camSize" min="40" max="100" step="2" value="100" aria-label="Frame size"><span class="slider-val" id="camSizeVal">100</span></div>
         </div>
         <!-- GRID OPTIONS — floating popover above the layout buttons; never reflows -->
         <div id="gridOptsWrap" hidden>
@@ -5761,6 +5811,7 @@ const state = {
   clipPlayMode: 'loop', // 'loop' | 'freeze' — board-wide clip playback behaviour
   presetLayout: false,  // true when the layout came from the chooser: deletes keep the shape (frame reopens as +)
   bgMedia: null,        // { type:'image'|'video', src, blob, blur (canonical px), opacity 0–1 } — board background media
+  cam: null,            // camera layout's frame: { shape: 'original'|'16:9'|'2.39:1'|'4:3'|'1:1', size 0.4–1 }
   hud: null,            // camera frame: { on, preset, fps, shutter, iso, wb, fov, cam, rec, tc, color } — see HUD_PRESETS
   // Custom frame sizes (frame-edit mode). Each is an array of fractions summing to 1,
   // or null for uniform. Arrays are only honoured when their length matches the current
@@ -5885,6 +5936,54 @@ const colsVal        = document.getElementById('colsVal');
 const rowsVal        = document.getElementById('rowsVal');
 
 // Grid options can be collapsed by the user; centralise the visibility logic.
+const camFrameOpts = document.getElementById('camFrameOpts');
+const camShapeEl   = document.getElementById('camShape');
+const camSizeEl    = document.getElementById('camSize');
+const camSizeVal   = document.getElementById('camSizeVal');
+const camChip      = document.getElementById('camChip');
+const camChipBtn   = document.getElementById('camChipBtn');
+const layoutLabel  = document.querySelector('#psLayout > .section-label');
+function updateCamOpts() {
+  const on = state.layout === 'camera';
+  document.body.classList.toggle('cam-layout', on);
+  camFrameOpts.hidden = !on;
+  if (layoutLabel) layoutLabel.textContent = on ? 'Frame' : 'Layout';
+  camChip.classList.toggle('on', on);
+  camChipBtn.setAttribute('aria-pressed', String(on));
+  const c = state.cam || camDefaults();
+  camShapeEl.value = c.shape;
+  const pct = Math.round((Number(c.size) || 1) * 100);
+  camSizeEl.value = pct; camSizeVal.textContent = pct;
+}
+// Keep the chip tucked under the Photo/Video switch (it drops below the board dots)
+function placeCamChip() {
+  if (boardTypeChip.hidden) { camChip.hidden = true; return; }
+  camChip.hidden = false;
+  camChip.style.left = boardTypeChip.offsetLeft + 'px';
+  camChip.style.top  = (boardTypeChip.offsetTop + boardTypeChip.offsetHeight + 6) + 'px';
+}
+// A new frame shape/size can leave a pan or zoom out of range — pull it back in
+function camReclamp() {
+  const it = camItem();
+  if (!it || it.emptySlot || !it.img || previewW < 10) return;
+  const r = camFrameRect(previewW, previewH, it);
+  clampTransform(itemT(it), it.img, r.w, r.h);
+}
+camShapeEl.addEventListener('change', () => {
+  state.cam = { ...(state.cam || camDefaults()), shape: camShapeEl.value };
+  camReclamp(); buildLayout();
+});
+camSizeEl.addEventListener('input', () => {
+  state.cam = { ...(state.cam || camDefaults()), size: +camSizeEl.value / 100 };
+  camSizeVal.textContent = camSizeEl.value;
+  camReclamp(); buildLayout();
+});
+// The chip toggles the camera editor; leaving it returns to the layout you came from
+camChipBtn.addEventListener('click', () => {
+  const prev = state.cam && state.cam.prev;
+  setBoardLayout(camOn() ? (prev && prev !== 'camera' ? prev : 'vertical') : 'camera');
+});
+
 let gridOptsHidden = false;
 function updateGridOpts() {
   const isGrid = state.layout === 'grid';
@@ -5895,6 +5994,7 @@ function updateGridOpts() {
   // If the layout coach is on screen, re-place its bubble around the popover
   const lc = _coaches.layout;
   if (lc && !lc.el.hidden) positionCoach(lc);
+  updateCamOpts();
 }
 
 // Best cols×rows for n items: no hidden items, no empty cells if an exact split exists,
@@ -6116,6 +6216,7 @@ function serializeBoards(boards) {
     bgMedia:        (board.bgMedia && board.bgMedia.blob) ? { type: board.bgMedia.type, blob: board.bgMedia.blob,
                      blur: board.bgMedia.blur || 0, opacity: board.bgMedia.opacity ?? 1 } : null,
     hud:            board.hud ? { ...board.hud } : null,
+    cam:            board.cam ? { ...board.cam } : null,
     slotFracs:      cloneSlotFracs(board.slotFracs),
     usedShotRanges: board.usedShotRanges || [],
     images:         (board.images || [])
@@ -6226,6 +6327,7 @@ async function deserializeBoards(savedBoards) {
       bgMedia:        (board.bgMedia && board.bgMedia.blob)
                         ? { ...board.bgMedia, src: URL.createObjectURL(board.bgMedia.blob) } : null,
       hud:            board.hud ? { ...hudDefaults(), ...board.hud } : null,   // defaults fill fields added later
+      cam:            board.cam ? { ...camDefaults(), ...board.cam } : null,
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
       detection: (board.detection && board.detection.shots?.length &&
@@ -6419,6 +6521,7 @@ function saveCurrentBoardSnapshot() {
     presetLayout:   !!state.presetLayout,
     bgMedia:        state.bgMedia,
     hud:            state.hud ? { ...state.hud } : null,
+    cam:            state.cam ? { ...state.cam } : null,
     slotFracs:      cloneSlotFracs(state.slotFracs),
     images:         state.images.slice(),
     usedShotRanges: state.usedShotRanges ? [...state.usedShotRanges] : [],
@@ -6463,9 +6566,10 @@ function renderBoardSnapshot(canvas, boardData, bw, bh) {
     images: state.images, ratio: state.ratio, layout: state.layout,
     gridCols: state.gridCols, gridRows: state.gridRows,
     gap: state.gap, padding: state.padding, bg: state.bg,
-    slotFracs: state.slotFracs, hud: state.hud,
+    slotFracs: state.slotFracs, hud: state.hud, cam: state.cam,
   };
-  state.hud     = boardData.hud || null;   // before getSlots: the frame's bands inset the layout
+  state.hud     = boardData.hud || null;
+  state.cam     = boardData.cam || null;   // before getSlots: the frame's bands inset the layout
   state.images  = boardData.images;
   state.ratio   = boardData.ratio;
   state.layout  = boardData.layout;
@@ -6495,6 +6599,7 @@ function renderBoardSnapshot(canvas, boardData, bw, bh) {
 
   // Restore original state — no DOM side-effects from this function
   state.hud     = saved.hud;
+  state.cam     = saved.cam;
   state.images  = saved.images;
   state.ratio   = saved.ratio;
   state.layout  = saved.layout;
@@ -6530,6 +6635,7 @@ function loadBoardState(board) {
   state.presetLayout = !!board.presetLayout;
   state.bgMedia = board.bgMedia || null;
   state.hud     = board.hud ? { ...hudDefaults(), ...board.hud } : null;
+  state.cam     = board.cam ? { ...camDefaults(), ...board.cam } : null;
   state.slotFracs    = cloneSlotFracs(board.slotFracs);
   if (typeof resetBoardClock === 'function') resetBoardClock();   // duration cycle restarts per board
   state.images         = board.images.slice();
@@ -6716,7 +6822,8 @@ function addNewBoard() {
     return;
   }
   saveCurrentBoardSnapshot();
-  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, bgMedia: null, hud: state.hud ? { ...state.hud } : null, images: [] };
+  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, bgMedia: null, hud: state.hud ? { ...state.hud } : null, cam: state.cam ? { ...state.cam } : null,
+    images: state.layout === 'camera' ? [{ id: genId(), emptySlot: true, transforms: {} }] : [] };
   _projectBoards.push(newBoard);
   switchToBoard(_projectBoards.length - 1, 'left');
 }
@@ -7073,14 +7180,21 @@ const HUD_FIELDS = ['fps', 'shutter', 'iso', 'wb', 'fov', 'cam'];
 function hudDefaults() {
   const p = HUD_PRESETS.cinema;
   return { on: true, preset: 'cinema', fps: p.fps, shutter: p.shutter, iso: p.iso, wb: p.wb,
-           fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff' };
+           fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff', textScale: 1 };
+}
+// Readout text size (the panel's Size slider): scales the text, its gap to the
+// frame and the bands together, so a bigger setting never crowds the board edge.
+function hudTextScale() {
+  const t = Number(state.hud && state.hud.textScale);
+  return isFinite(t) && t > 0 ? Math.min(1.6, Math.max(0.6, t)) : 1;
 }
 function hudOn() { return !!(state.hud && state.hud.on); }
 
 // Readout bands the frame reserves (target px at scale `sc`)
 function hudBands(sc) {
   if (!hudOn()) return { top: 0, bottom: 0, side: 0 };
-  return { top: HUD_G.band * sc, bottom: HUD_G.band * sc, side: HUD_G.side * sc };
+  const ts = hudTextScale();
+  return { top: HUD_G.band * sc * ts, bottom: HUD_G.band * sc * ts, side: HUD_G.side * sc };
 }
 
 // Timecode counts on the whole-number rate nearest the FPS readout (23.976 → 24);
@@ -7108,9 +7222,8 @@ function hudTcString(frames, base) {
 // Measure and place everything for a W×H board. Each row spreads edge to edge
 // across the frame (space-between); a row that can't fit shrinks as a unit.
 function hudLayout(ctx, W, H) {
-  const h = state.hud, sc = W / CANONICAL_W;
-  const ins = boardInsets(W);
-  const frame = { x: ins.l, y: ins.t, w: W - ins.l - ins.r, h: H - ins.t - ins.b };
+  const h = state.hud, sc = W / CANONICAL_W, ts = hudTextScale();
+  const frame = hudFrameRect(W, H);
   const base = hudTcBase(), start = hudTcFrames(h.tc, base) || 0;
   const val = s => String(s == null ? '' : s).trim();
   const pair = (label, v) => ({ kind: 'pair', label, value: v });
@@ -7126,7 +7239,7 @@ function hudLayout(ctx, W, H) {
     let k = 1;
     const measure = () => {
       for (const it of items) {
-        it.vS = HUD_G.value * sc * k; it.lS = HUD_G.label * sc * k;
+        it.vS = HUD_G.value * sc * ts * k; it.lS = HUD_G.label * sc * ts * k;
         ctx.font = `500 ${it.vS}px ${HUD_FONT}`;
         if (it.kind === 'pair') {
           it.vw = ctx.measureText(it.value).width;
@@ -7142,7 +7255,7 @@ function hudLayout(ctx, W, H) {
       }
     };
     measure();
-    const gaps = Math.max(0, items.length - 1), minGap = HUD_G.value * sc * 0.8;
+    const gaps = Math.max(0, items.length - 1), minGap = HUD_G.value * sc * ts * 0.8;
     const sum = () => items.reduce((a, it) => a + it.w, 0);
     if (sum() > 0 && sum() + minGap * gaps > frame.w) {
       k = Math.max(0.4, (frame.w - minGap * gaps) / sum());
@@ -7154,9 +7267,9 @@ function hudLayout(ctx, W, H) {
     for (const it of items) { it.x = x; it.y = y; x += it.w + gap; }
     return items;
   };
-  const top = row(topItems, () => frame.y - HUD_G.gapToFrame * sc);
+  const top = row(topItems, () => frame.y - HUD_G.gapToFrame * sc * ts);
   // bottom row hangs below the frame: its cap height (~0.72em) sits under the gap
-  const bottom = row(botItems, k => frame.y + frame.h + HUD_G.gapToFrame * sc + HUD_G.value * sc * k * 0.72);
+  const bottom = row(botItems, k => frame.y + frame.h + HUD_G.gapToFrame * sc * ts + HUD_G.value * sc * ts * k * 0.72);
   return { color: h.color || '#ffffff', sc, frame, top, bottom, base, start };
 }
 
@@ -7239,7 +7352,8 @@ function drawHudPreview() {
   if (!cv || previewW < 10) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const pw = Math.round(previewW * dpr), ph = Math.round(previewH * dpr);
-  const key = [pw, ph, state.padding, state.ratio, JSON.stringify(state.customRatio), JSON.stringify(state.hud)].join('|');
+  const key = [pw, ph, state.padding, state.ratio, JSON.stringify(state.customRatio), JSON.stringify(state.hud),
+               state.layout, JSON.stringify(state.cam), camOn() && camItem() ? camItem().id : ''].join('|');
   if (!_hudCache || _hudCache.key !== key) {
     const st = document.createElement('canvas'); st.width = pw; st.height = ph;
     const sctx = st.getContext('2d');
@@ -7277,6 +7391,47 @@ function _hudExportPayload(W, H) {
   } catch (e) { return null; }
 }
 
+// ── Camera layout ──────────────────────────────────────────────────────────
+// One photo or clip in a frame, readouts around the frame. The ratio buttons set
+// the exported BOARD; the frame has its own shape and size (state.cam). "Original"
+// is the media's own shape: imported whole, nothing cropped. The frame is getSlots'
+// only slot, so preview, gestures, clip playback and every export follow it.
+function camDefaults() { return { shape: '16:9', size: 1 }; }
+function camOn() { return state.layout === 'camera'; }
+// The frame shows the board's first real item; extras wait in the media strip
+function camItem() { return state.images.find(it => !it.emptySlot) || state.images[0] || null; }
+function camShapeAspect(item) {
+  const shape = (state.cam && state.cam.shape) || '16:9';
+  if (shape === 'original') {
+    const w = item && (item.type === 'clip' ? item.videoW : item.img && item.img.naturalWidth);
+    const h = item && (item.type === 'clip' ? item.videoH : item.img && item.img.naturalHeight);
+    return (w > 0 && h > 0) ? w / h : 16 / 9;   // empty frame / still loading → a 16:9 window
+  }
+  const [a, b] = shape.split(':').map(Number);
+  return (a > 0 && b > 0) ? a / b : 16 / 9;
+}
+// Largest frame of that shape inside the board (minus padding, side margins and the
+// readout bands), scaled by the Frame size slider, centred.
+function camFrameRect(W, H, item) {
+  const [cW] = canonicalDims();
+  const sc = W / cW, pad = state.padding * sc;
+  const band = hudOn() ? HUD_G.band * sc * hudTextScale() : 0;
+  const availW = Math.max(1, W - 2 * pad - 2 * HUD_G.side * sc);
+  const availH = Math.max(1, H - 2 * pad - 2 * band);
+  const r = camShapeAspect(item);
+  let w = availW, h = w / r;
+  if (h > availH) { h = availH; w = h * r; }
+  const k = Math.min(1, Math.max(0.4, Number(state.cam && state.cam.size) || 1));
+  w *= k; h *= k;
+  return { x: (W - w) / 2, y: (H - h) / 2, w, h };
+}
+// What the readouts wrap: the camera frame, or the whole content box on collages
+function hudFrameRect(W, H) {
+  if (camOn()) { const it = camItem(); if (it) return camFrameRect(W, H, it); }
+  const ins = boardInsets(W);
+  return { x: ins.l, y: ins.t, w: W - ins.l - ins.r, h: H - ins.t - ins.b };
+}
+
 // The content box every layout fills: padding on all sides, plus the camera
 // frame's readout bands when it's on. getSlots, the grid tracks and frame-edit
 // drags all measure from here, so the preview, handles and exports agree.
@@ -7295,6 +7450,11 @@ function getSlots(totalW, totalH) {
   const gap = state.gap * sc;
   const n   = state.images.length;
   if (n === 0) return [];
+
+  if (state.layout === 'camera') {   // one frame, sized by state.cam (see camFrameRect)
+    const item = camItem();
+    return item ? [{ item, ...camFrameRect(totalW, totalH, item) }] : [];
+  }
 
   const iW = totalW - ins.l - ins.r;
   const iH = totalH - ins.t - ins.b;
@@ -7738,7 +7898,32 @@ function createEmptySlotEl(item) {
 
 // Add media to the board, filling empty layout frames before growing it: the frame the
 // user tapped + on first, then remaining empties in order, then append as before.
+// Camera boards hold one photo each: once the frame is filled, extra imports become
+// new camera boards with the same settings, right after this one (in arrival order).
+// Video projects stay single-board (see addNewBoard) and the 10-board cap applies —
+// in those cases the extra waits in this board's media strip instead.
+let _camSpillAt = 0, _camSpillFrom = null;
+function camBeginImport() { _camSpillFrom = null; }   // each import starts right after this board
+function camSpillToNewBoard(item) {
+  if (state.boardType === 'video') return false;
+  if (_projectBoards.length >= 10) { showBoardCapMsg(); return false; }
+  saveCurrentBoardSnapshot();
+  const cur = _projectBoards[_activeBoardIdx];
+  if (_camSpillFrom !== cur.id) { _camSpillFrom = cur.id; _camSpillAt = _activeBoardIdx + 1; }
+  _projectBoards.splice(_camSpillAt++, 0, {
+    ...cur, id: genId(), images: [item], usedShotRanges: [], detection: null, bgMedia: null,
+    slotFracs: cloneSlotFracs(cur.slotFracs),
+    hud: cur.hud ? { ...cur.hud } : null, cam: cur.cam ? { ...cur.cam } : null,
+  });
+  updateBoardNav();
+  return true;
+}
+
 function insertBoardItem(item) {
+  if (state.layout === 'camera' && state.images.some(it => !it.emptySlot) && camSpillToNewBoard(item)) {
+    _pendingSlotIdx = -1;
+    return;
+  }
   let idx = -1;
   if (_pendingSlotIdx >= 0 && state.images[_pendingSlotIdx] && state.images[_pendingSlotIdx].emptySlot) {
     idx = _pendingSlotIdx;
@@ -7755,6 +7940,11 @@ function insertBoardItem(item) {
 // collapse to the new count, as always.
 function removeBoardItem(i) {
   if (i < 0 || !state.images[i]) return;
+  if (state.layout === 'camera') {   // the next waiting item moves in; the last one reopens the + frame
+    state.images.splice(i, 1);
+    if (!state.images.some(it => !it.emptySlot)) state.images = [{ id: genId(), emptySlot: true, transforms: {} }];
+    return;
+  }
   if (state.presetLayout) state.images[i] = { id: genId(), emptySlot: true, transforms: {} };
   else state.images.splice(i, 1);
 }
@@ -7923,7 +8113,7 @@ function updateFrameEditBtn() {
   const boundaries = state.layout === 'grid'
     ? (Math.max(1, state.gridCols) - 1) + (Math.max(1, state.gridRows) - 1)
     : n - 1;
-  const usable = n >= 2 && boundaries >= 1;
+  const usable = state.layout !== 'camera' && n >= 2 && boundaries >= 1;
   frameEditBtn.hidden = !usable;
   if (!usable && _frameEdit) setFrameEdit(false);
 }
@@ -7931,7 +8121,7 @@ function updateFrameEditBtn() {
 function renderFrameHandles() {
   if (_frameDragging) return;   // mid-drag the dragged handle repositions itself
   layoutPreview.querySelectorAll('.frame-handle').forEach(el => el.remove());
-  if (!_frameEdit || state.images.length < 2) return;
+  if (!_frameEdit || state.images.length < 2 || state.layout === 'camera') return;
 
   const slots = getSlots(previewW, previewH);
   if (slots.length < 2 && state.layout !== 'grid') return;
@@ -8139,19 +8329,28 @@ async function resolveExportImages(images) {
 // ── File handling ──────────────────────────────────────────────────────────
 function loadFiles(files) {
   pushHistory();
+  camBeginImport();
+  // Photos decode in parallel but land in the order they were picked: each waits
+  // for the one before it, so they still appear one by one as soon as they're ready.
+  let landed = Promise.resolve();
   [...files].forEach(file => {
     if (file.type.startsWith('video/')) { handleVideoFile(file); return; }
     if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = async e => {
-      try {
-        const item = await makeStillItem({ name: file.name, src: e.target.result, mime: file.type });
-        insertBoardItem(item);
-        ensureMediaBarOpen();
-        renderList(); buildLayout();
-      } catch (err) { console.warn('Image import failed:', err); }
-    };
-    reader.readAsDataURL(file);
+    const ready = new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = async e => {
+        try { resolve(await makeStillItem({ name: file.name, src: e.target.result, mime: file.type })); }
+        catch (err) { console.warn('Image import failed:', err); resolve(null); }
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+    landed = landed.then(() => ready).then(item => {
+      if (!item) return;
+      insertBoardItem(item);
+      ensureMediaBarOpen();
+      renderList(); buildLayout();
+    });
   });
 }
 
@@ -8907,26 +9106,42 @@ function parseRatio(str) {
   return [w, h];
 }
 
+// Switch the board's layout (layout buttons + the camera chip).
+function setBoardLayout(layout) {
+  const wasCam = state.layout === 'camera';
+  // Entering the camera editor remembers where it came from: the layout to go back to
+  // and whether the readouts were on, so leaving restores the board as it was.
+  if (layout === 'camera' && !wasCam) {
+    state.cam = { ...(state.cam || camDefaults()), prev: state.layout, prevHud: hudOn() };
+  }
+  state.layout = layout;
+  document.querySelectorAll('[data-layout]').forEach(b => b.classList.toggle('active', b.dataset.layout === layout));
+  // The plain layout buttons return to classic behaviour: frames follow the media,
+  // so any unfilled scaffold frames from a picked layout preset are dropped.
+  state.presetLayout = false;   // classic mode: frames follow the media again
+  if (state.images.some(it => it.emptySlot)) {
+    state.images = state.images.filter(it => !it.emptySlot);
+    renderList();
+  }
+  if (layout === 'camera') {
+    // The camera editor IS the readouts; an empty board gets a + frame to import into.
+    if (!state.hud) state.hud = hudDefaults(); else state.hud.on = true;
+    if (!state.images.length) state.images = [{ id: genId(), emptySlot: true, transforms: {} }];
+  } else if (wasCam && state.hud && state.cam && state.cam.prevHud === false) {
+    state.hud.on = false;   // the readouts were off before the camera editor turned them on
+  }
+  // Picking Grid sizes it to hold every still/clip on the board (6 → 2×3).
+  if (layout === 'grid' && state.images.length) {
+    [state.gridCols, state.gridRows] = bestGridDims(state.images.length);
+    syncGridSteppers();
+  }
+  gridOptsHidden = false;   // picking Grid always reveals the options first
+  if (typeof syncHudUI === 'function') syncHudUI();
+  updateGridOpts();
+  buildLayout();
+}
 document.querySelectorAll('[data-layout]').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-layout]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active'); state.layout = btn.dataset.layout;
-    // The plain layout buttons return to classic behaviour: frames follow the media,
-    // so any unfilled scaffold frames from a picked layout preset are dropped.
-    state.presetLayout = false;   // classic mode: frames follow the media again
-    if (state.images.some(it => it.emptySlot)) {
-      state.images = state.images.filter(it => !it.emptySlot);
-      renderList();
-    }
-    // Picking Grid sizes it to hold every still/clip on the board (6 → 2×3).
-    if (state.layout === 'grid' && state.images.length) {
-      [state.gridCols, state.gridRows] = bestGridDims(state.images.length);
-      syncGridSteppers();
-    }
-    gridOptsHidden = false;   // picking Grid always reveals the options first
-    updateGridOpts();
-    buildLayout();
-  });
+  btn.addEventListener('click', () => setBoardLayout(btn.dataset.layout));
 });
 
 // ── Layout chooser: premade layouts + saved custom layouts, in the full-window
@@ -9193,6 +9408,8 @@ const hudToggle     = document.getElementById('hudToggle');
 const hudRecEl      = document.getElementById('hudRec');
 const hudPresetsEl  = document.getElementById('hudPresets');
 const hudSwatchesEl = document.getElementById('hudSwatches');
+const hudSizeEl     = document.getElementById('hudSize');
+const hudSizeVal    = document.getElementById('hudSizeVal');
 const HUD_INPUT_KEYS = [...HUD_FIELDS, 'tc'];
 const hudInputs = Object.fromEntries(HUD_INPUT_KEYS.map(k => [k, document.getElementById('hudF-' + k)]));
 const HUD_COLORS = ['#ffffff', '#f2e9dc', '#ffcc00', '#000000'];
@@ -9213,6 +9430,8 @@ function syncHudUI() {
     if (document.activeElement !== hudInputs[k]) hudInputs[k].value = v[k] == null ? '' : v[k];
   }
   hudRecEl.setAttribute('aria-checked', String(v.rec !== false));
+  const pct = Math.round((Number(v.textScale) || 1) * 100);
+  hudSizeEl.value = pct; hudSizeVal.textContent = pct;
   hudPresetsEl.querySelectorAll('.hud-preset').forEach(b => b.classList.toggle('active', b.dataset.p === v.preset));
   const col = (v.color || '').toLowerCase();
   hudSwatchesEl.querySelectorAll('.bgp-sw[data-c]').forEach(b => b.classList.toggle('active', b.dataset.c === col));
@@ -9221,12 +9440,12 @@ function syncHudUI() {
 
 // Readout edits only redraw; switching the frame on or off reflows the board.
 // Editing anything while it's off switches it on, so every change is visible.
-function hudEdit(fn) {
+function hudEdit(fn, reflow = false) {
   const h = hudEnsure(), wasOn = h.on;
   fn(h);
   h.on = true;
   syncHudUI();
-  if (!wasOn) buildLayout(); else drawHudPreview();
+  if (!wasOn || reflow) buildLayout(); else drawHudPreview();
 }
 function hudMatchPreset(h) {
   return Object.keys(HUD_PRESETS).find(id => HUD_FIELDS.every(f => HUD_PRESETS[id][f] === h[f])) || 'custom';
@@ -9262,6 +9481,8 @@ hudInputs.tc.addEventListener('blur', () => {
 HUD_INPUT_KEYS.forEach(k => hudInputs[k].addEventListener('keydown', e => { if (e.key === 'Enter') hudInputs[k].blur(); }));
 
 hudRecEl.addEventListener('click', () => hudEdit(h => { h.rec = h.rec === false; }));
+// Size reflows: the bands grow and shrink with the text
+hudSizeEl.addEventListener('input', () => hudEdit(h => { h.textScale = +hudSizeEl.value / 100; }, true));
 
 HUD_COLORS.forEach(c => {
   const b = document.createElement('button');
@@ -9600,6 +9821,7 @@ function applyBoardTypeUI() {
   boardTypeChip.querySelectorAll('.btc-seg').forEach(b =>
     b.classList.toggle('active', b.dataset.btype === state.boardType));
   boardTypeChip.classList.toggle('below-indicator', !!(boardIndicatorEl && !boardIndicatorEl.hidden));
+  if (typeof placeCamChip === 'function') placeCamChip();
 
   if (isVideo) {
     importModeRow.hidden   = true;
@@ -12152,6 +12374,7 @@ function resetCurrentBoard() {
   state.clipDuration = 15;
   state.clipPlayMode = 'loop';
   state.hud = null;
+  state.cam = null;
   if (typeof syncHudUI === 'function') syncHudUI();
   state.slotFracs = { vertical: null, horizontal: null, gridCols: null, gridRows: null };
   setFrameEdit(false);
@@ -13297,6 +13520,9 @@ async function doVideoExportNative() {
     playMode: state.clipPlayMode || 'loop',   // 'loop' | 'freeze' — applies to every clip
     bgImage: _bgExportImage(W, H),            // pre-rendered bg media layer (or null)
     hud: _hudExportPayload(W, H),             // camera frame: static layer + live timecode/REC (or null)
+    // media doesn't cover the whole board (padding, camera frame, camera layout) →
+    // background shows around it, so Swift must punch per-frame holes for the bg photo
+    insetContent: (state.padding || 0) > 0 || hudOn() || state.layout === 'camera',
     clips,
   });
   // Swift drives window.exportProgress(...) then window.exportComplete(success).

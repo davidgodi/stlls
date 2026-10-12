@@ -894,7 +894,6 @@
      Adjust sliders stay usable — both help while placing the dividers. */
   body.frame-edit-on .slot { pointer-events: none; }
   body.frame-edit-on #boardTypeChip,
-  body.frame-edit-on #camChip,
   body.frame-edit-on #boardActionsBtn,
   body.frame-edit-on #boardIndicator,
   body.frame-edit-on #psCanvas {
@@ -1841,6 +1840,11 @@
     cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .hud-preset.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px var(--accent); }
+  .hud-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .hud-shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  #camFrameOpts { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+  #camFrameOpts[hidden] { display: none !important; }
+  #camFrameOpts .hud-note { margin: 0; }
   .hud-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 8px; }
   .hud-f { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .hud-f > span { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
@@ -2109,17 +2113,7 @@
     animation: popUpIn 0.5s cubic-bezier(0.16,1,0.3,1);
   }
   #gridOptsWrap[hidden] { display: none !important; }
-  /* Camera mode: the Layout section becomes the frame's (shape + size), and a single
-     frame has no gaps or other layouts to show */
-  #camFrameOpts { display: flex; flex-direction: column; gap: 8px; }
-  #camFrameOpts[hidden] { display: none !important; }
-  /* a select sizes itself to its longest option — never let that widen the half-panel */
-  body.cam-layout #psLayout, #camFrameOpts { min-width: 0; }
-  #camFrameOpts select { width: 100%; min-width: 0; }
-  #camFrameOpts .slider-row { min-width: 0; }
-  #camFrameOpts .slider-row label { min-width: 0; }
-  #camFrameOpts .slider-row input[type=range] { min-width: 0; width: auto; flex: 1 1 0; }
-  body.cam-layout #psLayout .btn-row { display: none; }
+  /* Single frame: one frame, so no gap between frames to set */
   body.cam-layout .slider-row:has(#gapSlider) { display: none; }
   /* Maximise the width: both steppers stretch, value stays centred */
   #gridOptsWrap .grid-steppers { gap: 8px; }
@@ -2271,31 +2265,6 @@
   /* Lift the preview (and the switch chip inside it) above the coach scrim */
   body.coach-switch-on #previewOuter { z-index: 211; }
   #boardTypeChip[hidden] { display: none !important; }
-  /* Camera mode switch — sits under the Photo/Video switch (its mode name flashes to
-     the right), same chrome; JS keeps it tucked under the switch when that moves. */
-  #camChip {
-    position: absolute; top: 41px; left: 7px; z-index: 11;
-    background: var(--surface); border: 1px solid var(--border2);
-    border-radius: 9px; padding: 3px; box-shadow: var(--btn-shadow);
-  }
-  #camChip button {
-    width: 32px; height: 24px; border: none; border-radius: 6px; padding: 0;
-    background: transparent; color: var(--text-mid); cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    -webkit-tap-highlight-color: transparent; transition: background 0.3s ease, color 0.3s ease;
-  }
-  #camChip.on button { background: #1c1c1e; color: #fff; box-shadow: 0 0 0 1px var(--border2) inset; }
-  #camChip .cam-dot { fill: currentColor; transition: fill 0.3s ease; }
-  #camChip.on .cam-dot { fill: #ff3b30; }   /* a live REC dot while Cinema frames is on */
-  /* "Cinema frames" flashes to the right of the chip as it switches on, like the
-     Photo/Video switch's mode name */
-  #camChipLabel {
-    position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
-    margin-left: 8px; white-space: nowrap; font-size: 12px; font-weight: 700;
-    letter-spacing: 0.02em; color: var(--text); opacity: 0; pointer-events: none;
-    transition: opacity 0.3s ease;
-  }
-  #camChipLabel.show { opacity: 1; }
   #boardTypeChip.below-indicator { top: 44px; }
   /* Sliding gradient thumb. Gradients can't be transitioned, so swapping the active segment's
      background looked like a hard cut. A thumb that translates between the two segments animates
@@ -4089,13 +4058,6 @@
         </button>
         <span id="boardTypeLabel" aria-hidden="true"></span>
       </div>
-      <!-- Cinema frames switch — under the Photo/Video switch: one frame + readouts -->
-      <div id="camChip">
-        <button id="camChipBtn" aria-pressed="false" aria-label="Cinema frames" title="Cinema frames">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><circle class="cam-dot" cx="12" cy="12" r="2.8" stroke="none"/></svg>
-        </button>
-        <span id="camChipLabel" aria-hidden="true">Cinema frames</span>
-      </div>
       <!-- Cap toast — shown briefly when 10-board limit is hit -->
       <div id="boardCapMsg" hidden>Projects are limited to 10 boards</div>
     </div>
@@ -4142,6 +4104,26 @@
         </div>
       </div>
       <div class="bgp-body">
+        <div class="bgp-sec">Frame</div>
+        <div class="hud-modes" id="hudFrameMode" role="group" aria-label="Frame">
+          <button class="hud-preset" data-fmode="board">Whole board</button>
+          <button class="hud-preset" data-fmode="single">Single frame</button>
+        </div>
+        <!-- Single frame: one photo or clip in a frame of its own shape and size; the
+             board's ratio buttons still set what's exported -->
+        <div id="camFrameOpts" hidden>
+          <div class="hud-shapes" id="camShapes" role="group" aria-label="Frame shape">
+            <button class="hud-preset" data-shape="original">Original</button>
+            <button class="hud-preset" data-shape="16:9">16:9</button>
+            <button class="hud-preset" data-shape="2.39:1">2.39:1</button>
+            <button class="hud-preset" data-shape="4:3">4:3</button>
+            <button class="hud-preset" data-shape="1:1">1:1</button>
+            <button class="hud-preset" data-shape="4:5">4:5</button>
+            <button class="hud-preset" data-shape="9:16">9:16</button>
+          </div>
+          <div class="slider-row"><label>Size</label><input type="range" id="camSize" min="40" max="100" step="2" value="100" aria-label="Frame size"><span class="slider-val" id="camSizeVal">100</span></div>
+          <p class="hud-note">One photo or clip per board. Import several and each photo gets its own board.</p>
+        </div>
         <div class="bgp-sec">Preset</div>
         <div class="hud-presets" id="hudPresets"></div>
         <div class="bgp-sec">Readouts</div>
@@ -4309,19 +4291,6 @@
           <button class="btn btn-icon" id="layoutLibBtn" aria-label="Layouts" title="Layouts">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </button>
-        </div>
-        <!-- CAMERA FRAME OPTIONS — in camera mode this section is the frame's: shape + size -->
-        <div id="camFrameOpts" hidden>
-          <select id="camShape" aria-label="Frame shape">
-            <option value="original">Original</option>
-            <option value="16:9">16:9</option>
-            <option value="2.39:1">2.39:1</option>
-            <option value="4:3">4:3</option>
-            <option value="1:1">1:1</option>
-            <option value="4:5">4:5</option>
-            <option value="9:16">9:16</option>
-          </select>
-          <div class="slider-row"><label>Size</label><input type="range" id="camSize" min="40" max="100" step="2" value="100" aria-label="Frame size"><span class="slider-val" id="camSizeVal">100</span></div>
         </div>
         <!-- GRID OPTIONS — floating popover above the layout buttons; never reflows -->
         <div id="gridOptsWrap" hidden>
@@ -5977,31 +5946,23 @@ const colsVal        = document.getElementById('colsVal');
 const rowsVal        = document.getElementById('rowsVal');
 
 // Grid options can be collapsed by the user; centralise the visibility logic.
-const camFrameOpts = document.getElementById('camFrameOpts');
-const camShapeEl   = document.getElementById('camShape');
-const camSizeEl    = document.getElementById('camSize');
-const camSizeVal   = document.getElementById('camSizeVal');
-const camChip      = document.getElementById('camChip');
-const camChipBtn   = document.getElementById('camChipBtn');
-const layoutLabel  = document.querySelector('#psLayout > .section-label');
+// Cinema frames → Frame: "Whole board" (readouts around any layout) or "Single frame"
+// (the camera layout: one photo/clip, its own shape + size). Lives in the Cinema
+// frames panel; the Layout row's Vert/Horiz/Grid also leave Single frame.
+const camFrameOpts   = document.getElementById('camFrameOpts');
+const camShapesEl    = document.getElementById('camShapes');
+const camSizeEl      = document.getElementById('camSize');
+const camSizeVal     = document.getElementById('camSizeVal');
+const hudFrameModeEl = document.getElementById('hudFrameMode');
 function updateCamOpts() {
   const on = state.layout === 'camera';
   document.body.classList.toggle('cam-layout', on);
   camFrameOpts.hidden = !on;
-  if (layoutLabel) layoutLabel.textContent = on ? 'Frame' : 'Layout';
-  camChip.classList.toggle('on', on);
-  camChipBtn.setAttribute('aria-pressed', String(on));
+  hudFrameModeEl.querySelectorAll('[data-fmode]').forEach(b => b.classList.toggle('active', (b.dataset.fmode === 'single') === on));
   const c = state.cam || camDefaults();
-  camShapeEl.value = c.shape;
+  camShapesEl.querySelectorAll('[data-shape]').forEach(b => b.classList.toggle('active', b.dataset.shape === c.shape));
   const pct = Math.round((Number(c.size) || 1) * 100);
   camSizeEl.value = pct; camSizeVal.textContent = pct;
-}
-// Keep the chip tucked under the Photo/Video switch (it drops below the board dots)
-function placeCamChip() {
-  if (boardTypeChip.hidden) { camChip.hidden = true; return; }
-  camChip.hidden = false;
-  camChip.style.left = boardTypeChip.offsetLeft + 'px';
-  camChip.style.top  = (boardTypeChip.offsetTop + boardTypeChip.offsetHeight + 6) + 'px';
 }
 // A new frame shape/size can leave a pan or zoom out of range — pull it back in
 function camReclamp() {
@@ -6010,26 +5971,23 @@ function camReclamp() {
   const r = camFrameRect(previewW, previewH, it);
   clampTransform(itemT(it), it.img, r.w, r.h);
 }
-camShapeEl.addEventListener('change', () => {
-  state.cam = { ...(state.cam || camDefaults()), shape: camShapeEl.value };
-  camReclamp(); buildLayout();
-});
+camShapesEl.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => {
+  state.cam = { ...(state.cam || camDefaults()), shape: b.dataset.shape };
+  updateCamOpts(); camReclamp(); buildLayout();
+}));
 camSizeEl.addEventListener('input', () => {
   state.cam = { ...(state.cam || camDefaults()), size: +camSizeEl.value / 100 };
   camSizeVal.textContent = camSizeEl.value;
   camReclamp(); buildLayout();
 });
-// The chip toggles the camera editor; leaving it returns to the layout you came from
-const camChipLabel = document.getElementById('camChipLabel');
-let _camLabelTimer = null;
-camChipBtn.addEventListener('click', () => {
+hudFrameModeEl.querySelectorAll('[data-fmode]').forEach(b => b.addEventListener('click', () => {
+  const single = b.dataset.fmode === 'single';
+  if (single === camOn()) return;
+  if (single) { setBoardLayout('camera'); return; }
+  // back to the layout it came from, readouts still on: you chose "Whole board" here
   const prev = state.cam && state.cam.prev;
-  const entering = !camOn();
-  setBoardLayout(entering ? 'camera' : (prev && prev !== 'camera' ? prev : 'vertical'));
-  camChipLabel.classList.toggle('show', entering);   // name the mode as it switches on
-  clearTimeout(_camLabelTimer);
-  if (entering) _camLabelTimer = setTimeout(() => camChipLabel.classList.remove('show'), 1100);
-});
+  setBoardLayout(prev && prev !== 'camera' ? prev : 'vertical', { keepHud: true });
+}));
 
 let gridOptsHidden = false;
 function updateGridOpts() {
@@ -9189,7 +9147,7 @@ function parseRatio(str) {
 }
 
 // Switch the board's layout (layout buttons + the camera chip).
-function setBoardLayout(layout) {
+function setBoardLayout(layout, opts = {}) {
   const wasCam = state.layout === 'camera';
   // Entering the camera editor remembers where it came from: the layout to go back to
   // and whether the readouts were on, so leaving restores the board as it was.
@@ -9209,7 +9167,7 @@ function setBoardLayout(layout) {
     // The camera editor IS the readouts; an empty board gets a + frame to import into.
     if (!state.hud) state.hud = hudDefaults(); else state.hud.on = true;
     if (!state.images.length) state.images = [{ id: genId(), emptySlot: true, transforms: {} }];
-  } else if (wasCam && state.hud && state.cam && state.cam.prevHud === false) {
+  } else if (wasCam && !opts.keepHud && state.hud && state.cam && state.cam.prevHud === false) {
     state.hud.on = false;   // the readouts were off before the camera editor turned them on
   }
   // Picking Grid sizes it to hold every still/clip on the board (6 → 2×3).
@@ -9617,6 +9575,7 @@ hudToggle.addEventListener('click', () => {
 // after that the switch owns on/off.
 hudBtn.addEventListener('click', () => {
   hudPanel.classList.remove('bgp-leaving');
+  updateCamOpts();
   if (!state.hud) { state.hud = hudDefaults(); buildLayout(); }
   syncHudUI();
   hudPanel.hidden = false;
@@ -9934,7 +9893,6 @@ function applyBoardTypeUI() {
   boardTypeChip.querySelectorAll('.btc-seg').forEach(b =>
     b.classList.toggle('active', b.dataset.btype === state.boardType));
   boardTypeChip.classList.toggle('below-indicator', !!(boardIndicatorEl && !boardIndicatorEl.hidden));
-  if (typeof placeCamChip === 'function') placeCamChip();
 
   if (isVideo) {
     importModeRow.hidden   = true;

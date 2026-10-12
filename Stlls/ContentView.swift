@@ -99,6 +99,9 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
         let playMode = (body["playMode"] as? String) ?? "loop"
         // Optional camera frame (readouts around the board) — static layer + live timecode.
         let hud = parseHud(body["hud"])
+        // Media doesn't cover the whole board (padding, camera frame, camera layout):
+        // the background shows around it even with gap 0.
+        let insetContent = (body["insetContent"] as? Bool) ?? false
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
@@ -244,6 +247,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
             // Rounded-corner overlay: bg colour with rounded holes punched for the content
             // (clips AND stills), composited last. Whole board when gap==0, each frame otherwise.
             let overlay = self.makeCornerOverlay(size: renderSize, radius: radius, gap: gap,
+                                                 insetContent: insetContent,
                                                  bg: bgColor, bgImage: bgImage, destRects: destRects)
 
             let outURL = FileManager.default.temporaryDirectory
@@ -274,13 +278,20 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
     // except inside the rounded content rectangles, which are left transparent so the
     // composed video shows through. Needed when corners are rounded, and whenever bg
     // media exists (it must show in gaps and padding).
-    private func makeCornerOverlay(size: CGSize, radius: CGFloat, gap: Double,
+    private func makeCornerOverlay(size: CGSize, radius: CGFloat, gap: Double, insetContent: Bool = false,
                                    bg: UIColor, bgImage: UIImage?, destRects: [CGRect]) -> CGImage? {
         guard size.width > 0, size.height > 0 else { return nil }
         guard radius > 0 || bgImage != nil else { return nil }
-        // gap 0 + no rounding: content covers the whole board — nothing of the bg shows.
-        if bgImage != nil && radius <= 0 && gap <= 0 { return nil }
-        let contentRects = gap > 0 ? destRects : [CGRect(origin: .zero, size: size)]
+        // Holes per frame whenever the background shows between or around the media:
+        // gaps, or media inset from the edges (padding / camera frame). Otherwise the
+        // content is the whole board.
+        let perFrame = gap > 0 || insetContent
+        // gap 0, nothing inset, no rounding: content covers the board — no bg shows.
+        if bgImage != nil && radius <= 0 && !perFrame { return nil }
+        let contentRects = perFrame ? destRects : [CGRect(origin: .zero, size: size)]
+        // Per-frame rounding only with gaps; with gap 0 the radius rounds the board
+        // (matching the preview), so inset frames keep square corners.
+        let holeRadius = (gap > 0 || !perFrame) ? radius : 0
         guard !contentRects.isEmpty else { return nil }
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1; format.opaque = false
@@ -303,7 +314,7 @@ class ExportMessageHandler: NSObject, WKScriptMessageHandler {
             }
             cg.setBlendMode(.clear)
             for r in contentRects {
-                let rr = min(radius, r.width / 2, r.height / 2)
+                let rr = min(holeRadius, r.width / 2, r.height / 2)
                 cg.addPath(UIBezierPath(roundedRect: r, cornerRadius: rr).cgPath)
                 cg.fillPath()
             }

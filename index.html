@@ -5971,10 +5971,51 @@ function camReclamp() {
   const r = camFrameRect(previewW, previewH, it);
   clampTransform(itemT(it), it.img, r.w, r.h);
 }
-camShapesEl.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => {
-  state.cam = { ...(state.cam || camDefaults()), shape: b.dataset.shape };
-  updateCamOpts(); camReclamp(); buildLayout();
-}));
+// A new frame shape morphs like a board ratio change (same easing and length): the frame
+// reshapes around the photo, which keeps its framing, and the readouts follow the edges.
+let _camShapeRaf = null, _camShapeGen = 0;
+function setCamShapeAnimated(shape) {
+  const it = camItem();
+  const from = (_camAnimRect && _camAnimRect.rect) || (it && previewW >= 10 ? camFrameRect(previewW, previewH, it) : null);
+  const framings = captureFramings();
+  const oldT = it && it.transforms && it.transforms.camera ? { ...it.transforms.camera } : null;
+  if (_camShapeRaf) cancelAnimationFrame(_camShapeRaf);
+  const gen = ++_camShapeGen;
+  _camAnimRect = null;
+  state.cam = { ...(state.cam || camDefaults()), shape };
+  applyFramings(framings);   // keep the subject where it was in the new shape
+  updateCamOpts();
+  const slotEl = it && layoutPreview.querySelector(`.slot[data-item-id="${CSS.escape(String(it.id))}"]`);
+  const to = it && previewW >= 10 ? camFrameRect(previewW, previewH, it) : null;
+  if (!camOn() || !from || !to || !slotEl || _previewAnimating ||
+      (Math.abs(from.w - to.w) < 0.5 && Math.abs(from.h - to.h) < 0.5)) {
+    camReclamp(); buildLayout();
+    return;
+  }
+  const startT = performance.now();
+  const ease = t => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);   // = setRatioAnimated
+  const lerp = (a, b, e) => a + (b - a) * e;
+  function frame(now) {
+    if (gen !== _camShapeGen) return;   // superseded by a newer tap
+    const t = Math.min(1, (now - startT) / 460), e = ease(t);
+    const r = { x: lerp(from.x, to.x, e), y: lerp(from.y, to.y, e), w: lerp(from.w, to.w, e), h: lerp(from.h, to.h, e) };
+    _camAnimRect = { W: previewW, rect: r };
+    slotEl.style.left = r.x + 'px'; slotEl.style.top = r.y + 'px';
+    slotEl.style.width = r.w + 'px'; slotEl.style.height = r.h + 'px';
+    const im = slotEl.querySelector('.slot-img');
+    if (im) {
+      const nt = itemT(it);
+      positionSlotImage(im, it, r.w, r.h, oldT ? {
+        scale: lerp(oldT.scale || 1, nt.scale || 1, e), fx: lerp(oldT.fx || 0, nt.fx || 0, e), fy: lerp(oldT.fy || 0, nt.fy || 0, e),
+      } : undefined);
+    }
+    drawHudPreview();
+    if (t < 1) _camShapeRaf = requestAnimationFrame(frame);
+    else { _camShapeRaf = null; _camAnimRect = null; buildLayout(); }
+  }
+  _camShapeRaf = requestAnimationFrame(frame);
+}
+camShapesEl.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => setCamShapeAnimated(b.dataset.shape)));
 camSizeEl.addEventListener('input', () => {
   state.cam = { ...(state.cam || camDefaults()), size: +camSizeEl.value / 100 };
   camSizeVal.textContent = camSizeEl.value;
@@ -7018,7 +7059,7 @@ function _frameDims(item) {
 function captureFramings() {
   const out = {}, savedLayout = state.layout;
   const [cw, ch] = canonicalDims();
-  for (const layout of ['vertical', 'horizontal', 'grid']) {
+  for (const layout of ['vertical', 'horizontal', 'grid', 'camera']) {
     if (!state.images.some(it => it.transforms && it.transforms[layout])) continue;
     state.layout = layout;
     const m = new Map();
@@ -7087,7 +7128,7 @@ function setRatioAnimated(newRatio) {
 
   // No board yet, or no real size change → just snap.
   if (!slots.length || (Math.abs(startW - targetW) < 1 && Math.abs(startH - targetH) < 1)) {
-    _previewAnimating = false;
+    _previewAnimating = false; _hudAnimSize = null;
     computePreviewSize(); buildLayout();
     return;
   }
@@ -7132,9 +7173,11 @@ function setRatioAnimated(newRatio) {
         }
       }
     });
+    // Cinema frames: readouts + frame line at this in-between size, in step with the slots
+    if (hudOn()) { _hudAnimSize = { w: curW, h: curH }; drawHudPreview(); }
     if (t < 1) { _ratioAnimRaf = requestAnimationFrame(frame); }
     else {
-      _ratioAnimRaf = null; _previewAnimating = false;
+      _ratioAnimRaf = null; _previewAnimating = false; _hudAnimSize = null;
       layoutPreview.style.transition = '';
       computePreviewSize(); buildLayout();    // clean final render
     }
@@ -7387,23 +7430,43 @@ function hudPreviewTime() {
   if (!hasClips() || !_boardClockT0) return null;
   return ((performance.now() - _boardClockT0) / 1000) % Math.max(1, state.clipDuration || 15);
 }
+// While the board morphs between ratios, the layer draws at the board's in-between
+// size (set by setRatioAnimated each frame), from the same geometry the slots use —
+// so text, frame line and photo move as one instead of snapping when the morph ends.
+let _hudAnimSize = null;   // { w, h } in preview px, only during a ratio morph
+let _hudStaticCv = null;   // one offscreen layer, reused (sliders redraw it on every move)
 function drawHudPreview() {
   const cv = ensureHudLayer();
-  if (!cv || previewW < 10) return;
+  const W = _hudAnimSize ? _hudAnimSize.w : previewW, H = _hudAnimSize ? _hudAnimSize.h : previewH;
+  if (!cv || W < 10) return;
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
-  const pw = Math.round(previewW * dpr), ph = Math.round(previewH * dpr);
+  const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  if (_hudAnimSize) {
+    // every frame of a morph is a new size — draw straight in, nothing worth caching
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    const L = hudLayout(ctx, W, H);
+    drawHudStatic(ctx, L);
+    drawHudLive(ctx, L, hudPreviewTime());
+    return;
+  }
   const key = [pw, ph, state.padding, state.ratio, JSON.stringify(state.customRatio), JSON.stringify(state.hud),
-               state.layout, JSON.stringify(state.cam), camOn() && camItem() ? camItem().id : ''].join('|');
+               state.layout, JSON.stringify(state.cam), camOn() && camItem() ? camItem().id : '',
+               _camAnimRect ? JSON.stringify(_camAnimRect.rect) : ''].join('|');
   if (!_hudCache || _hudCache.key !== key) {
-    const st = document.createElement('canvas'); st.width = pw; st.height = ph;
+    const st = _hudStaticCv || (_hudStaticCv = document.createElement('canvas'));
+    if (st.width !== pw || st.height !== ph) { st.width = pw; st.height = ph; }
     const sctx = st.getContext('2d');
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.clearRect(0, 0, pw, ph);
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const L = hudLayout(sctx, previewW, previewH);
+    const L = hudLayout(sctx, W, H);
     drawHudStatic(sctx, L);
     _hudCache = { key, canvas: st, L, dpr };
   }
-  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
-  cv.style.width = previewW + 'px'; cv.style.height = previewH + 'px';
   const ctx = cv.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, pw, ph);
@@ -7452,7 +7515,10 @@ function camShapeAspect(item) {
 }
 // Largest frame of that shape inside the board (minus padding, side margins and the
 // readout bands), scaled by the Frame size slider, centred.
+// While the frame's shape morphs, the preview's frame is the in-between rect
+let _camAnimRect = null;   // { W, rect } in preview px, only during a shape morph
 function camFrameRect(W, H, item) {
+  if (_camAnimRect && Math.abs(W - _camAnimRect.W) < 0.5) return { ..._camAnimRect.rect };
   const [cW] = canonicalDims();
   const sc = W / cW, pad = state.padding * sc;
   const band = hudOn() ? HUD_G.band * sc * hudTextScale() : 0;
@@ -9701,27 +9767,87 @@ function applyBgLayerStyle() {
 // Canvas-filter support must be probed on the PROTOTYPE: Safari/WKWebView has no
 // ctx.filter, but assigning one creates a plain JS property that echoes back — a naive
 // set-and-read check "passes" while the blur is silently ignored (sharp exports).
-const _CTX_FILTER_OK = ('filter' in CanvasRenderingContext2D.prototype);
+// A pixel test settles it: blur a small square and check the light actually spread.
+// (Checking the prototype isn't enough either — WebKit can expose ctx.filter while
+// still ignoring it, which is exactly the "blurred preview, sharp export" bug.)
+const _CTX_FILTER_OK = (() => {
+  try {
+    if (!('filter' in CanvasRenderingContext2D.prototype)) return false;
+    const c = document.createElement('canvas'); c.width = c.height = 15;
+    const g = c.getContext('2d');
+    g.filter = 'blur(2px)';
+    g.fillStyle = '#fff'; g.fillRect(5, 5, 5, 5);
+    return g.getImageData(2, 7, 1, 1).data[3] > 0;   // 3px outside the square
+  } catch (e) { return false; }
+})();
 
-// Fallback blur without ctx.filter: cover-draw into a small canvas, then upscale back
-// in doubling steps with high-quality smoothing — reads as a soft gaussian-ish blur.
-function _drawBlurredCover(ctx, el, iw, ih, W, H, blurPx) {
-  const factor = Math.min(16, Math.max(2, blurPx / 2));
-  let c = document.createElement('canvas');
-  c.width = Math.max(8, Math.round(W / factor));
-  c.height = Math.max(8, Math.round(H / factor));
-  const cc = c.getContext('2d');
-  cc.imageSmoothingEnabled = true; cc.imageSmoothingQuality = 'high';
-  const s2 = Math.max(c.width / iw, c.height / ih);
-  cc.drawImage(el, (c.width - iw * s2) / 2, (c.height - ih * s2) / 2, iw * s2, ih * s2);
-  while (c.width * 2 < W) {
-    const up = document.createElement('canvas');
-    up.width = Math.min(W, c.width * 2); up.height = Math.min(H, c.height * 2);
-    const ux = up.getContext('2d');
-    ux.imageSmoothingEnabled = true; ux.imageSmoothingQuality = 'high';
-    ux.drawImage(c, 0, 0, up.width, up.height);
-    c = up;
+// Real gaussian blur for canvases without a working ctx.filter (WKWebView): three
+// box-blur passes per axis match a gaussian of the same σ as the preview's CSS
+// blur(σ). Runs on a reduced copy (σ/3 per pixel, ≤ ~1.2 MP) and is drawn back up —
+// what's left to blur is ≥ 3px there, so the upscale stays perfectly smooth.
+function _blurredCanvas(w, h, sigma, draw) {
+  const red = Math.max(1, sigma / 3, Math.sqrt((w * h) / 1.2e6));
+  const cw = Math.max(2, Math.round(w / red)), ch = Math.max(2, Math.round(h / red));
+  const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  draw(g, cw, ch);
+  const img = g.getImageData(0, 0, cw, ch);
+  _gaussBlurRGBA(img.data, cw, ch, sigma * cw / w);
+  g.putImageData(img, 0, 0);
+  return c;
+}
+function _gaussBlurRGBA(px, w, h, sigma) {
+  if (!(sigma > 0.3)) return;
+  const n = 3;   // box widths for a 3-pass gaussian (Kutskir / Jarosz)
+  let wl = Math.floor(Math.sqrt(12 * sigma * sigma / n + 1)); if (wl % 2 === 0) wl--;
+  const m = Math.max(0, Math.min(n, Math.round((12 * sigma * sigma - n * wl * wl - 4 * n * wl - 3 * n) / (-4 * wl - 4))));
+  const a = new Float32Array(px.length), b = new Float32Array(px.length);
+  a.set(px);
+  for (let i = 0; i < n; i++) {
+    const r = ((i < m ? wl : wl + 2) - 1) / 2;
+    _boxBlurH(a, b, w, h, r); _boxBlurV(b, a, w, h, r);
   }
+  px.set(a);   // Uint8ClampedArray rounds + clamps
+}
+// Running-sum box blurs, edges clamped (no dark fade at the borders)
+function _boxBlurH(src, dst, w, h, r) {
+  const k = 1 / (2 * r + 1), lastX = (w - 1) * 4;
+  for (let y = 0; y < h; y++) {
+    const row = y * w * 4;
+    for (let c = 0; c < 4; c++) {
+      const base = row + c;
+      let sum = (r + 1) * src[base];
+      for (let j = 1; j <= r; j++) sum += src[base + Math.min(j * 4, lastX)];
+      for (let x = 0; x < w; x++) {
+        dst[base + x * 4] = sum * k;
+        sum += src[base + Math.min((x + r + 1) * 4, lastX)] - src[base + Math.max((x - r) * 4, 0)];
+      }
+    }
+  }
+}
+function _boxBlurV(src, dst, w, h, r) {
+  const k = 1 / (2 * r + 1), stride = w * 4, lastY = (h - 1) * stride;
+  for (let x = 0; x < w; x++) {
+    for (let c = 0; c < 4; c++) {
+      const base = x * 4 + c;
+      let sum = (r + 1) * src[base];
+      for (let j = 1; j <= r; j++) sum += src[base + Math.min(j * stride, lastY)];
+      for (let y = 0; y < h; y++) {
+        dst[base + y * stride] = sum * k;
+        sum += src[base + Math.min((y + r + 1) * stride, lastY)] - src[base + Math.max((y - r) * stride, 0)];
+      }
+    }
+  }
+}
+
+// Board background without ctx.filter: the cover-fit photo, gaussian-blurred to match
+// the preview's CSS blur.
+function _drawBlurredCover(ctx, el, iw, ih, W, H, blurPx) {
+  const c = _blurredCanvas(W, H, blurPx, (g, cw, ch) => {
+    const s = Math.max(cw / iw, ch / ih);
+    g.drawImage(el, (cw - iw * s) / 2, (ch - ih * s) / 2, iw * s, ih * s);
+  });
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(c, 0, 0, W, H);
 }
@@ -14292,40 +14418,11 @@ function carDrawBlurredImg(ctx, img, x, y, w, h, blurPx, alpha) {
     ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
     ctx.drawImage(img, x, y, w, h);
   } else if (blurPx > 0) {
-    // No ctx.filter: approximate a gaussian by progressively halving the
-    // image and then upscaling in ≤2× steps — every resample smooths, so the
-    // result is soft instead of blocky at any output size.
-    let a = document.createElement('canvas');
-    a.width = Math.max(2, Math.round(w));
-    a.height = Math.max(2, Math.round(h));
-    let actx = a.getContext('2d');
-    actx.imageSmoothingEnabled = true;
-    actx.imageSmoothingQuality = 'high';
-    actx.drawImage(img, 0, 0, a.width, a.height);
-    const passes = Math.max(1, Math.min(5, Math.round(Math.log2(Math.max(2, blurPx / 1.5)))));
-    for (let i = 0; i < passes; i++) {
-      const b = document.createElement('canvas');
-      b.width = Math.max(2, Math.round(a.width / 2));
-      b.height = Math.max(2, Math.round(a.height / 2));
-      const bctx = b.getContext('2d');
-      bctx.imageSmoothingEnabled = true;
-      bctx.imageSmoothingQuality = 'high';
-      bctx.drawImage(a, 0, 0, b.width, b.height);
-      a = b;
-    }
-    while (a.width * 2 < w) {
-      const b = document.createElement('canvas');
-      b.width = Math.min(Math.round(w), a.width * 2);
-      b.height = Math.min(Math.round(h), a.height * 2);
-      const bctx = b.getContext('2d');
-      bctx.imageSmoothingEnabled = true;
-      bctx.imageSmoothingQuality = 'high';
-      bctx.drawImage(a, 0, 0, b.width, b.height);
-      a = b;
-    }
+    // No ctx.filter: a real gaussian at the preview's strength (see _blurredCanvas)
+    const c = _blurredCanvas(Math.max(2, w), Math.max(2, h), blurPx, (g, cw, ch) => g.drawImage(img, 0, 0, cw, ch));
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(a, x, y, w, h);
+    ctx.drawImage(c, x, y, w, h);
   } else {
     ctx.drawImage(img, x, y, w, h);
   }

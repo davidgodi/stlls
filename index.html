@@ -4089,6 +4089,8 @@
           <div class="hud-f hud-f-rec"><span>REC</span><button class="hud-switch" id="hudRec" role="switch" aria-checked="true" aria-label="Show the REC indicator"><span></span></button></div>
         </div>
         <p class="hud-note">Clear a value to hide it. On video boards the timecode runs from its start value and the REC dot blinks.</p>
+        <div class="bgp-sec">Text</div>
+        <div class="slider-row"><label>Size</label><input type="range" id="hudSize" min="60" max="160" step="5" value="100"><span class="slider-val" id="hudSizeVal">100</span></div>
         <div class="bgp-sec">Colour</div>
         <div class="bgp-swatches" id="hudSwatches"></div>
       </div>
@@ -7073,14 +7075,21 @@ const HUD_FIELDS = ['fps', 'shutter', 'iso', 'wb', 'fov', 'cam'];
 function hudDefaults() {
   const p = HUD_PRESETS.cinema;
   return { on: true, preset: 'cinema', fps: p.fps, shutter: p.shutter, iso: p.iso, wb: p.wb,
-           fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff' };
+           fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff', textScale: 1 };
+}
+// Readout text size (the panel's Size slider): scales the text, its gap to the
+// frame and the bands together, so a bigger setting never crowds the board edge.
+function hudTextScale() {
+  const t = Number(state.hud && state.hud.textScale);
+  return isFinite(t) && t > 0 ? Math.min(1.6, Math.max(0.6, t)) : 1;
 }
 function hudOn() { return !!(state.hud && state.hud.on); }
 
 // Readout bands the frame reserves (target px at scale `sc`)
 function hudBands(sc) {
   if (!hudOn()) return { top: 0, bottom: 0, side: 0 };
-  return { top: HUD_G.band * sc, bottom: HUD_G.band * sc, side: HUD_G.side * sc };
+  const ts = hudTextScale();
+  return { top: HUD_G.band * sc * ts, bottom: HUD_G.band * sc * ts, side: HUD_G.side * sc };
 }
 
 // Timecode counts on the whole-number rate nearest the FPS readout (23.976 → 24);
@@ -7108,7 +7117,7 @@ function hudTcString(frames, base) {
 // Measure and place everything for a W×H board. Each row spreads edge to edge
 // across the frame (space-between); a row that can't fit shrinks as a unit.
 function hudLayout(ctx, W, H) {
-  const h = state.hud, sc = W / CANONICAL_W;
+  const h = state.hud, sc = W / CANONICAL_W, ts = hudTextScale();
   const ins = boardInsets(W);
   const frame = { x: ins.l, y: ins.t, w: W - ins.l - ins.r, h: H - ins.t - ins.b };
   const base = hudTcBase(), start = hudTcFrames(h.tc, base) || 0;
@@ -7126,7 +7135,7 @@ function hudLayout(ctx, W, H) {
     let k = 1;
     const measure = () => {
       for (const it of items) {
-        it.vS = HUD_G.value * sc * k; it.lS = HUD_G.label * sc * k;
+        it.vS = HUD_G.value * sc * ts * k; it.lS = HUD_G.label * sc * ts * k;
         ctx.font = `500 ${it.vS}px ${HUD_FONT}`;
         if (it.kind === 'pair') {
           it.vw = ctx.measureText(it.value).width;
@@ -7142,7 +7151,7 @@ function hudLayout(ctx, W, H) {
       }
     };
     measure();
-    const gaps = Math.max(0, items.length - 1), minGap = HUD_G.value * sc * 0.8;
+    const gaps = Math.max(0, items.length - 1), minGap = HUD_G.value * sc * ts * 0.8;
     const sum = () => items.reduce((a, it) => a + it.w, 0);
     if (sum() > 0 && sum() + minGap * gaps > frame.w) {
       k = Math.max(0.4, (frame.w - minGap * gaps) / sum());
@@ -7154,9 +7163,9 @@ function hudLayout(ctx, W, H) {
     for (const it of items) { it.x = x; it.y = y; x += it.w + gap; }
     return items;
   };
-  const top = row(topItems, () => frame.y - HUD_G.gapToFrame * sc);
+  const top = row(topItems, () => frame.y - HUD_G.gapToFrame * sc * ts);
   // bottom row hangs below the frame: its cap height (~0.72em) sits under the gap
-  const bottom = row(botItems, k => frame.y + frame.h + HUD_G.gapToFrame * sc + HUD_G.value * sc * k * 0.72);
+  const bottom = row(botItems, k => frame.y + frame.h + HUD_G.gapToFrame * sc * ts + HUD_G.value * sc * ts * k * 0.72);
   return { color: h.color || '#ffffff', sc, frame, top, bottom, base, start };
 }
 
@@ -9193,6 +9202,8 @@ const hudToggle     = document.getElementById('hudToggle');
 const hudRecEl      = document.getElementById('hudRec');
 const hudPresetsEl  = document.getElementById('hudPresets');
 const hudSwatchesEl = document.getElementById('hudSwatches');
+const hudSizeEl     = document.getElementById('hudSize');
+const hudSizeVal    = document.getElementById('hudSizeVal');
 const HUD_INPUT_KEYS = [...HUD_FIELDS, 'tc'];
 const hudInputs = Object.fromEntries(HUD_INPUT_KEYS.map(k => [k, document.getElementById('hudF-' + k)]));
 const HUD_COLORS = ['#ffffff', '#f2e9dc', '#ffcc00', '#000000'];
@@ -9213,6 +9224,8 @@ function syncHudUI() {
     if (document.activeElement !== hudInputs[k]) hudInputs[k].value = v[k] == null ? '' : v[k];
   }
   hudRecEl.setAttribute('aria-checked', String(v.rec !== false));
+  const pct = Math.round((Number(v.textScale) || 1) * 100);
+  hudSizeEl.value = pct; hudSizeVal.textContent = pct;
   hudPresetsEl.querySelectorAll('.hud-preset').forEach(b => b.classList.toggle('active', b.dataset.p === v.preset));
   const col = (v.color || '').toLowerCase();
   hudSwatchesEl.querySelectorAll('.bgp-sw[data-c]').forEach(b => b.classList.toggle('active', b.dataset.c === col));
@@ -9221,12 +9234,12 @@ function syncHudUI() {
 
 // Readout edits only redraw; switching the frame on or off reflows the board.
 // Editing anything while it's off switches it on, so every change is visible.
-function hudEdit(fn) {
+function hudEdit(fn, reflow = false) {
   const h = hudEnsure(), wasOn = h.on;
   fn(h);
   h.on = true;
   syncHudUI();
-  if (!wasOn) buildLayout(); else drawHudPreview();
+  if (!wasOn || reflow) buildLayout(); else drawHudPreview();
 }
 function hudMatchPreset(h) {
   return Object.keys(HUD_PRESETS).find(id => HUD_FIELDS.every(f => HUD_PRESETS[id][f] === h[f])) || 'custom';
@@ -9262,6 +9275,8 @@ hudInputs.tc.addEventListener('blur', () => {
 HUD_INPUT_KEYS.forEach(k => hudInputs[k].addEventListener('keydown', e => { if (e.key === 'Enter') hudInputs[k].blur(); }));
 
 hudRecEl.addEventListener('click', () => hudEdit(h => { h.rec = h.rec === false; }));
+// Size reflows: the bands grow and shrink with the text
+hudSizeEl.addEventListener('input', () => hudEdit(h => { h.textScale = +hudSizeEl.value / 100; }, true));
 
 HUD_COLORS.forEach(c => {
   const b = document.createElement('button');

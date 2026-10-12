@@ -1853,6 +1853,28 @@
   }
   .hud-f input:focus { outline: none; border-color: var(--accent); }
   .hud-f input.hud-upper { text-transform: uppercase; }
+  /* Shutter: Angle/Speed switch in the label row; the field shows the symbol the
+     readout will carry (1/ before for speed, ° after for angle) */
+  .hud-f-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .hud-f-head > span { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); }
+  .hud-seg { display: flex; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 1px; }
+  .hud-seg button {
+    font-family: inherit; font-size: 9.5px; padding: 2px 6px; border: none; border-radius: 5px;
+    background: none; color: var(--text-mid); cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .hud-seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+  .hud-adorn {
+    display: flex; align-items: center; min-width: 0; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    font: 500 16px ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--text-dim);
+  }
+  .hud-adorn:focus-within { border-color: var(--accent); }
+  .hud-f .hud-adorn input { border: none; background: none; padding: 7px 2px; flex: 1; min-width: 0; }
+  .hud-adorn .hud-pre { padding-left: 9px; }
+  .hud-adorn .hud-suf { padding-right: 9px; }
+  .hud-adorn[data-mode="angle"] .hud-pre, .hud-adorn[data-mode="speed"] .hud-suf { display: none; }
+  .hud-adorn[data-mode="angle"] input { padding-left: 9px; flex: 0 0 auto; }   /* width set to the digits (JS), so ° follows them */
+  .hud-adorn[data-mode="speed"] input { padding-right: 9px; }
   .hud-f-rec { justify-content: space-between; }
   .hud-f-rec .hud-switch { margin-bottom: 7px; }
   .hud-note { font-size: 11px; line-height: 1.45; color: var(--text-dim); margin: 10px 0 0; }
@@ -2264,7 +2286,16 @@
   }
   #camChip.on button { background: #1c1c1e; color: #fff; box-shadow: 0 0 0 1px var(--border2) inset; }
   #camChip .cam-dot { fill: currentColor; transition: fill 0.3s ease; }
-  #camChip.on .cam-dot { fill: #ff3b30; }   /* a live REC dot while the camera editor is on */
+  #camChip.on .cam-dot { fill: #ff3b30; }   /* a live REC dot while Cinema frames is on */
+  /* "Cinema frames" flashes to the right of the chip as it switches on, like the
+     Photo/Video switch's mode name */
+  #camChipLabel {
+    position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
+    margin-left: 8px; white-space: nowrap; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.02em; color: var(--text); opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  #camChipLabel.show { opacity: 1; }
   #boardTypeChip.below-indicator { top: 44px; }
   /* Sliding gradient thumb. Gradients can't be transitioned, so swapping the active segment's
      background looked like a hard cut. A thumb that translates between the two segments animates
@@ -4058,11 +4089,12 @@
         </button>
         <span id="boardTypeLabel" aria-hidden="true"></span>
       </div>
-      <!-- Camera editor switch — under the Photo/Video switch: one frame + readouts -->
+      <!-- Cinema frames switch — under the Photo/Video switch: one frame + readouts -->
       <div id="camChip">
-        <button id="camChipBtn" aria-pressed="false" aria-label="Camera editor" title="Camera">
+        <button id="camChipBtn" aria-pressed="false" aria-label="Cinema frames" title="Cinema frames">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><circle class="cam-dot" cx="12" cy="12" r="2.8" stroke="none"/></svg>
         </button>
+        <span id="camChipLabel" aria-hidden="true">Cinema frames</span>
       </div>
       <!-- Cap toast — shown briefly when 10-board limit is hit -->
       <div id="boardCapMsg" hidden>Projects are limited to 10 boards</div>
@@ -4101,10 +4133,10 @@
          pattern as the background panel, so the board stays in view while tuning. -->
     <div id="hudPanel" hidden>
       <div class="bgp-head">
-        <span class="bgp-title">Camera frame</span>
+        <span class="bgp-title">Cinema frames</span>
         <div class="hud-head-r">
-          <button class="hud-switch" id="hudToggle" role="switch" aria-checked="false" aria-label="Show the camera frame"><span></span></button>
-          <button class="bgp-close" id="hudPanelClose" aria-label="Close camera frame settings">
+          <button class="hud-switch" id="hudToggle" role="switch" aria-checked="false" aria-label="Show the cinema frame readouts"><span></span></button>
+          <button class="bgp-close" id="hudPanelClose" aria-label="Close cinema frames settings">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
@@ -4115,7 +4147,16 @@
         <div class="bgp-sec">Readouts</div>
         <div class="hud-fields">
           <label class="hud-f"><span>FPS</span><input id="hudF-fps" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal"></label>
-          <label class="hud-f"><span>Shutter</span><input id="hudF-shutter" maxlength="7" autocomplete="off" spellcheck="false"></label>
+          <div class="hud-f hud-f-shutter">
+            <div class="hud-f-head"><span>Shutter</span>
+              <div class="hud-seg" id="hudShutterMode" role="group" aria-label="Shutter as">
+                <button data-smode="angle" aria-pressed="true">Angle</button><button data-smode="speed" aria-pressed="false">Speed</button>
+              </div>
+            </div>
+            <label class="hud-adorn" id="hudShutterBox" data-mode="angle">
+              <span class="hud-pre" aria-hidden="true">1/</span><input id="hudF-shutter" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal" aria-label="Shutter"><span class="hud-suf" aria-hidden="true">°</span>
+            </label>
+          </div>
           <label class="hud-f"><span>ISO</span><input id="hudF-iso" maxlength="6" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
           <label class="hud-f"><span>WB</span><input id="hudF-wb" maxlength="6" autocomplete="off" spellcheck="false"></label>
           <label class="hud-f"><span>FOV</span><input id="hudF-fov" maxlength="7" autocomplete="off" spellcheck="false"></label>
@@ -4323,7 +4364,7 @@
           <label>Corners</label>
           <input type="range" id="radiusSlider" min="0" max="64" value="0" step="2">
           <span class="slider-val" id="radiusVal">0</span>
-          <button id="hudBtn" class="hud-btn" title="Camera frame" aria-label="Camera frame settings">
+          <button id="hudBtn" class="hud-btn" title="Cinema frames" aria-label="Cinema frames settings">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><circle class="hud-btn-dot" cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
           </button>
           <button id="bgBtn" class="bg-btn" title="Background" aria-label="Background settings"></button>
@@ -5979,9 +6020,15 @@ camSizeEl.addEventListener('input', () => {
   camReclamp(); buildLayout();
 });
 // The chip toggles the camera editor; leaving it returns to the layout you came from
+const camChipLabel = document.getElementById('camChipLabel');
+let _camLabelTimer = null;
 camChipBtn.addEventListener('click', () => {
   const prev = state.cam && state.cam.prev;
-  setBoardLayout(camOn() ? (prev && prev !== 'camera' ? prev : 'vertical') : 'camera');
+  const entering = !camOn();
+  setBoardLayout(entering ? 'camera' : (prev && prev !== 'camera' ? prev : 'vertical'));
+  camChipLabel.classList.toggle('show', entering);   // name the mode as it switches on
+  clearTimeout(_camLabelTimer);
+  if (entering) _camLabelTimer = setTimeout(() => camChipLabel.classList.remove('show'), 1100);
 });
 
 let gridOptsHidden = false;
@@ -6326,7 +6373,7 @@ async function deserializeBoards(savedBoards) {
       presetLayout:   !!board.presetLayout,
       bgMedia:        (board.bgMedia && board.bgMedia.blob)
                         ? { ...board.bgMedia, src: URL.createObjectURL(board.bgMedia.blob) } : null,
-      hud:            board.hud ? { ...hudDefaults(), ...board.hud } : null,   // defaults fill fields added later
+      hud:            hudRestore(board.hud),   // defaults fill fields added later
       cam:            board.cam ? { ...camDefaults(), ...board.cam } : null,
       slotFracs:      cloneSlotFracs(board.slotFracs),
       usedShotRanges: board.usedShotRanges || [],
@@ -6634,7 +6681,7 @@ function loadBoardState(board) {
   state.clipPlayMode = board.clipPlayMode === 'bounce' ? 'loop' : (board.clipPlayMode || 'loop');
   state.presetLayout = !!board.presetLayout;
   state.bgMedia = board.bgMedia || null;
-  state.hud     = board.hud ? { ...hudDefaults(), ...board.hud } : null;
+  state.hud     = hudRestore(board.hud);
   state.cam     = board.cam ? { ...camDefaults(), ...board.cam } : null;
   state.slotFracs    = cloneSlotFracs(board.slotFracs);
   if (typeof resetBoardClock === 'function') resetBoardClock();   // duration cycle restarts per board
@@ -7170,16 +7217,51 @@ const HUD_FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';   // SF 
 const HUD_G = { side: 48, band: 118, value: 30, label: 18, gapToFrame: 20, stroke: 4 };
 const HUD_REC_COLOR = '#ff3b30';
 const HUD_PRESETS = {
-  cinema: { name: 'Cinema',  fps: '23.976', shutter: '180.0', iso: '800', wb: '5600', fov: '35mm', cam: 'STLLS_A001' },
-  iphone: { name: 'iPhone',  fps: '30',     shutter: '1/60',  iso: '64',  wb: '5000', fov: '24mm', cam: 'IPHONE' },
-  film:   { name: 'Film',    fps: '24',     shutter: '172.8', iso: '500', wb: '3200', fov: '50mm', cam: 'SUPER16' },
-  slowmo: { name: 'Slow-mo', fps: '120',    shutter: '1/240', iso: '400', wb: '5600', fov: '24mm', cam: 'STLLS_B002' },
+  cinema: { name: 'Cinema',  fps: '23.976', shutter: '180.0', shutterMode: 'angle', iso: '800', wb: '5600', fov: '35mm', cam: 'STLLS_A001' },
+  iphone: { name: 'iPhone',  fps: '30',     shutter: '60',    shutterMode: 'speed', iso: '64',  wb: '5000', fov: '24mm', cam: 'IPHONE' },
+  film:   { name: 'Film',    fps: '24',     shutter: '172.8', shutterMode: 'angle', iso: '500', wb: '3200', fov: '50mm', cam: 'SUPER16' },
+  slowmo: { name: 'Slow-mo', fps: '120',    shutter: '240',   shutterMode: 'speed', iso: '400', wb: '5600', fov: '24mm', cam: 'STLLS_B002' },
 };
-const HUD_FIELDS = ['fps', 'shutter', 'iso', 'wb', 'fov', 'cam'];
+const HUD_FIELDS = ['fps', 'shutter', 'iso', 'wb', 'fov', 'cam'];        // the typed readouts
+const HUD_PRESET_KEYS = [...HUD_FIELDS, 'shutterMode'];                  // what a preset sets
+
+// Shutter is stored as the bare number; the mode decides how it reads:
+// angle → "180.0°", speed → "1/50". Typed "1/" or "°" are stripped on entry.
+function hudShutterNumber(v) {
+  return String(v == null ? '' : v).replace(/^\s*1\s*\/\s*/, '').replace(/\s*°\s*$/, '').trim();
+}
+function hudShutterText(h) {
+  const v = hudShutterNumber(h.shutter);
+  if (!v) return '';
+  return h.shutterMode === 'speed' ? '1/' + v : v + '°';
+}
+// Saved boards → a complete readout set. Boards from before the Angle/Speed switch
+// stored "1/60" or "180.0": the "1/" marks speed, anything else was an angle.
+function hudRestore(saved) {
+  if (!saved) return null;
+  const h = { ...hudDefaults(), ...saved };
+  if (saved.shutterMode !== 'angle' && saved.shutterMode !== 'speed') {
+    h.shutterMode = /^\s*1\s*\//.test(String(saved.shutter || '')) ? 'speed' : 'angle';
+  }
+  h.shutter = hudShutterNumber(h.shutter);
+  return h;
+}
+// Switching notation keeps the same exposure, via the FPS readout — like a camera:
+// angle = 360 × fps / speed. 180° at 24 fps ⇄ 1/48. Common angles snap (179.8 → 180).
+const HUD_COMMON_ANGLES = [11.25, 22.5, 45, 90, 144, 172.8, 180, 270, 360];
+function hudConvertShutter(value, fps, toMode) {
+  const n = parseFloat(hudShutterNumber(value)), f = parseFloat(fps);
+  if (!(n > 0) || !(f > 0)) return hudShutterNumber(value);   // can't convert → keep what was typed
+  if (toMode === 'speed') return String(Math.max(1, Math.round(360 * f / n)));
+  let a = 360 * f / n;
+  const snap = HUD_COMMON_ANGLES.find(c => Math.abs(c - a) / c < 0.01);
+  if (snap) a = snap;
+  return String(Math.round(a * 10) / 10);
+}
 
 function hudDefaults() {
   const p = HUD_PRESETS.cinema;
-  return { on: true, preset: 'cinema', fps: p.fps, shutter: p.shutter, iso: p.iso, wb: p.wb,
+  return { on: true, preset: 'cinema', fps: p.fps, shutter: p.shutter, shutterMode: p.shutterMode, iso: p.iso, wb: p.wb,
            fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff', textScale: 1 };
 }
 // Readout text size (the panel's Size slider): scales the text, its gap to the
@@ -7227,7 +7309,7 @@ function hudLayout(ctx, W, H) {
   const base = hudTcBase(), start = hudTcFrames(h.tc, base) || 0;
   const val = s => String(s == null ? '' : s).trim();
   const pair = (label, v) => ({ kind: 'pair', label, value: v });
-  const topItems = [['FPS', h.fps], ['SHUTTER', h.shutter], ['ISO', h.iso], ['WB', h.wb]]
+  const topItems = [['FPS', h.fps], ['SHUTTER', hudShutterText(h)], ['ISO', h.iso], ['WB', h.wb]]
     .filter(([, v]) => val(v)).map(([l, v]) => pair(l, val(v)));
   const botItems = [];
   if (val(h.fov)) botItems.push(pair('FOV', val(h.fov)));
@@ -9410,6 +9492,8 @@ const hudPresetsEl  = document.getElementById('hudPresets');
 const hudSwatchesEl = document.getElementById('hudSwatches');
 const hudSizeEl     = document.getElementById('hudSize');
 const hudSizeVal    = document.getElementById('hudSizeVal');
+const hudShutterBox = document.getElementById('hudShutterBox');
+const hudShutterModeEl = document.getElementById('hudShutterMode');
 const HUD_INPUT_KEYS = [...HUD_FIELDS, 'tc'];
 const hudInputs = Object.fromEntries(HUD_INPUT_KEYS.map(k => [k, document.getElementById('hudF-' + k)]));
 const HUD_COLORS = ['#ffffff', '#f2e9dc', '#ffcc00', '#000000'];
@@ -9418,7 +9502,7 @@ const hudColorEl = document.createElement('input');
 hudColorEl.type = 'color';
 hudColorEl.className = 'bgp-sw bgp-custom';
 hudColorEl.title = 'Custom colour';
-hudColorEl.setAttribute('aria-label', 'Custom camera frame colour');
+hudColorEl.setAttribute('aria-label', 'Custom readout colour');
 
 function hudEnsure() { if (!state.hud) state.hud = hudDefaults(); return state.hud; }
 
@@ -9430,6 +9514,10 @@ function syncHudUI() {
     if (document.activeElement !== hudInputs[k]) hudInputs[k].value = v[k] == null ? '' : v[k];
   }
   hudRecEl.setAttribute('aria-checked', String(v.rec !== false));
+  const smode = v.shutterMode === 'speed' ? 'speed' : 'angle';
+  hudShutterBox.dataset.mode = smode;
+  fitShutterField();
+  hudShutterModeEl.querySelectorAll('[data-smode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.smode === smode)));
   const pct = Math.round((Number(v.textScale) || 1) * 100);
   hudSizeEl.value = pct; hudSizeVal.textContent = pct;
   hudPresetsEl.querySelectorAll('.hud-preset').forEach(b => b.classList.toggle('active', b.dataset.p === v.preset));
@@ -9447,20 +9535,45 @@ function hudEdit(fn, reflow = false) {
   syncHudUI();
   if (!wasOn || reflow) buildLayout(); else drawHudPreview();
 }
+// Angle mode: size the field to its digits (monospace, so 1ch = one character) and
+// the ° sits right after the number; speed mode's "1/" leads, so it fills the width.
+function fitShutterField() {
+  const el = hudInputs.shutter;
+  if (hudShutterBox.dataset.mode === 'angle') {
+    el.style.width = `calc(${Math.max(1, el.value.length) + 0.4}ch + 11px)`;
+  } else {
+    el.style.width = '';
+  }
+}
 function hudMatchPreset(h) {
-  return Object.keys(HUD_PRESETS).find(id => HUD_FIELDS.every(f => HUD_PRESETS[id][f] === h[f])) || 'custom';
+  return Object.keys(HUD_PRESETS).find(id => HUD_PRESET_KEYS.every(f => HUD_PRESETS[id][f] === h[f])) || 'custom';
 }
 
 Object.entries(HUD_PRESETS).forEach(([id, p]) => {
   const b = document.createElement('button');
   b.className = 'hud-preset'; b.dataset.p = id; b.textContent = p.name;
-  b.addEventListener('click', () => hudEdit(h => { HUD_FIELDS.forEach(f => { h[f] = p[f]; }); h.preset = id; }));
+  b.addEventListener('click', () => hudEdit(h => { HUD_PRESET_KEYS.forEach(f => { h[f] = p[f]; }); h.preset = id; }));
   hudPresetsEl.appendChild(b);
 });
 
 for (const k of HUD_FIELDS) {
-  hudInputs[k].addEventListener('input', () => hudEdit(h => { h[k] = hudInputs[k].value; h.preset = hudMatchPreset(h); }));
+  hudInputs[k].addEventListener('input', () => hudEdit(h => {
+    let v = hudInputs[k].value;
+    if (k === 'shutter') {   // the field already shows 1/ or °, so typed ones are dropped
+      const clean = hudShutterNumber(v);
+      if (clean !== v.trim()) hudInputs[k].value = v = clean;
+      fitShutterField();
+    }
+    h[k] = v; h.preset = hudMatchPreset(h);
+  }));
 }
+hudShutterModeEl.querySelectorAll('[data-smode]').forEach(b => b.addEventListener('click', () => hudEdit(h => {
+  const to = b.dataset.smode;
+  if ((h.shutterMode === 'speed' ? 'speed' : 'angle') === to) return;
+  h.shutter = hudConvertShutter(h.shutter, h.fps, to);   // same exposure, other notation
+  h.shutterMode = to;
+  h.preset = hudMatchPreset(h);
+})));
 // Timecode: typed freely, tidied on blur — a value that doesn't parse goes back to
 // the last good one instead of silently becoming 00:00:00:00.
 let _hudTcPrev = '';
@@ -9487,7 +9600,7 @@ hudSizeEl.addEventListener('input', () => hudEdit(h => { h.textScale = +hudSizeE
 HUD_COLORS.forEach(c => {
   const b = document.createElement('button');
   b.className = 'bgp-sw'; b.dataset.c = c; b.style.background = c;
-  b.setAttribute('aria-label', 'Camera frame colour ' + c);
+  b.setAttribute('aria-label', 'Readout colour ' + c);
   b.addEventListener('click', () => hudEdit(h => { h.color = c; }));
   hudSwatchesEl.appendChild(b);
 });

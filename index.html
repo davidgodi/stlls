@@ -1260,8 +1260,25 @@
     9%, 62%  { opacity: 0.8;  border-color: var(--text-mid); transform: scale(1); box-shadow: none; }
     76%, 100%{ opacity: 0.22; border-color: var(--text-mid); transform: scale(0.82); }
   }
+  .nt-cine { width: 74px; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+  .ncf-row { display: flex; justify-content: space-between; width: 62px; animation: ncfW 7s ease-in-out infinite; }
+  .ncf-row i { display: block; width: 12px; height: 3px; border-radius: 2px; background: var(--text-dim); }
+  .ncf-frame {
+    position: relative; width: 62px; height: 35px; border: 2px solid var(--text); border-radius: 2px;
+    animation: ncfF 7s ease-in-out infinite;
+  }
+  .ncf-rec { position: absolute; top: 4px; left: 4px; width: 6px; height: 6px; border-radius: 50%; background: #ff453a; animation: ncfRec 1s step-end infinite; }
+  @keyframes ncfF {   /* 16:9 → 2.39:1 → 4:3 → back */
+    0%, 22%   { width: 62px; height: 35px; }
+    33%, 55%  { width: 62px; height: 26px; }
+    66%, 88%  { width: 46px; height: 35px; }
+    100%      { width: 62px; height: 35px; }
+  }
+  @keyframes ncfW { 0%, 55% { width: 62px; } 66%, 88% { width: 46px; } 100% { width: 62px; } }
+  @keyframes ncfRec { 0% { opacity: 1; } 50% { opacity: 0; } }
   @media (prefers-reduced-motion: reduce) {
     .nt-board i, .nt-track, .nt-add, .nt-card, .nt-grid i { animation: none; }
+    .ncf-row, .ncf-frame, .ncf-rec { animation: none; }
   }
 
   /* ── Social media grid editor ──────────────────────────────────────────── */
@@ -1803,25 +1820,47 @@
     width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; padding: 0;
     border: 1px solid var(--border2); cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
-  #bgPanel, #hudPanel {
+  #bgPanel {
     position: absolute; inset: 0; z-index: 260;   /* above the sections' popover stacking */
     background: var(--surface);
     display: flex; flex-direction: column;
     animation: bmFade 0.2s ease;
   }
-  #bgPanel[hidden], #hudPanel[hidden] { display: none !important; }
-  #bgPanel.bgp-leaving, #hudPanel.bgp-leaving { opacity: 0; transition: opacity 0.2s ease; }   /* mirror of the 0.2s fade-in */
-  /* ── Camera frame ── */
-  .hud-btn {
-    width: 26px; height: 26px; border-radius: 7px; flex-shrink: 0; padding: 0;
-    background: var(--surface2); border: 1px solid var(--border2); color: var(--text-mid);
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+  #bgPanel[hidden] { display: none !important; }
+  #bgPanel.bgp-leaving { opacity: 0; transition: opacity 0.2s ease; }   /* mirror of the 0.2s fade-in */
+  /* ── Cine Frames editor ── its own palette and panel, so it never reads as a board */
+  body.cine-mode > :not(#homeScreen) { --accent: #ff453a; --accent-fg: #ffffff; }   /* tally red, editor only */
+  body.cine-mode .section-pair,
+  body.cine-mode #psAdjust { display: none !important; }
+  #cineTag {
+    display: inline-flex; align-items: center; gap: 6px; margin-left: 10px;
+    font: 600 9.5px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-mid);
   }
-  .hud-btn.on { color: var(--text); border-color: var(--accent); }
-  .hud-btn.on .hud-btn-dot { fill: #ff3b30; }   /* a live REC dot while the frame is on */
+  #cineTag[hidden] { display: none !important; }
+  #cineTag i { width: 6px; height: 6px; border-radius: 50%; background: #ff453a; flex-shrink: 0; }
+  .board-count-badge.cine-badge { font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0.1em; padding-left: 14px; }
+  .board-count-badge.cine-badge::before { content: ''; position: absolute; left: 6px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: #ff453a; }
+  #cinePanel[hidden] { display: none !important; }
+  .cine-tabs { display: flex; border-bottom: 1px solid var(--border2); }
+  .cine-tabs button {
+    flex: 1; padding: 11px 0 9px; background: none; border: none; border-bottom: 2px solid transparent;
+    font: 500 10px ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-dim); cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: color 0.2s ease, border-color 0.2s ease;
+  }
+  .cine-tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  .cine-body { padding: 4px 16px 14px; }
+  .cine-pane[hidden] { display: none !important; }
+  body.cine-mode .bgp-sec { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: 0.14em; }
+  .cine-sec-first { margin-top: 10px; }
+  /* the board editor's own sections, moved into the tabs: no card chrome of their own */
+  #cinePanel .ps { padding: 10px 0 0; border: none; }
+  #cineRatioMount .ps { padding-top: 0; }
+  .cine-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 12px; color: var(--text-mid); }
+  .cine-row.cine-sec-first { margin-top: 10px; }
+  #cineBgMount .bg-btn { width: 30px; height: 30px; }
   #hudLayer { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; }   /* under the frame-edit handles (6) */
-  .hud-head-r { display: flex; align-items: center; gap: 10px; }
   .hud-switch {
     position: relative; width: 38px; height: 22px; border-radius: 11px; padding: 0; flex-shrink: 0;
     background: var(--surface2); border: 1px solid var(--border2); cursor: pointer;
@@ -1840,7 +1879,6 @@
     cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .hud-preset.active { border-color: var(--accent); color: var(--text); box-shadow: 0 0 0 1px var(--accent); }
-  .hud-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .hud-shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   #camFrameOpts { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
   #camFrameOpts[hidden] { display: none !important; }
@@ -3403,6 +3441,8 @@
     .ps:last-child { border-bottom: none; }
     .section-label { display: none; }
     hr.divider { display: none; }
+    /* one fixed height for every Cine Frames tab: switching tabs never resizes the board */
+    #cinePanel .cine-body { height: 236px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
     /* Dropzone hidden on mobile */
     .dropzone { display: none; }
@@ -3867,6 +3907,10 @@
             <span class="nt-art"><span class="nt-grid" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span>
             <span class="nt-txt"><b>Grid</b><span>Turn one design into a seamless profile grid</span></span>
           </button>
+          <button class="nt-btn" id="ntCine">
+            <span class="nt-art"><span class="nt-cine" aria-hidden="true"><span class="ncf-row"><i></i><i></i><i></i></span><span class="ncf-frame"><span class="ncf-rec"></span></span><span class="ncf-row"><i></i><i></i><i></i></span></span></span>
+            <span class="nt-txt"><b>Cine Frames</b><span>A shot framed like a camera monitor, readouts and all</span></span>
+          </button>
         </div>
         <div id="guideHome" class="coach" hidden>
           <svg class="coach-arrow" width="22" height="30" viewBox="0 0 22 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -3875,7 +3919,7 @@
           </svg>
           <div class="coach-bubble">
             <strong>Start here</strong>
-            Pick <b>Board</b> to compose stills and clips in one layout, <b>Carousel</b> to build a swipeable post, or <b>Grid</b> to turn one design into a seamless profile grid.
+            Pick <b>Board</b> to compose stills and clips in one layout, <b>Carousel</b> to build a swipeable post, <b>Grid</b> to turn one design into a seamless profile grid, or <b>Cine Frames</b> to frame a shot like a camera monitor.
             <span class="coach-sub">Every project you make is saved below the line.</span>
           </div>
         </div>
@@ -3884,7 +3928,7 @@
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
-          <span>Free version — photo board exports only. Carousel, grid &amp; video exports are <b>Pro</b>.</span>
+          <span>Free version — photo board exports only. Carousel, grid, Cine Frames &amp; video exports are <b>Pro</b>.</span>
         </button>
       </div>
     </div>
@@ -3937,6 +3981,7 @@
 
 <header>
   <h1>STLLS</h1>
+  <span id="cineTag" hidden><i aria-hidden="true"></i>Cine Frames</span>
 
   <!-- Home button — centered absolutely in header -->
   <button id="homeBtn" aria-label="Go home">
@@ -4091,66 +4136,69 @@
     </div>
     <input type="file" id="bgFileInput" accept="image/*" hidden>
 
-    <!-- CAMERA FRAME — camera-monitor readouts around the board. Same cover-the-tools
-         pattern as the background panel, so the board stays in view while tuning. -->
-    <div id="hudPanel" hidden>
-      <div class="bgp-head">
-        <span class="bgp-title">Cinema frames</span>
-        <div class="hud-head-r">
-          <button class="hud-switch" id="hudToggle" role="switch" aria-checked="false" aria-label="Show the cinema frame readouts"><span></span></button>
-          <button class="bgp-close" id="hudPanelClose" aria-label="Close cinema frames settings">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
+    <!-- CINE FRAMES — the Cine Frames editor's own panel (boards never show it). Tabs keep
+         it to one fixed height, so switching tabs never resizes the board. Shots, the
+         board-size buttons and the background button are the board editor's own controls,
+         moved in while a Cine Frames project is open (setEditorMode). -->
+    <div id="cinePanel" hidden>
+      <div class="cine-tabs" role="tablist" aria-label="Cine Frames">
+        <button role="tab" data-ctab="shots" aria-selected="true">Shots</button>
+        <button role="tab" data-ctab="frame" aria-selected="false">Frame</button>
+        <button role="tab" data-ctab="readouts" aria-selected="false">Readouts</button>
+        <button role="tab" data-ctab="style" aria-selected="false">Style</button>
       </div>
-      <div class="bgp-body">
-        <div class="bgp-sec">Frame</div>
-        <div class="hud-modes" id="hudFrameMode" role="group" aria-label="Frame">
-          <button class="hud-preset" data-fmode="board">Whole board</button>
-          <button class="hud-preset" data-fmode="single">Single frame</button>
-        </div>
-        <!-- Single frame: one photo or clip in a frame of its own shape and size; the
-             board's ratio buttons still set what's exported -->
-        <div id="camFrameOpts" hidden>
-          <div class="hud-shapes" id="camShapes" role="group" aria-label="Frame shape">
-            <button class="hud-preset" data-shape="original">Original</button>
-            <button class="hud-preset" data-shape="16:9">16:9</button>
-            <button class="hud-preset" data-shape="2.39:1">2.39:1</button>
-            <button class="hud-preset" data-shape="4:3">4:3</button>
-            <button class="hud-preset" data-shape="1:1">1:1</button>
-            <button class="hud-preset" data-shape="4:5">4:5</button>
-            <button class="hud-preset" data-shape="9:16">9:16</button>
-          </div>
-          <div class="slider-row"><label>Size</label><input type="range" id="camSize" min="40" max="100" step="2" value="100" aria-label="Frame size"><span class="slider-val" id="camSizeVal">100</span></div>
-          <p class="hud-note">One photo or clip per board. Import several and each photo gets its own board.</p>
-        </div>
-        <div class="bgp-sec">Preset</div>
-        <div class="hud-presets" id="hudPresets"></div>
-        <div class="bgp-sec">Readouts</div>
-        <div class="hud-fields">
-          <label class="hud-f"><span>FPS</span><input id="hudF-fps" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal"></label>
-          <div class="hud-f hud-f-shutter">
-            <div class="hud-f-head"><span>Shutter</span>
-              <div class="hud-seg" id="hudShutterMode" role="group" aria-label="Shutter as">
-                <button data-smode="angle" aria-pressed="true">Angle</button><button data-smode="speed" aria-pressed="false">Speed</button>
-              </div>
+      <div class="cine-body">
+        <div class="cine-pane" data-cpane="shots" id="cineShots"></div>
+        <div class="cine-pane" data-cpane="frame" hidden>
+          <div class="bgp-sec cine-sec-first">Board size</div>
+          <div id="cineRatioMount"></div>
+          <div class="bgp-sec">Frame shape</div>
+          <div id="camFrameOpts">
+            <div class="hud-shapes" id="camShapes" role="group" aria-label="Frame shape">
+              <button class="hud-preset" data-shape="original">Original</button>
+              <button class="hud-preset" data-shape="16:9">16:9</button>
+              <button class="hud-preset" data-shape="2.39:1">2.39:1</button>
+              <button class="hud-preset" data-shape="4:3">4:3</button>
+              <button class="hud-preset" data-shape="1:1">1:1</button>
+              <button class="hud-preset" data-shape="4:5">4:5</button>
+              <button class="hud-preset" data-shape="9:16">9:16</button>
             </div>
-            <label class="hud-adorn" id="hudShutterBox" data-mode="angle">
-              <span class="hud-pre" aria-hidden="true">1/</span><input id="hudF-shutter" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal" aria-label="Shutter"><span class="hud-suf" aria-hidden="true">°</span>
-            </label>
+            <div class="slider-row"><label>Size</label><input type="range" id="camSize" min="40" max="100" step="2" value="100" aria-label="Frame size"><span class="slider-val" id="camSizeVal">100</span></div>
           </div>
-          <label class="hud-f"><span>ISO</span><input id="hudF-iso" maxlength="6" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
-          <label class="hud-f"><span>WB</span><input id="hudF-wb" maxlength="6" autocomplete="off" spellcheck="false"></label>
-          <label class="hud-f"><span>FOV</span><input id="hudF-fov" maxlength="7" autocomplete="off" spellcheck="false"></label>
-          <label class="hud-f"><span>Cam</span><input id="hudF-cam" class="hud-upper" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
-          <label class="hud-f"><span>Timecode</span><input id="hudF-tc" maxlength="11" autocomplete="off" spellcheck="false" inputmode="numeric" placeholder="00:00:00:00"></label>
-          <div class="hud-f hud-f-rec"><span>REC</span><button class="hud-switch" id="hudRec" role="switch" aria-checked="true" aria-label="Show the REC indicator"><span></span></button></div>
         </div>
-        <p class="hud-note">Clear a value to hide it. On video boards the timecode runs from its start value and the REC dot blinks.</p>
-        <div class="bgp-sec">Text</div>
-        <div class="slider-row"><label>Size</label><input type="range" id="hudSize" min="60" max="160" step="5" value="100"><span class="slider-val" id="hudSizeVal">100</span></div>
-        <div class="bgp-sec">Colour</div>
-        <div class="bgp-swatches" id="hudSwatches"></div>
+        <div class="cine-pane" data-cpane="readouts" hidden>
+          <div class="bgp-sec cine-sec-first">Preset</div>
+          <div class="hud-presets" id="hudPresets"></div>
+          <div class="bgp-sec">Readouts</div>
+          <div class="hud-fields">
+            <label class="hud-f"><span>FPS</span><input id="hudF-fps" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal"></label>
+            <div class="hud-f hud-f-shutter">
+              <div class="hud-f-head"><span>Shutter</span>
+                <div class="hud-seg" id="hudShutterMode" role="group" aria-label="Shutter as">
+                  <button data-smode="angle" aria-pressed="true">Angle</button><button data-smode="speed" aria-pressed="false">Speed</button>
+                </div>
+              </div>
+              <label class="hud-adorn" id="hudShutterBox" data-mode="angle">
+                <span class="hud-pre" aria-hidden="true">1/</span><input id="hudF-shutter" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal" aria-label="Shutter"><span class="hud-suf" aria-hidden="true">°</span>
+              </label>
+            </div>
+            <label class="hud-f"><span>ISO</span><input id="hudF-iso" maxlength="6" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
+            <label class="hud-f"><span>WB</span><input id="hudF-wb" maxlength="6" autocomplete="off" spellcheck="false"></label>
+            <label class="hud-f"><span>FOV</span><input id="hudF-fov" maxlength="7" autocomplete="off" spellcheck="false"></label>
+            <label class="hud-f"><span>Cam</span><input id="hudF-cam" class="hud-upper" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+            <label class="hud-f"><span>Timecode</span><input id="hudF-tc" maxlength="11" autocomplete="off" spellcheck="false" inputmode="numeric" placeholder="00:00:00:00"></label>
+            <div class="hud-f hud-f-rec"><span>REC</span><button class="hud-switch" id="hudRec" role="switch" aria-checked="true" aria-label="Show the REC indicator"><span></span></button></div>
+          </div>
+          <p class="hud-note">Clear a value to hide it. On video the timecode runs from its start value and the REC dot blinks.</p>
+        </div>
+        <div class="cine-pane" data-cpane="style" hidden>
+          <div class="cine-row cine-sec-first"><span>Readouts</span><button class="hud-switch" id="hudToggle" role="switch" aria-checked="false" aria-label="Show the readouts"><span></span></button></div>
+          <div class="cine-row"><span>Background</span><span id="cineBgMount"></span></div>
+          <div class="bgp-sec">Text size</div>
+          <div class="slider-row"><label>Size</label><input type="range" id="hudSize" min="60" max="160" step="5" value="100" aria-label="Readout text size"><span class="slider-val" id="hudSizeVal">100</span></div>
+          <div class="bgp-sec">Colour</div>
+          <div class="bgp-swatches" id="hudSwatches"></div>
+        </div>
       </div>
     </div>
 
@@ -4333,9 +4381,6 @@
           <label>Corners</label>
           <input type="range" id="radiusSlider" min="0" max="64" value="0" step="2">
           <span class="slider-val" id="radiusVal">0</span>
-          <button id="hudBtn" class="hud-btn" title="Cinema frames" aria-label="Cinema frames settings">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><circle class="hud-btn-dot" cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/></svg>
-          </button>
           <button id="bgBtn" class="bg-btn" title="Background" aria-label="Background settings"></button>
           <input type="color" id="bgColor" value="#000000" hidden aria-hidden="true">
         </div>
@@ -5343,6 +5388,9 @@ function anyCoachVisible(exceptKey) {
 function showCoach(key, delay) {
   const c = _coaches[key];
   if (!c || c.shown) return;
+  // the board editor's tour points at Layout/Adjust etc. — Cine Frames has none of them
+  if (document.body.classList.contains('cine-mode') &&
+      ['editor', 'canvas', 'layout', 'adjust', 'reframe', 'framelines', 'export'].includes(key)) return;
   c.shown = true;
   const render = () => {
     if (localStorage.getItem(c.storageKey) === '1') return; // pre-empted meanwhile
@@ -5946,19 +5994,15 @@ const colsVal        = document.getElementById('colsVal');
 const rowsVal        = document.getElementById('rowsVal');
 
 // Grid options can be collapsed by the user; centralise the visibility logic.
-// Cinema frames → Frame: "Whole board" (readouts around any layout) or "Single frame"
-// (the camera layout: one photo/clip, its own shape + size). Lives in the Cinema
-// frames panel; the Layout row's Vert/Horiz/Grid also leave Single frame.
+// Cine Frames' Frame tab: the frame's shape + size (the camera layout's own, state.cam)
 const camFrameOpts   = document.getElementById('camFrameOpts');
 const camShapesEl    = document.getElementById('camShapes');
 const camSizeEl      = document.getElementById('camSize');
 const camSizeVal     = document.getElementById('camSizeVal');
-const hudFrameModeEl = document.getElementById('hudFrameMode');
 function updateCamOpts() {
   const on = state.layout === 'camera';
   document.body.classList.toggle('cam-layout', on);
   camFrameOpts.hidden = !on;
-  hudFrameModeEl.querySelectorAll('[data-fmode]').forEach(b => b.classList.toggle('active', (b.dataset.fmode === 'single') === on));
   const c = state.cam || camDefaults();
   camShapesEl.querySelectorAll('[data-shape]').forEach(b => b.classList.toggle('active', b.dataset.shape === c.shape));
   const pct = Math.round((Number(c.size) || 1) * 100);
@@ -6021,15 +6065,6 @@ camSizeEl.addEventListener('input', () => {
   camSizeVal.textContent = camSizeEl.value;
   camReclamp(); buildLayout();
 });
-hudFrameModeEl.querySelectorAll('[data-fmode]').forEach(b => b.addEventListener('click', () => {
-  const single = b.dataset.fmode === 'single';
-  if (single === camOn()) return;
-  if (single) { setBoardLayout('camera'); return; }
-  // back to the layout it came from, readouts still on: you chose "Whole board" here
-  const prev = state.cam && state.cam.prev;
-  setBoardLayout(prev && prev !== 'camera' ? prev : 'vertical', { keepHud: true });
-}));
-
 let gridOptsHidden = false;
 function updateGridOpts() {
   const isGrid = state.layout === 'grid';
@@ -6421,6 +6456,11 @@ function renderProjectsList() {
       badge.className = 'board-count-badge';
       badge.textContent = '⇆';
       thumb.appendChild(badge);
+    } else if (board.kind === 'cine') {
+      const badge = document.createElement('span');
+      badge.className = 'board-count-badge cine-badge';
+      badge.textContent = board.boardCount > 1 ? `CINE · ${board.boardCount}` : 'CINE';
+      thumb.appendChild(badge);
     } else if (board.boardCount > 1) {
       const badge = document.createElement('span');
       badge.className = 'board-count-badge';
@@ -6486,6 +6526,9 @@ function openProject(id) {
   const meta = projects.find(p => p.id === id);
   if (meta?.kind === 'carousel') { openCarouselProject(id); return; }
   if (meta?.kind === 'grid')     { openGridProject(id); return; }
+  const isCine = meta?.kind === 'cine';
+  setEditorMode(isCine ? 'cine' : 'board');
+  if (isCine) cineSelectTab('frame');
   _currentProjectId = id;
   _boardSwitching   = false;
   _activeBoardIdx   = 0;
@@ -6501,6 +6544,9 @@ function openProject(id) {
   leaveHome(async () => {
     // By the time animation ends (320 ms) the fetch is usually done; await remainder
     _projectBoards = await dataPromise;
+    // Cine Frames boards are always one framed shot; plain boards never carry Cine pieces
+    // (boards from the testing builds that used them open as normal boards)
+    _projectBoards = _projectBoards.map(b => isCine ? cineNormalizeBoard(b) : boardStripCine(b));
     loadBoardState(_projectBoards[0]);
     updateBoardNav();
   });
@@ -6750,6 +6796,8 @@ function updateBoardNav() {
 
   const multi = total > 1;
   indicator.hidden = !multi;   // works now — [hidden] CSS fix applied above
+  // the Photo/Video switch shares the top-left corner: step below the counter when it shows
+  document.getElementById('boardTypeChip').classList.toggle('below-indicator', multi);
 
   if (counterText) counterText.textContent = `${idx + 1} / ${total}`;
 
@@ -6900,6 +6948,10 @@ function goHome() {
   }
   _projectBoards = [];
   _activeBoardIdx = 0;
+  // Closed: a later background save (writeCurrentProjectToDB) must not write this project
+  // again. It would snapshot the last-viewed board into the emptied list and save it as
+  // the project's only board, losing the rest. (Carousel and grid already clear it.)
+  _currentProjectId = null;
   _boardSwitching = false;  // clear any in-flight animation lock
   updateBoardNav();          // hide indicator before home screen appears
   updateGreeting();
@@ -6908,6 +6960,11 @@ function goHome() {
   homeScreen.classList.remove('leaving');
   homeScreen.classList.add('entering');
   homeScreen.addEventListener('animationend', () => homeScreen.classList.remove('entering'), { once: true });
+  // leave Cine Frames once home has covered the editor, so the swap is never seen
+  if (_editorMode !== 'board') {
+    const t = _homeModeReset = {};   // superseded if a project opens first
+    setTimeout(() => { if (_homeModeReset === t) setEditorMode('board'); }, 450);
+  }
 }
 
 const homeBtn = document.getElementById('homeBtn');
@@ -6918,6 +6975,7 @@ homeBtn.addEventListener('click', goHome);
 function writeCurrentProjectToDB() {
   if (!_currentProjectId) return;
   if (_carOpen) { saveCarouselToDB(); return; }   // carousel editor open — its own save path
+  if (!_projectBoards.length) return;   // boards not loaded (or project closed): nothing to save
   saveCurrentBoardSnapshot();
   if (!_projectBoards.some(b => b.images.length > 0)) return;
   const project = projects.find(p => p.id === _currentProjectId);
@@ -6940,6 +6998,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', writeCurrentProjectToDB);
 
 function createNewBoardProject() {
+  setEditorMode('board');
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, updatedAt: Date.now(), thumbnail: null });
   saveProjects();
@@ -6950,6 +7009,84 @@ function createNewBoardProject() {
   updateBoardNav();
   leaveHome();
 }
+
+// ── Cine Frames ─────────────────────────────────────────────────────────────
+// Its own project type (kind 'cine'), built on the board engine — clips, the native
+// video exporter, backgrounds and ratios all come along — but with its own editor:
+// a tabbed panel, a tally-red palette and a header tag. Each board is one framed shot
+// (the camera layout) with readouts. Shared controls (Shots, board size, background)
+// are MOVED into the tabs while it's open and put back on leaving, so nothing exists twice.
+let _editorMode = 'board';
+let _homeModeReset = null;   // goHome's deferred switch back to the board editor
+const cinePanel = document.getElementById('cinePanel');
+const cineTag   = document.getElementById('cineTag');
+const _cineMoves = [];   // [el, parent, nextSibling] to restore when leaving
+function cineMove(el, target) {
+  if (!el || !target) return;
+  _cineMoves.push([el, el.parentNode, el.nextSibling]);
+  target.appendChild(el);
+}
+function setEditorMode(mode) {
+  _homeModeReset = null;
+  if (mode === _editorMode) return;
+  _editorMode = mode;
+  const cine = mode === 'cine';
+  document.body.classList.toggle('cine-mode', cine);
+  cinePanel.hidden = !cine;
+  cineTag.hidden = !cine;
+  if (cine) {
+    cineMove(document.getElementById('psImages'), document.getElementById('cineShots'));
+    cineMove(document.getElementById('psCanvas'), document.getElementById('cineRatioMount'));
+    cineMove(bgBtn, document.getElementById('cineBgMount'));
+  } else {
+    while (_cineMoves.length) {
+      const [el, parent, next] = _cineMoves.pop();
+      parent.insertBefore(el, next && next.parentNode === parent ? next : null);
+    }
+  }
+}
+function cineSelectTab(tab) {
+  cinePanel.querySelectorAll('[data-ctab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.ctab === tab)));
+  cinePanel.querySelectorAll('[data-cpane]').forEach(p => { p.hidden = p.dataset.cpane !== tab; });
+}
+cinePanel.querySelectorAll('[data-ctab]').forEach(b => b.addEventListener('click', () => cineSelectTab(b.dataset.ctab)));
+
+// One framed shot per board, readouts set up (fills fields saved boards may lack)
+function cineNormalizeBoard(b) {
+  const images = (b.images || []).length ? b.images : [{ id: genId(), emptySlot: true, transforms: {} }];
+  return { ...b, layout: 'camera', images,
+           hud: b.hud ? hudRestore(b.hud) : hudDefaults(),
+           cam: b.cam ? { ...camDefaults(), ...b.cam } : camDefaults() };
+}
+// Boards are just boards: drop any single-frame layout / readouts from the testing builds
+function boardStripCine(b) {
+  if (!b.hud && !b.cam && b.layout !== 'camera') return b;
+  const out = { ...b, hud: null, cam: null };
+  if (b.layout === 'camera') {
+    const prev = b.cam && b.cam.prev;
+    out.layout = prev && prev !== 'camera' ? prev : 'vertical';
+    out.images = (b.images || []).filter(it => !it.emptySlot);
+  }
+  return out;
+}
+function cineBoardTemplate() {
+  return cineNormalizeBoard({ id: genId(), ratio: '4:5', layout: 'camera', gridCols: 2, gridRows: 2, gap: 6, padding: 0,
+                              bg: '#000000', boardType: 'photo', clipDuration: 15, images: [] });
+}
+function createNewCineProject() {
+  setEditorMode('cine');
+  cineSelectTab('shots');   // a new project starts by bringing in a shot
+  _currentProjectId = genId();
+  projects.push({ id: _currentProjectId, kind: 'cine', updatedAt: Date.now(), thumbnail: null });
+  saveProjects();
+  _boardSwitching = false;
+  _projectBoards = [cineBoardTemplate()];
+  _activeBoardIdx = 0;
+  loadBoardState(_projectBoards[0]);
+  updateBoardNav();
+  leaveHome();
+}
+document.getElementById('ntCine').addEventListener('click', createNewCineProject);
 
 // Board menu actions
 document.addEventListener('click', e => {
@@ -9507,9 +9644,7 @@ document.getElementById('bgPanelClose').addEventListener('click', () => {
   }, 200);
 });
 
-// ── Camera frame panel ───────────────────────────────────────────────────────
-const hudPanel      = document.getElementById('hudPanel');
-const hudBtn        = document.getElementById('hudBtn');
+// ── Cine Frames: readouts controls (Readouts + Style tabs) ───────────────────
 const hudToggle     = document.getElementById('hudToggle');
 const hudRecEl      = document.getElementById('hudRec');
 const hudPresetsEl  = document.getElementById('hudPresets');
@@ -9532,7 +9667,6 @@ function hudEnsure() { if (!state.hud) state.hud = hudDefaults(); return state.h
 
 function syncHudUI() {
   const on = hudOn(), v = state.hud || hudDefaults();
-  hudBtn.classList.toggle('on', on);
   hudToggle.setAttribute('aria-checked', String(on));
   for (const k of HUD_INPUT_KEYS) {
     if (document.activeElement !== hudInputs[k]) hudInputs[k].value = v[k] == null ? '' : v[k];
@@ -9637,25 +9771,8 @@ hudToggle.addEventListener('click', () => {
   syncHudUI();
   buildLayout();
 });
-// First open adds the frame straight away, so the button always shows something;
-// after that the switch owns on/off.
-hudBtn.addEventListener('click', () => {
-  hudPanel.classList.remove('bgp-leaving');
-  updateCamOpts();
-  if (!state.hud) { state.hud = hudDefaults(); buildLayout(); }
-  syncHudUI();
-  hudPanel.hidden = false;
-});
-document.getElementById('hudPanelClose').addEventListener('click', () => {
-  if (hudPanel.hidden || hudPanel.classList.contains('bgp-leaving')) return;
-  if (document.activeElement && hudPanel.contains(document.activeElement)) document.activeElement.blur();
-  hudPanel.classList.add('bgp-leaving');
-  setTimeout(() => {
-    if (!hudPanel.classList.contains('bgp-leaving')) return;   // reopened mid-fade
-    hudPanel.classList.remove('bgp-leaving');
-    hudPanel.hidden = true;
-  }, 200);
-});
+syncHudUI();
+
 syncHudUI();
 
 document.getElementById('bgUploadBtn').addEventListener('click', () => { bgFileInput.value = ''; bgFileInput.click(); });
@@ -13360,6 +13477,7 @@ document.addEventListener('stlls-pro-changed', updateFreeTierNote);
 updateFreeTierNote();
 
 exportBtn.addEventListener('click', () => {
+  if (_editorMode === 'cine' && !stllsIsPro()) { stllsAskPro(); return; }   // every Cine Frames export is Pro
   if (hasClips()) {                              // any clip present → looping-video export
     if (!stllsIsPro()) { stllsAskPro(); return; }   // free tier: test video boards, export with Pro
     doVideoExport(); return;
@@ -13426,7 +13544,7 @@ function paintBoard(ctx, W, H, expScale, exportImgs) {
 async function doExportAll() {
   saveCurrentBoardSnapshot();
   // the camera frame is free to try in the editor, Pro to export
-  if (_projectBoards.some(b => b.images.length && b.hud && b.hud.on) && !stllsIsPro()) {
+  if ((_editorMode === 'cine' || _projectBoards.some(b => b.images.length && b.hud && b.hud.on)) && !stllsIsPro()) {
     stllsAskPro(); return;
   }
   const expScale = +exportScaleEl.value;
@@ -13480,7 +13598,7 @@ async function doExportAll() {
 }
 
 async function doExport() {
-  if (hudOn() && !stllsIsPro()) { stllsAskPro(); return; }   // camera frame: free to try, Pro to export
+  if ((_editorMode === 'cine' || hudOn()) && !stllsIsPro()) { stllsAskPro(); return; }   // Cine Frames: free to try, Pro to export
   if (!throttle('export', 3000)) return;  // max one export every 3s
   const expScale = +exportScaleEl.value;
   _exportFmt     = exportFmt.value;
@@ -15865,6 +15983,7 @@ document.getElementById('carHomeBtn').addEventListener('click', closeCarouselAnd
 
 // home leave without the board-editor coach marks
 function leaveHomeToCarousel(then) {
+  setEditorMode('board');
   homeScreen.classList.add('leaving');
   homeScreen.addEventListener('animationend', () => {
     homeScreen.hidden = true;

@@ -141,7 +141,7 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(PROJECT_DIR)/../story-layout/index.html",
+				"$(PROJECT_DIR)/index.html",
 			);
 			name = "Copy web index";
 			outputFileListPaths = (
@@ -151,7 +151,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cp \"$PROJECT_DIR/../story-layout/index.html\" \"$PROJECT_DIR/Stlls/web/index.html\"\n";
+			shellScript = "cp \"$PROJECT_DIR/index.html\" \"$PROJECT_DIR/Stlls/web/index.html\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -229,7 +229,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Stlls/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -237,7 +237,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.davidgodi.stlls;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -252,7 +252,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 8;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Stlls/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -260,7 +260,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.davidgodi.stlls;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -17,7 +17,7 @@ enum StllsPro {
     /// fake products. ⚠️ Do NOT archive for TestFlight/App Store while this is
     /// true until the App Store Connect products exist — archive builds ignore
     /// the scheme's StoreKit configuration and would show a dead paywall.
-    static let enabled = true
+    static let enabled = false
 
     static let monthlyID = "is.skjaskot.stlls.pro.monthly"
     static let yearlyID  = "is.skjaskot.stlls.pro.yearly"
@@ -37,7 +37,7 @@ enum StllsPro {
     /// ⚠️ DEV ONLY — forces the app fully Pro: no onboarding, no paywall, all
     /// gated exports unlocked. Set false before any paywall testing stage and
     /// NEVER archive with this true.
-    static let debugForcePro = true
+    static let debugForcePro = false
 
     static let privacyURL = URL(string: "https://davidgodi.github.io/stlls-privacy/")!
     static let termsURL   = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!

@@ -1917,6 +1917,11 @@
   .hud-adorn[data-mode="angle"] .hud-pre, .hud-adorn[data-mode="speed"] .hud-suf { display: none; }
   .hud-adorn[data-mode="angle"] input { padding-left: 9px; flex: 0 0 auto; }   /* width set to the digits (JS), so ° follows them */
   .hud-adorn[data-mode="speed"] input { padding-right: 9px; }
+  .hud-f-shutter { grid-column: 1 / -1; }
+  .hud-shutter-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .hud-shutter-chips .hud-preset { padding: 8px 2px; font: 500 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .hud-shutter-chips .hud-preset[data-sv="custom"] { font-family: inherit; font-size: 11.5px; }
+  #hudShutterBox[hidden] { display: none !important; }
   .hud-f-rec { justify-content: space-between; }
   .hud-f-rec .hud-switch { margin-bottom: 7px; }
   .hud-note { font-size: 11px; line-height: 1.45; color: var(--text-dim); margin: 10px 0 0; }
@@ -4172,17 +4177,19 @@
           <div class="bgp-sec">Readouts</div>
           <div class="hud-fields">
             <label class="hud-f"><span>FPS</span><input id="hudF-fps" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal"></label>
+            <label class="hud-f"><span>ISO</span><input id="hudF-iso" maxlength="6" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
             <div class="hud-f hud-f-shutter">
               <div class="hud-f-head"><span>Shutter</span>
                 <div class="hud-seg" id="hudShutterMode" role="group" aria-label="Shutter as">
                   <button data-smode="angle" aria-pressed="true">Angle</button><button data-smode="speed" aria-pressed="false">Speed</button>
                 </div>
               </div>
-              <label class="hud-adorn" id="hudShutterBox" data-mode="angle">
-                <span class="hud-pre" aria-hidden="true">1/</span><input id="hudF-shutter" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal" aria-label="Shutter"><span class="hud-suf" aria-hidden="true">°</span>
+              <!-- the usual angles (or speeds) one tap away; Custom opens the field below -->
+              <div class="hud-shutter-chips" id="hudShutterChips" role="group" aria-label="Shutter presets"></div>
+              <label class="hud-adorn" id="hudShutterBox" data-mode="angle" hidden>
+                <span class="hud-pre" aria-hidden="true">1/</span><input id="hudF-shutter" maxlength="7" autocomplete="off" spellcheck="false" inputmode="decimal" aria-label="Custom shutter"><span class="hud-suf" aria-hidden="true">°</span>
               </label>
             </div>
-            <label class="hud-f"><span>ISO</span><input id="hudF-iso" maxlength="6" autocomplete="off" spellcheck="false" inputmode="numeric"></label>
             <label class="hud-f"><span>WB</span><input id="hudF-wb" maxlength="6" autocomplete="off" spellcheck="false"></label>
             <label class="hud-f"><span>FOV</span><input id="hudF-fov" maxlength="7" autocomplete="off" spellcheck="false"></label>
             <label class="hud-f"><span>Cam</span><input id="hudF-cam" class="hud-upper" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
@@ -7355,7 +7362,7 @@ const HUD_FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';   // SF 
 const HUD_G = { side: 48, band: 118, value: 30, label: 18, gapToFrame: 20, stroke: 4 };
 const HUD_REC_COLOR = '#ff3b30';
 const HUD_PRESETS = {
-  cinema: { name: 'Cinema',  fps: '23.976', shutter: '180.0', shutterMode: 'angle', iso: '800', wb: '5600', fov: '35mm', cam: 'STLLS_A001' },
+  cinema: { name: 'Cinema',  fps: '23.976', shutter: '180',   shutterMode: 'angle', iso: '800', wb: '5600', fov: '35mm', cam: 'STLLS_A001' },
   iphone: { name: 'iPhone',  fps: '30',     shutter: '60',    shutterMode: 'speed', iso: '64',  wb: '5000', fov: '24mm', cam: 'IPHONE' },
   film:   { name: 'Film',    fps: '24',     shutter: '172.8', shutterMode: 'angle', iso: '500', wb: '3200', fov: '50mm', cam: 'SUPER16' },
   slowmo: { name: 'Slow-mo', fps: '120',    shutter: '240',   shutterMode: 'speed', iso: '400', wb: '5600', fov: '24mm', cam: 'STLLS_B002' },
@@ -7364,12 +7371,15 @@ const HUD_FIELDS = ['fps', 'shutter', 'iso', 'wb', 'fov', 'cam'];        // the 
 const HUD_PRESET_KEYS = [...HUD_FIELDS, 'shutterMode'];                  // what a preset sets
 
 // Shutter is stored as the bare number; the mode decides how it reads:
-// angle → "180.0°", speed → "1/50". Typed "1/" or "°" are stripped on entry.
+// angle → "180°", speed → "1/50". Typed "1/" or "°" are stripped on entry, and a
+// decimal comma (the Icelandic keypad's) becomes a point.
 function hudShutterNumber(v) {
-  return String(v == null ? '' : v).replace(/^\s*1\s*\/\s*/, '').replace(/\s*°\s*$/, '').trim();
+  return String(v == null ? '' : v).replace(/^\s*1\s*\/\s*/, '').replace(/\s*°\s*$/, '').replace(/,/g, '.').trim();
 }
+// No needless decimals: "180.0" reads "180", "172.80" reads "172.8"
+function hudTidyNum(v) { return /^\d+\.\d*$/.test(v) ? String(parseFloat(v)) : v; }
 function hudShutterText(h) {
-  const v = hudShutterNumber(h.shutter);
+  const v = hudTidyNum(hudShutterNumber(h.shutter));
   if (!v) return '';
   return h.shutterMode === 'speed' ? '1/' + v : v + '°';
 }
@@ -7381,7 +7391,9 @@ function hudRestore(saved) {
   if (saved.shutterMode !== 'angle' && saved.shutterMode !== 'speed') {
     h.shutterMode = /^\s*1\s*\//.test(String(saved.shutter || '')) ? 'speed' : 'angle';
   }
-  h.shutter = hudShutterNumber(h.shutter);
+  h.shutter = hudTidyNum(hudShutterNumber(h.shutter));
+  h.fps = String(h.fps == null ? '' : h.fps).replace(/,/g, '.');
+  if (h.preset === 'cinema' || h.preset === 'custom') h.preset = hudMatchPreset(h);   // "180.0" boards → Cinema again
   return h;
 }
 // Switching notation keeps the same exposure, via the FPS readout — like a camera:
@@ -7393,7 +7405,7 @@ function hudConvertShutter(value, fps, toMode) {
   if (toMode === 'speed') return String(Math.max(1, Math.round(360 * f / n)));
   let a = 360 * f / n;
   const snap = HUD_COMMON_ANGLES.find(c => Math.abs(c - a) / c < 0.01);
-  if (snap) a = snap;
+  if (snap) return String(snap);   // exact, so 11.25 stays 11.25
   return String(Math.round(a * 10) / 10);
 }
 
@@ -9653,6 +9665,33 @@ const hudSizeEl     = document.getElementById('hudSize');
 const hudSizeVal    = document.getElementById('hudSizeVal');
 const hudShutterBox = document.getElementById('hudShutterBox');
 const hudShutterModeEl = document.getElementById('hudShutterMode');
+const hudShutterChipsEl = document.getElementById('hudShutterChips');
+// Well-known shutters. Angles: 180° is the classic; 172.8° (1/50 at 24 fps) and 144°
+// (1/60 at 24 fps) are the flicker-free picks under 50 Hz and 60 Hz light.
+const HUD_SHUTTER_CHIPS = {
+  angle: [45, 90, 144, 172.8, 180, 270, 360],
+  speed: [48, 50, 60, 100, 120, 250, 500],
+};
+let _shutterChipsMode = null;
+let _shutterCustom = false;   // Custom tapped: keep the field open until it's left
+function hudShutterChipValue(h) {
+  const n = Number(hudTidyNum(hudShutterNumber(h.shutter)));
+  const mode = h.shutterMode === 'speed' ? 'speed' : 'angle';
+  return n > 0 && HUD_SHUTTER_CHIPS[mode].includes(n) ? n : null;
+}
+function buildShutterChips(mode) {
+  _shutterChipsMode = mode;
+  hudShutterChipsEl.innerHTML = '';
+  for (const n of HUD_SHUTTER_CHIPS[mode]) {
+    const b = document.createElement('button');
+    b.className = 'hud-preset'; b.dataset.sv = String(n);
+    b.textContent = mode === 'speed' ? '1/' + n : n + '°';
+    hudShutterChipsEl.appendChild(b);
+  }
+  const c = document.createElement('button');
+  c.className = 'hud-preset'; c.dataset.sv = 'custom'; c.textContent = 'Custom';
+  hudShutterChipsEl.appendChild(c);
+}
 const HUD_INPUT_KEYS = [...HUD_FIELDS, 'tc'];
 const hudInputs = Object.fromEntries(HUD_INPUT_KEYS.map(k => [k, document.getElementById('hudF-' + k)]));
 const HUD_COLORS = ['#ffffff', '#f2e9dc', '#ffcc00', '#000000'];
@@ -9674,6 +9713,12 @@ function syncHudUI() {
   hudRecEl.setAttribute('aria-checked', String(v.rec !== false));
   const smode = v.shutterMode === 'speed' ? 'speed' : 'angle';
   hudShutterBox.dataset.mode = smode;
+  if (_shutterChipsMode !== smode) buildShutterChips(smode);
+  const chipN = hudShutterChipValue(v);
+  const custom = _shutterCustom || document.activeElement === hudInputs.shutter || chipN == null;
+  hudShutterChipsEl.querySelectorAll('[data-sv]').forEach(b =>
+    b.classList.toggle('active', custom ? b.dataset.sv === 'custom' : Number(b.dataset.sv) === chipN));
+  hudShutterBox.hidden = !custom;
   fitShutterField();
   hudShutterModeEl.querySelectorAll('[data-smode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.smode === smode)));
   const pct = Math.round((Number(v.textScale) || 1) * 100);
@@ -9703,6 +9748,12 @@ function fitShutterField() {
     el.style.width = '';
   }
 }
+// iOS keeps a text field focused when a button is tapped, so a chip, mode or preset tap
+// closes the field first: its blur tidies it and the new value then shows everywhere
+function hudLeaveFields() {
+  const a = document.activeElement;
+  if (a && a.tagName === 'INPUT' && HUD_INPUT_KEYS.some(k => hudInputs[k] === a)) a.blur();
+}
 function hudMatchPreset(h) {
   return Object.keys(HUD_PRESETS).find(id => HUD_PRESET_KEYS.every(f => HUD_PRESETS[id][f] === h[f])) || 'custom';
 }
@@ -9710,7 +9761,7 @@ function hudMatchPreset(h) {
 Object.entries(HUD_PRESETS).forEach(([id, p]) => {
   const b = document.createElement('button');
   b.className = 'hud-preset'; b.dataset.p = id; b.textContent = p.name;
-  b.addEventListener('click', () => hudEdit(h => { HUD_PRESET_KEYS.forEach(f => { h[f] = p[f]; }); h.preset = id; }));
+  b.addEventListener('click', () => { hudLeaveFields(); hudEdit(h => { HUD_PRESET_KEYS.forEach(f => { h[f] = p[f]; }); h.preset = id; }); });
   hudPresetsEl.appendChild(b);
 });
 
@@ -9721,17 +9772,42 @@ for (const k of HUD_FIELDS) {
       const clean = hudShutterNumber(v);
       if (clean !== v.trim()) hudInputs[k].value = v = clean;
       fitShutterField();
+    } else if (k === 'fps' && v.includes(',')) {   // decimal comma → point, so 23,976 converts and times right
+      hudInputs[k].value = v = v.replace(/,/g, '.');
     }
     h[k] = v; h.preset = hudMatchPreset(h);
   }));
 }
-hudShutterModeEl.querySelectorAll('[data-smode]').forEach(b => b.addEventListener('click', () => hudEdit(h => {
+hudShutterChipsEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-sv]');
+  if (!b) return;
+  if (b.dataset.sv === 'custom') {
+    _shutterCustom = true;
+    syncHudUI();
+    hudInputs.shutter.focus();
+    return;
+  }
+  hudLeaveFields();
+  _shutterCustom = false;
+  hudEdit(h => { h.shutter = b.dataset.sv; h.preset = hudMatchPreset(h); });
+});
+// Leaving the Custom field tidies it ("180.0" → "180"); a typed preset value lights its chip
+hudInputs.shutter.addEventListener('blur', () => {
+  _shutterCustom = false;
+  if (state.hud) {
+    state.hud.shutter = hudTidyNum(hudShutterNumber(state.hud.shutter));
+    state.hud.preset = hudMatchPreset(state.hud);
+  }
+  syncHudUI(); drawHudPreview();
+});
+hudShutterModeEl.querySelectorAll('[data-smode]').forEach(b => b.addEventListener('click', () => (hudLeaveFields(), hudEdit(h => {
+  _shutterCustom = false;
   const to = b.dataset.smode;
   if ((h.shutterMode === 'speed' ? 'speed' : 'angle') === to) return;
   h.shutter = hudConvertShutter(h.shutter, h.fps, to);   // same exposure, other notation
   h.shutterMode = to;
   h.preset = hudMatchPreset(h);
-})));
+}))));
 // Timecode: typed freely, tidied on blur — a value that doesn't parse goes back to
 // the last good one instead of silently becoming 00:00:00:00.
 let _hudTcPrev = '';

@@ -6835,8 +6835,9 @@ const boardActionsMenu = document.getElementById('boardActionsMenu');
 
 boardActionsBtn.addEventListener('click', e => {
   e.stopPropagation();
-  // Multiple boards aren't supported for video projects yet — hide "Add Board".
-  document.getElementById('bamAdd').style.display = (state.boardType === 'video') ? 'none' : '';
+  // Multiple boards aren't supported for video board projects yet — hide "Add Board".
+  // Cine Frames video projects do have them (one clip per board).
+  document.getElementById('bamAdd').style.display = (state.boardType === 'video' && _editorMode !== 'cine') ? 'none' : '';
   boardActionsMenu.hidden = !boardActionsMenu.hidden;
 });
 
@@ -6917,7 +6918,7 @@ function showBoardCapMsg() {
 }
 
 function addNewBoard() {
-  if (state.boardType === 'video') return;   // video projects are single-board for now
+  if (state.boardType === 'video' && _editorMode !== 'cine') return;   // video board projects are single-board for now
   if (_projectBoards.length >= 10) {
     showBoardCapMsg();
     return;
@@ -8155,12 +8156,12 @@ function createEmptySlotEl(item) {
 // user tapped + on first, then remaining empties in order, then append as before.
 // Camera boards hold one photo each: once the frame is filled, extra imports become
 // new camera boards with the same settings, right after this one (in arrival order).
-// Video projects stay single-board (see addNewBoard) and the 10-board cap applies —
-// in those cases the extra waits in this board's media strip instead.
+// Video board projects stay single-board (see addNewBoard; Cine Frames is the exception)
+// and the 10-board cap applies — in those cases the extra waits in the media strip.
 let _camSpillAt = 0, _camSpillFrom = null;
 function camBeginImport() { _camSpillFrom = null; }   // each import starts right after this board
 function camSpillToNewBoard(item) {
-  if (state.boardType === 'video') return false;
+  if (state.boardType === 'video' && _editorMode !== 'cine') return false;
   if (_projectBoards.length >= 10) { showBoardCapMsg(); return false; }
   saveCurrentBoardSnapshot();
   const cur = _projectBoards[_activeBoardIdx];
@@ -8172,6 +8173,27 @@ function camSpillToNewBoard(item) {
   });
   updateBoardNav();
   return true;
+}
+
+// A loading slot that spilled onto another Cine Frames board (not the one on screen):
+// swap the finished clip in there, or drop the board it was made for if prep failed.
+function _swapSpilledPlaceholder(phId, clip) {
+  for (let k = 0; k < _projectBoards.length; k++) {
+    if (k === _activeBoardIdx) continue;   // the board on screen lives in state.images
+    const b = _projectBoards[k], j = (b.images || []).findIndex(it => it.id === phId);
+    if (j < 0) continue;
+    if (clip) { clip.id = phId; b.images[j] = clip; }
+    else {
+      b.images.splice(j, 1);
+      if (!b.images.some(it => !it.emptySlot)) {
+        _projectBoards.splice(k, 1);
+        if (k < _activeBoardIdx) _activeBoardIdx--;
+      }
+    }
+    updateBoardNav();
+    return true;
+  }
+  return false;
 }
 
 function insertBoardItem(item) {
@@ -8254,9 +8276,10 @@ function buildLayout() {
   const slots  = getSlots(previewW, previewH);
   const wanted = new Set(slots.map(s => String(s.item.id)));
 
-  // Drop slots whose item is no longer shown (e.g. grid hides overflow items)
+  // Drop slots whose item is no longer shown (e.g. grid hides overflow items, or another
+  // board is loaded) — and free their videos' decoders on the way out
   layoutPreview.querySelectorAll('.slot').forEach(div => {
-    if (!wanted.has(div.dataset.itemId)) div.remove();
+    if (!wanted.has(div.dataset.itemId)) { _releaseSlotVideos(div); div.remove(); }
   });
   const existing = new Map();
   layoutPreview.querySelectorAll('.slot').forEach(div => existing.set(div.dataset.itemId, div));
@@ -8276,7 +8299,7 @@ function buildLayout() {
                : item.nativeLoop ? (clipsUseDoubleBuffer() ? 'clip2' : 'clip1') : 'clip1w';
     let slotDiv = existing.get(id);
     // Render kind changed (a loading placeholder just became a real clip) → rebuild the slot.
-    if (slotDiv && slotDiv.dataset.kind !== kind) { slotDiv.remove(); slotDiv = null; }
+    if (slotDiv && slotDiv.dataset.kind !== kind) { _releaseSlotVideos(slotDiv); slotDiv.remove(); slotDiv = null; }
     let mediaEl;
     if (slotDiv) {
       slotDiv._item = item;          // refresh live item (undo swaps in new objects)
@@ -10904,11 +10927,13 @@ function updateClipAddBtnLabel() {
 // Drop the analysed video + its shots (release the native source). Used when leaving
 // the board, or cancelling a fresh import before anything was added.
 function discardDetectedShots() {
-  if (_clipSrcIsObjURL && _clipSrcURL) { try { URL.revokeObjectURL(_clipSrcURL); } catch (e) {} }
+  // Clips imported from several videos play straight from these URLs, and with Cine
+  // Frames they sit on several boards — revoking them on a board switch blacked them out.
+  const inUse = _clipURLsInUse();
+  const revoke = u => { if (u && u.startsWith('blob:') && !inUse.has(u)) { try { URL.revokeObjectURL(u); } catch (e) {} } };
+  if (_clipSrcIsObjURL && _clipSrcURL) revoke(_clipSrcURL);
   else if (_clipSourceKey) nativeRelease(_clipSourceKey);
-  _clipShots.forEach(sh => {
-    if (sh.srcURL && sh.srcURL.startsWith('blob:')) { try { URL.revokeObjectURL(sh.srcURL); } catch (e) {} }
-  });
+  _clipShots.forEach(sh => revoke(sh.srcURL));
   _clipSrcURL = null; _clipSrcIsObjURL = false; _clipSourceKey = null; _clipNative = false;
   _clipShots = []; _clipSelected = new Set();
   _clipSrcBlob = null; _clipDetId = null;
@@ -11884,6 +11909,7 @@ async function importSingleClip() {
   // Drop a loading slot on the board immediately so the user sees it's working.
   const phId = Date.now() + Math.random();
   pushHistory();
+  camBeginImport();
   insertBoardItem({ id: phId, placeholder: true, transforms: {} });
   ensureMediaBarOpen();
   renderList(); applyBoardTypeUI(); buildLayout();
@@ -11922,6 +11948,7 @@ async function importSingleClip() {
 
   // Swap the loading slot for the finished clip — unless the user undid it meanwhile.
   const i = state.images.findIndex(it => it.id === phId);
+  if (i < 0 && _swapSpilledPlaceholder(phId, clip)) return;   // it went to another Cine board
   if (clip && i >= 0) {
     clip.id = phId;                 // reuse the slot id so it reconciles in place
     state.images[i] = clip;
@@ -11967,6 +11994,7 @@ window.nativeVideoClipsReady = function(payload) {
 
 async function addSelectedClips() {
   const idxs = [..._clipSelected].sort((a, b) => a - b);
+  camBeginImport();   // Cine Frames: extra clips become boards right after this one
 
   // Own-source entries may still be downloading their bytes in the background. Wait
   // BRIEFLY for the selected ones (usually already done) — but never hang the Add on a
@@ -12148,6 +12176,24 @@ function _tickBoardClock() {
     timelineFillEl.style.width = ((elapsed / durMs) * 100).toFixed(2) + '%';
   }
   if (hudOn()) drawHudPreview();   // timecode + REC dot tick with the export clock
+}
+
+// A detached <video> keeps its hardware decoder (and keeps playing) while anything still
+// references it — and the clip item does. Emptying it frees the decoder; buildLayout makes
+// a fresh one from item.src whenever the clip is shown again.
+function _releaseSlotVideos(div) {
+  div.querySelectorAll('video').forEach(v => {
+    try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
+  });
+}
+
+function _clipURLsInUse() {
+  const urls = new Set();
+  const add = it => { if (it && it.type === 'clip' && it.src) urls.add(it.src); };
+  state.images.forEach(add);
+  _projectBoards.forEach(b => (b.images || []).forEach(add));
+  _clipSources.forEach(e => { if (e.liveURL) urls.add(e.liveURL); if (e.blobURL) urls.add(e.blobURL); });
+  return urls;
 }
 
 function _resetClipPlayers() {
@@ -13492,6 +13538,7 @@ exportBarX.addEventListener('click', () => {
   _videoExportBusy = false;
   _exportCancelled = true;
   _videoExportCancel = true;
+  if (_exportDoneHook) { const h = _exportDoneHook; _exportDoneHook = null; h(false); }   // stop an Export All
   cancelAnimationFrame(_labelRaf);
   exportBar.hidden = true;
   exportBarFill.style.transition = 'none';
@@ -13554,6 +13601,11 @@ updateFreeTierNote();
 
 exportBtn.addEventListener('click', () => {
   if (_editorMode === 'cine' && !stllsIsPro()) { stllsAskPro(); return; }   // every Cine Frames export is Pro
+  // Cine Frames: one shot per board, so several boards → offer them all as separate files
+  if (_editorMode === 'cine' && _boardsWithContent().length > 1) {
+    document.getElementById('exportChoiceModal').hidden = false;
+    return;
+  }
   if (hasClips()) {                              // any clip present → looping-video export
     if (!stllsIsPro()) { stllsAskPro(); return; }   // free tier: test video boards, export with Pro
     doVideoExport(); return;
@@ -13567,7 +13619,8 @@ exportBtn.addEventListener('click', () => {
 
 document.getElementById('exportChoiceCurrent').addEventListener('click', () => {
   document.getElementById('exportChoiceModal').hidden = true;
-  doExport();
+  if (hasClips()) { if (!stllsIsPro()) { stllsAskPro(); return; } doVideoExport(); }
+  else doExport();
 });
 
 document.getElementById('exportChoiceCancel').addEventListener('click', () => {
@@ -13576,7 +13629,8 @@ document.getElementById('exportChoiceCancel').addEventListener('click', () => {
 
 document.getElementById('exportChoiceAll').addEventListener('click', async () => {
   document.getElementById('exportChoiceModal').hidden = true;
-  await doExportAll();
+  if (_editorMode === 'cine') await doCineExportAll();
+  else await doExportAll();
 });
 
 // Build a rounded-rect path (radius clamped to half the box).
@@ -13628,8 +13682,8 @@ async function doExportAll() {
   const mime = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
   const qual = _exportFmt === 'jpg' ? 0.93 : undefined;
 
-  // Only export boards that have images — skip empty ones
-  const boardsToExport = _projectBoards.filter(b => b.images.length > 0);
+  // Only export boards that have images — skip empty ones (a lone + frame counts as empty)
+  const boardsToExport = _boardsWithContent();
   if (boardsToExport.length === 0) { window.exportComplete(false); return; }
 
   for (let i = 0; i < boardsToExport.length; i++) {
@@ -13637,40 +13691,115 @@ async function doExportAll() {
     _activeBoardIdx = _projectBoards.indexOf(boardsToExport[i]);
     updateBoardNav();
 
-    const [cW, cH] = canonicalDims();
-    const W = cW * expScale, H = cH * expScale;
-
     startExportBar();
     exportBarLabel.textContent = `Board ${i + 1} of ${boardsToExport.length}…`;
-
-    const exportImgs = await resolveExportImages(state.images);
-    const cvs = document.createElement('canvas');
-    cvs.width = W; cvs.height = H;
-    const ctx = cvs.getContext('2d');
-    paintBoard(ctx, W, H, expScale, exportImgs);
-
-    await new Promise(resolve => {
-      cvs.toBlob(blob => {
-        if (window.webkit?.messageHandlers?.exportImage) {
-          const reader = new FileReader();
-          reader.onload = () => {
-            window.webkit.messageHandlers.exportImage.postMessage(reader.result);
-            resolve();
-          };
-          reader.readAsDataURL(blob);
-        } else {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = `board-${i + 1}.${_exportFmt}`; a.click();
-          setTimeout(() => URL.revokeObjectURL(url), 5000);
-          resolve();
-        }
-      }, mime, qual);
-    });
+    await _exportBoardImage(expScale, mime, qual, `board-${i + 1}`);
 
     if (i < boardsToExport.length - 1) await new Promise(r => setTimeout(r, 300));
   }
   window.exportComplete(true);
+}
+
+function _boardsWithContent() {
+  saveCurrentBoardSnapshot();
+  return _projectBoards.filter(b => (b.images || []).some(it => !it.emptySlot && !it.placeholder));
+}
+
+// Paint the board on screen at export size and hand it to Photos (or download it).
+async function _exportBoardImage(expScale, mime, qual, name) {
+  const [cW, cH] = canonicalDims();
+  const W = cW * expScale, H = cH * expScale;
+  const exportImgs = await resolveExportImages(state.images);
+  const cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  paintBoard(cvs.getContext('2d'), W, H, expScale, exportImgs);
+  await new Promise(resolve => {
+    cvs.toBlob(blob => {
+      if (window.webkit?.messageHandlers?.exportImage) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          window.webkit.messageHandlers.exportImage.postMessage(reader.result);
+          resolve();
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${name}.${_exportFmt}`; a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+        resolve();
+      }
+    }, mime, qual);
+  });
+}
+
+// Cine Frames → All Boards: every board as its own file, one after another — clip
+// boards as videos (each with its own readouts and timecode), photo boards as images.
+let _exportDoneHook = null;   // resolves one board's video export inside a batch
+let _exportBatchLabel = null; // "Board 2 of 4" while a batch runs
+function _exportVideoAndWait() {
+  return new Promise(resolve => {
+    _exportDoneHook = resolve;
+    _rl.delete('export');   // the 3 s re-tap guard is for taps, not for the next board
+    doVideoExport().catch(() => { if (_exportDoneHook === resolve) window.exportComplete(false); });
+  });
+}
+async function doCineExportAll() {
+  if (_videoExportBusy) return;
+  if (!stllsIsPro()) { stllsAskPro(); return; }
+  const list = _boardsWithContent();
+  if (!list.length) return;
+  const expScale = +exportScaleEl.value;
+  _exportFmt = exportFmt.value;
+  const mime = _exportFmt === 'jpg' ? 'image/jpeg' : 'image/png';
+  const qual = _exportFmt === 'jpg' ? 0.93 : undefined;
+  _exportCancelled = false; _videoExportCancel = false;
+  const startId = _projectBoards[_activeBoardIdx] && _projectBoards[_activeBoardIdx].id;
+  // by id: saving a snapshot replaces the board object, so object references go stale
+  const ids = list.map(b => b.id);
+  let ok = true;
+  try {
+    for (let i = 0; i < ids.length && ok; i++) {
+      const idx = _projectBoards.findIndex(b => b.id === ids[i]);
+      if (idx < 0) continue;   // deleted meanwhile
+      if (idx !== _activeBoardIdx) {
+        saveCurrentBoardSnapshot();
+        _activeBoardIdx = idx;
+        loadBoardState(_projectBoards[idx]);
+        updateBoardNav();
+      }
+      _exportBatchLabel = `Board ${i + 1} of ${ids.length}`;
+      if (state.images.some(it => it.type === 'clip')) {
+        ok = await _exportVideoAndWait();
+      } else {
+        startExportBar();
+        exportBarLabel.textContent = _exportBatchLabel + '…';
+        await _exportBoardImage(expScale, mime, qual, `cine-${i + 1}`);
+      }
+      if (_videoExportCancel) break;   // ✕ on the export bar
+      if (ok && i < ids.length - 1) {
+        exportBarLabel.textContent = _exportBatchLabel + ' · saved';
+        await new Promise(r => setTimeout(r, 400));
+      }
+    }
+  } catch (e) {
+    console.warn('Export All failed:', e);
+    ok = false;
+  }
+  _exportDoneHook = null;
+  _exportBatchLabel = null;
+  if (!_videoExportCancel) {   // cancelled → the bar is already gone, nothing to report
+    _exportCancelled = false;  // a stalled board's watchdog set it; show the result anyway
+    window.exportComplete(ok);
+  }
+  // back to the board you exported from
+  const back = _projectBoards.findIndex(b => b.id === startId);
+  if (back >= 0 && back !== _activeBoardIdx) {
+    saveCurrentBoardSnapshot();
+    _activeBoardIdx = back;
+    loadBoardState(_projectBoards[back]);
+    updateBoardNav();
+  }
 }
 
 async function doExport() {
@@ -13726,6 +13855,8 @@ function _armExportWatchdog(ms) {
 window.exportComplete = function(success) {
   clearTimeout(_veWatchdog);
   _videoExportBusy = false;
+  const hook = _exportDoneHook;
+  if (hook) { _exportDoneHook = null; hook(!!success); return; }   // Export All: on to the next board
   if (_exportCancelled || _videoExportCancel) return;
   cancelAnimationFrame(_labelRaf);
 
@@ -13810,7 +13941,7 @@ window.exportProgress = function(p) {
   const pct = Math.max(30, Math.min(98, Math.round(30 + (+p || 0) * 68)));
   exportBarFill.style.transition = 'none';
   exportBarFill.style.width = pct + '%';
-  exportBarLabel.textContent = `Exporting… ${pct}%`;
+  exportBarLabel.textContent = _exportBatchLabel ? `${_exportBatchLabel} · ${pct}%` : `Exporting… ${pct}%`;
 };
 
 // Native AVFoundation export: hand the layout geometry + each clip's bytes to Swift,
@@ -13840,7 +13971,7 @@ async function doVideoExportNative() {
 
   exportBar.hidden = false;
   exportBarFill.style.transition = 'none'; exportBarFill.style.width = '10%';
-  exportBarLabel.textContent = 'Exporting…';
+  exportBarLabel.textContent = _exportBatchLabel ? _exportBatchLabel + '…' : 'Exporting…';
 
   try {
   // Let in-flight imports/edits finish so the payload is complete and consistent.

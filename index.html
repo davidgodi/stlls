@@ -1917,7 +1917,19 @@
   .hud-adorn[data-mode="angle"] .hud-pre, .hud-adorn[data-mode="speed"] .hud-suf { display: none; }
   .hud-adorn[data-mode="angle"] input { padding-left: 9px; flex: 0 0 auto; }   /* width set to the digits (JS), so ° follows them */
   .hud-adorn[data-mode="speed"] input { padding-right: 9px; }
-  .hud-f-shutter { grid-column: 1 / -1; }
+  .hud-f-shutter, .hud-f-wide { grid-column: 1 / -1; }
+  .hud-looks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .hud-looks .hud-preset { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 9px 6px; }
+  .hud-looks .hud-preset small, .hud-nd-chips .hud-preset small { font-family: inherit; font-size: 9px; color: var(--text-dim); }
+  .hud-f > span em, .bgp-sec-hint { font-style: normal; text-transform: none; letter-spacing: 0; opacity: 0.7; }
+  .hud-nd-chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .hud-nd-chips .hud-preset {
+    display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; line-height: 1.2;
+    font: 500 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .hud-nd-chips .hud-preset[data-nd="off"], .hud-nd-chips .hud-preset[data-nd="custom"] { font-family: inherit; font-size: 11.5px; }
+  .hud-f-nd { gap: 8px; }
+  #hudNdBox[hidden], #hudGearOpts[hidden], #hudMonitorOpts[hidden] { display: none !important; }
   .hud-shutter-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .hud-shutter-chips .hud-preset { padding: 8px 2px; font: 500 12px ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
   .hud-shutter-chips .hud-preset[data-sv="custom"] { font-family: inherit; font-size: 11.5px; }
@@ -4172,7 +4184,13 @@
           </div>
         </div>
         <div class="cine-pane" data-cpane="readouts" hidden>
-          <div class="bgp-sec cine-sec-first">Preset</div>
+          <div class="bgp-sec cine-sec-first">Look</div>
+          <div class="hud-looks" id="hudLook" role="group" aria-label="Readout look">
+            <button class="hud-preset" data-look="monitor">Monitor<small>Exposure readouts</small></button>
+            <button class="hud-preset" data-look="gear">Gear<small>Camera, lens, filters</small></button>
+          </div>
+          <div id="hudMonitorOpts">
+          <div class="bgp-sec">Preset</div>
           <div class="hud-presets" id="hudPresets"></div>
           <div class="bgp-sec">Readouts</div>
           <div class="hud-fields">
@@ -4196,7 +4214,26 @@
             <label class="hud-f"><span>Timecode</span><input id="hudF-tc" maxlength="11" autocomplete="off" spellcheck="false" inputmode="numeric" placeholder="00:00:00:00"></label>
             <div class="hud-f hud-f-rec"><span>REC</span><button class="hud-switch" id="hudRec" role="switch" aria-checked="true" aria-label="Show the REC indicator"><span></span></button></div>
           </div>
-          <p class="hud-note">Clear a value to hide it. On video the timecode runs from its start value and the REC dot blinks.</p>
+          </div>
+          <!-- Gear: a minimal caption under the frame. Focal length is the same value as Monitor's FOV. -->
+          <div id="hudGearOpts" hidden>
+            <div class="bgp-sec">Gear</div>
+            <div class="hud-fields">
+              <label class="hud-f"><span>Camera</span><input id="hudG-camera" maxlength="24" autocomplete="off" spellcheck="false"></label>
+              <label class="hud-f"><span>Focal length</span><input id="hudG-fov" maxlength="7" autocomplete="off" spellcheck="false"></label>
+              <label class="hud-f hud-f-wide"><span>Lens</span><input id="hudG-lens" maxlength="28" autocomplete="off" spellcheck="false"></label>
+              <label class="hud-f hud-f-wide"><span>Filter <em>optional</em></span><input id="hudG-filter" maxlength="28" autocomplete="off" spellcheck="false" placeholder="e.g. Black Pro-Mist 1/4"></label>
+            </div>
+          </div>
+          <!-- ND in both looks. Cinema NDs go by optical density: each 0.3 is one stop. -->
+          <div class="bgp-sec">ND filter <em class="bgp-sec-hint">optional</em></div>
+          <div class="hud-f hud-f-nd">
+            <div class="hud-nd-chips" id="hudNdChips" role="group" aria-label="ND filter"></div>
+            <label class="hud-adorn" id="hudNdBox" data-mode="speed" hidden>
+              <span class="hud-pre" aria-hidden="true">ND&nbsp;</span><input id="hudF-nd" maxlength="9" autocomplete="off" spellcheck="false" inputmode="decimal" aria-label="Custom ND"><span class="hud-suf" aria-hidden="true"></span>
+            </label>
+          </div>
+          <p class="hud-note" id="hudNote">Clear a value to hide it. On video the timecode runs from its start value and the REC dot blinks.</p>
         </div>
         <div class="cine-pane" data-cpane="style" hidden>
           <div class="cine-row cine-sec-first"><span>Readouts</span><button class="hud-switch" id="hudToggle" role="switch" aria-checked="false" aria-label="Show the readouts"><span></span></button></div>
@@ -7413,7 +7450,19 @@ function hudConvertShutter(value, fps, toMode) {
 function hudDefaults() {
   const p = HUD_PRESETS.cinema;
   return { on: true, preset: 'cinema', fps: p.fps, shutter: p.shutter, shutterMode: p.shutterMode, iso: p.iso, wb: p.wb,
-           fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff', textScale: 1 };
+           fov: p.fov, cam: p.cam, rec: true, tc: '00:00:00:00', color: '#ffffff', textScale: 1,
+           look: 'monitor',   // 'monitor' = exposure readouts around the frame; 'gear' = camera/lens caption
+           camera: 'ALEXA 35', lens: 'Signature Prime', filter: '', nd: '' };
+}
+// ND as optical density, the cinema way ("0.9" = 3 stops). Empty = no ND readout.
+// Typed "ND" prefixes and decimal commas are tidied; custom labels ("IRND 1.2") stay as typed.
+const HUD_ND_CHIPS = ['0.3', '0.6', '0.9', '1.2', '1.5', '1.8', '2.1', '2.4'];
+function hudNdValue(h) {
+  return hudTidyNum(String((h && h.nd) || '').replace(/,/g, '.').replace(/^\s*nd\s*/i, '').trim());
+}
+function hudNdText(h) {   // the Gear caption's "ND 0.9"
+  const v = hudNdValue(h);
+  return !v ? '' : /nd/i.test(v) ? v : 'ND ' + v;
 }
 // Readout text size (the panel's Size slider): scales the text, its gap to the
 // frame and the bands together, so a bigger setting never crowds the board edge.
@@ -7460,7 +7509,8 @@ function hudLayout(ctx, W, H) {
   const base = hudTcBase(), start = hudTcFrames(h.tc, base) || 0;
   const val = s => String(s == null ? '' : s).trim();
   const pair = (label, v) => ({ kind: 'pair', label, value: v });
-  const topItems = [['FPS', h.fps], ['SHUTTER', hudShutterText(h)], ['ISO', h.iso], ['WB', h.wb]]
+  if (h.look === 'gear') return hudGearLayout(ctx, h, frame, sc, ts, base, start);
+  const topItems = [['FPS', h.fps], ['SHUTTER', hudShutterText(h)], ['ISO', h.iso], ['ND', hudNdValue(h)], ['WB', h.wb]]
     .filter(([, v]) => val(v)).map(([l, v]) => pair(l, val(v)));
   const botItems = [];
   if (val(h.fov)) botItems.push(pair('FOV', val(h.fov)));
@@ -7506,6 +7556,34 @@ function hudLayout(ctx, W, H) {
   return { color: h.color || '#ffffff', sc, frame, top, bottom, base, start };
 }
 
+// Gear look: camera name, then lens · focal length · filter · ND, left-aligned under the
+// frame. Nothing ticks, so the native video export gets it all in the static layer.
+// A line wider than the frame shrinks to fit.
+function hudGearLayout(ctx, h, frame, sc, ts, base, start) {
+  const val = s => String(s == null ? '' : s).trim();
+  const fit = (text, size, weight) => {
+    ctx.font = `${weight} ${size}px ${HUD_FONT}`;
+    const w = ctx.measureText(text).width;
+    return w > frame.w ? size * Math.max(0.5, frame.w / w) : size;
+  };
+  const l1 = val(h.camera);
+  const l2 = [val(h.lens), val(h.fov), val(h.filter), hudNdText(h)].filter(Boolean).join('  ·  ');
+  const lines = [];
+  let y = frame.y + frame.h + HUD_G.gapToFrame * sc * ts;
+  if (l1) {
+    const sz = fit(l1, HUD_G.value * sc * ts, 500);
+    y += sz * 0.72;
+    lines.push({ kind: 'text', value: l1, x: frame.x, y, size: sz, weight: 500, alpha: 1 });
+    y += sz * 0.5;
+  }
+  if (l2) {
+    const sz = fit(l2, HUD_G.label * sc * ts * 1.25, 400);
+    y += sz * 0.72;
+    lines.push({ kind: 'text', value: l2, x: frame.x, y, size: sz, weight: 400, alpha: 0.7 });
+  }
+  return { color: h.color || '#ffffff', sc, frame, top: [], bottom: lines, base, start };
+}
+
 // Frame line, labels, values and the word REC — everything that never changes
 // while a video plays.
 function drawHudStatic(ctx, L) {
@@ -7526,6 +7604,11 @@ function drawHudStatic(ctx, L) {
     } else if (it.kind === 'rec') {
       ctx.font = `500 ${it.vS}px ${HUD_FONT}`;
       ctx.fillText('REC', it.x + it.r * 2 + it.vS * 0.34, it.y);
+    } else if (it.kind === 'text') {   // Gear caption line
+      ctx.globalAlpha = it.alpha;
+      ctx.font = `${it.weight} ${it.size}px ${HUD_FONT}`;
+      ctx.fillText(it.value, it.x, it.y);
+      ctx.globalAlpha = 1;
     }
   }
   ctx.restore();
@@ -9697,6 +9780,30 @@ const HUD_SHUTTER_CHIPS = {
 };
 let _shutterChipsMode = null;
 let _shutterCustom = false;   // Custom tapped: keep the field open until it's left
+// Look switch + Gear fields + ND chips
+const hudLookEl     = document.getElementById('hudLook');
+const hudMonitorOpts = document.getElementById('hudMonitorOpts');
+const hudGearOpts   = document.getElementById('hudGearOpts');
+const hudNoteEl     = document.getElementById('hudNote');
+const hudNdChipsEl  = document.getElementById('hudNdChips');
+const hudNdBox      = document.getElementById('hudNdBox');
+const hudNdInput    = document.getElementById('hudF-nd');
+const HUD_GEAR_KEYS = ['camera', 'lens', 'fov', 'filter'];   // fov = Monitor's FOV, shown as Focal length
+const hudGearInputs = Object.fromEntries(HUD_GEAR_KEYS.map(k => [k, document.getElementById('hudG-' + k)]));
+let _ndCustom = false;
+(function buildNdChips() {
+  const add = (nd, html) => {
+    const b = document.createElement('button');
+    b.className = 'hud-preset'; b.dataset.nd = nd; b.innerHTML = html;
+    hudNdChipsEl.appendChild(b);
+  };
+  add('off', 'Off');
+  HUD_ND_CHIPS.forEach(nd => {
+    const stops = Math.round(parseFloat(nd) / 0.3);
+    add(nd, `${nd}<small>${stops} stop${stops > 1 ? 's' : ''}</small>`);
+  });
+  add('custom', 'Custom');
+})();
 function hudShutterChipValue(h) {
   const n = Number(hudTidyNum(hudShutterNumber(h.shutter)));
   const mode = h.shutterMode === 'speed' ? 'speed' : 'angle';
@@ -9743,6 +9850,23 @@ function syncHudUI() {
     b.classList.toggle('active', custom ? b.dataset.sv === 'custom' : Number(b.dataset.sv) === chipN));
   hudShutterBox.hidden = !custom;
   fitShutterField();
+  // Look
+  const gear = v.look === 'gear';
+  hudLookEl.querySelectorAll('[data-look]').forEach(b => b.classList.toggle('active', (b.dataset.look === 'gear') === gear));
+  hudMonitorOpts.hidden = gear;
+  hudGearOpts.hidden = !gear;
+  hudNoteEl.textContent = gear ? 'Clear a value to hide it. Filter and ND are optional.'
+                               : 'Clear a value to hide it. On video the timecode runs from its start value and the REC dot blinks.';
+  for (const k of HUD_GEAR_KEYS) {
+    if (document.activeElement !== hudGearInputs[k]) hudGearInputs[k].value = v[k] == null ? '' : v[k];
+  }
+  // ND
+  const nd = hudNdValue(v);
+  const ndCustom = _ndCustom || document.activeElement === hudNdInput || (nd && !HUD_ND_CHIPS.includes(nd));
+  hudNdChipsEl.querySelectorAll('[data-nd]').forEach(b => b.classList.toggle('active',
+    ndCustom ? b.dataset.nd === 'custom' : nd ? b.dataset.nd === nd : b.dataset.nd === 'off'));
+  hudNdBox.hidden = !ndCustom;
+  if (document.activeElement !== hudNdInput) hudNdInput.value = nd;
   hudShutterModeEl.querySelectorAll('[data-smode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.smode === smode)));
   const pct = Math.round((Number(v.textScale) || 1) * 100);
   hudSizeEl.value = pct; hudSizeVal.textContent = pct;
@@ -9775,7 +9899,7 @@ function fitShutterField() {
 // closes the field first: its blur tidies it and the new value then shows everywhere
 function hudLeaveFields() {
   const a = document.activeElement;
-  if (a && a.tagName === 'INPUT' && HUD_INPUT_KEYS.some(k => hudInputs[k] === a)) a.blur();
+  if (a && a.tagName === 'INPUT' && a.type !== 'range' && a.closest('#cinePanel')) a.blur();
 }
 function hudMatchPreset(h) {
   return Object.keys(HUD_PRESETS).find(id => HUD_PRESET_KEYS.every(f => HUD_PRESETS[id][f] === h[f])) || 'custom';
@@ -9814,6 +9938,43 @@ hudShutterChipsEl.addEventListener('click', e => {
   _shutterCustom = false;
   hudEdit(h => { h.shutter = b.dataset.sv; h.preset = hudMatchPreset(h); });
 });
+// Look: Monitor (exposure readouts) or Gear (camera / lens caption) — same frame, so no reflow
+hudLookEl.querySelectorAll('[data-look]').forEach(b => b.addEventListener('click', () => {
+  hudLeaveFields();
+  hudEdit(h => { h.look = b.dataset.look; });
+}));
+for (const k of HUD_GEAR_KEYS) {
+  hudGearInputs[k].addEventListener('input', () => hudEdit(h => {
+    h[k] = hudGearInputs[k].value;
+    if (k === 'fov') h.preset = hudMatchPreset(h);   // FOV is part of the Monitor presets
+  }));
+  hudGearInputs[k].addEventListener('keydown', e => { if (e.key === 'Enter') hudGearInputs[k].blur(); });
+}
+// ND: Off, the standard densities, or Custom (a typed value like 1.35 or IRND 1.2)
+hudNdChipsEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-nd]');
+  if (!b) return;
+  if (b.dataset.nd === 'custom') {
+    _ndCustom = true;
+    syncHudUI();
+    hudNdInput.focus();
+    return;
+  }
+  hudLeaveFields();
+  _ndCustom = false;
+  hudEdit(h => { h.nd = b.dataset.nd === 'off' ? '' : b.dataset.nd; });
+});
+hudNdInput.addEventListener('input', () => hudEdit(h => {
+  if (hudNdInput.value.includes(',')) hudNdInput.value = hudNdInput.value.replace(/,/g, '.');
+  h.nd = hudNdInput.value;
+}));
+hudNdInput.addEventListener('blur', () => {
+  _ndCustom = false;
+  if (state.hud) state.hud.nd = hudNdValue(state.hud);
+  syncHudUI(); drawHudPreview();
+});
+hudNdInput.addEventListener('keydown', e => { if (e.key === 'Enter') hudNdInput.blur(); });
+
 // Leaving the Custom field tidies it ("180.0" → "180"); a typed preset value lights its chip
 hudInputs.shutter.addEventListener('blur', () => {
   _shutterCustom = false;
@@ -9870,8 +10031,6 @@ hudToggle.addEventListener('click', () => {
   syncHudUI();
   buildLayout();
 });
-syncHudUI();
-
 syncHudUI();
 
 document.getElementById('bgUploadBtn').addEventListener('click', () => { bgFileInput.value = ''; bgFileInput.click(); });

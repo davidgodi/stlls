@@ -31,3 +31,7 @@ Screenshots/
 secrets.*
 *.pem
 *.key
+
+# App Store Connect API keys: never commit (they live in ~/.appstoreconnect/private_keys/)
+*.p8
+AuthKey_*

@@ -9,9 +9,9 @@
 /* Begin PBXBuildFile section */
 		1B1B1B1B1B1B1B1B1B1B1B1B /* StllsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A6A6A6A6A6A6A6A6A6A6A6A /* StllsApp.swift */; };
 		2B2B2B2B2B2B2B2B2B2B2B2B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7A7A7A7A7A7A7A7A7A7A7A /* ContentView.swift */; };
-		AB01CD23EF45AB01CD23EF45 /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */; };
 		3B3B3B3B3B3B3B3B3B3B3B3B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A8A8A8A8A8A8A8A8A8A8A8A /* Assets.xcassets */; };
 		4B4B4B4B4B4B4B4B4B4B4B4B /* web in Resources */ = {isa = PBXBuildFile; fileRef = 0B0B0B0B0B0B0B0B0B0B0B0B /* web */; };
+		AB01CD23EF45AB01CD23EF45 /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,10 +19,10 @@
 		5A5A5A5A5A5A5A5A5A5A5A5A /* Stlls.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Stlls.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A6A6A6A6A6A6A6A6A6A6A6A /* StllsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StllsApp.swift; sourceTree = "<group>"; };
 		7A7A7A7A7A7A7A7A7A7A7A7A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
-		9C9C9C9C9C9C9C9C9C9C9C9C /* StllsPro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StllsPro.storekit; sourceTree = "<group>"; };
 		8A8A8A8A8A8A8A8A8A8A8A8A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8C8C8C8C8C8C8C8C8C8C8C8C /* Subscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Subscription.swift; sourceTree = "<group>"; };
 		9A9A9A9A9A9A9A9A9A9A9A9A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9C9C9C9C9C9C9C9C9C9C9C9C /* StllsPro.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = StllsPro.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,7 +95,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 2630;
+				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					8B8B8B8B8B8B8B8B8B8B8B8B = {
 						CreatedOnToolsVersion = 15.0;
@@ -214,7 +214,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -232,7 +232,7 @@
 				CURRENT_PROJECT_VERSION = 13;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Stlls/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -255,7 +255,7 @@
 				CURRENT_PROJECT_VERSION = 13;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Stlls/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -320,7 +320,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

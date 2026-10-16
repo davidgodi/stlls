@@ -1138,7 +1138,15 @@
     transition: transform 0.2s ease, border-color 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
+  .nt-btn { position: relative; }
   .nt-btn:hover { border-color: var(--accent); }
+  /* the tool used most recently sits on top with a small label */
+  .nt-last {
+    position: absolute; top: 9px; right: 12px; display: flex; align-items: center; gap: 5px;
+    font-size: 8.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-mid); pointer-events: none;
+  }
+  .nt-last::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
   .nt-btn:active { transform: scale(0.97); }
   .nt-txt b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
   .nt-txt span { display: block; font-size: 10.5px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
@@ -3907,11 +3915,11 @@
       <div id="homeNewGroup">
         <span id="homeNewLabel">Create new project</span>
         <div class="home-newtype">
-          <button class="nt-btn" id="ntBoard">
+          <button class="nt-btn" id="ntBoard" data-tool="board">
             <span class="nt-art"><span class="nt-board" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
             <span class="nt-txt"><b>Board</b><span>Compose stills and clips in one layout</span></span>
           </button>
-          <button class="nt-btn" id="ntCarousel">
+          <button class="nt-btn" id="ntCarousel" data-tool="carousel">
             <span class="nt-art">
               <span class="nt-carousel" aria-hidden="true">
                 <span class="nt-track"><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span><span class="nt-card"></span></span>
@@ -3920,11 +3928,11 @@
             </span>
             <span class="nt-txt"><b>Carousel</b><span>A swipeable set of slides for your post</span></span>
           </button>
-          <button class="nt-btn" id="ntGrid">
+          <button class="nt-btn" id="ntGrid" data-tool="grid">
             <span class="nt-art"><span class="nt-grid" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></span>
             <span class="nt-txt"><b>Grid</b><span>Turn one design into a seamless profile grid</span></span>
           </button>
-          <button class="nt-btn" id="ntCine">
+          <button class="nt-btn" id="ntCine" data-tool="cine">
             <span class="nt-art"><span class="nt-cine" aria-hidden="true"><span class="ncf-row"><i></i><i></i><i></i></span><span class="ncf-frame"><span class="ncf-rec"></span></span><span class="ncf-row"><i></i><i></i><i></i></span></span></span>
             <span class="nt-txt"><b>Cine Frames</b><span>A shot framed like a camera monitor, readouts and all</span></span>
           </button>
@@ -6468,7 +6476,41 @@ async function deserializeBoards(savedBoards) {
   }));
 }
 
+// ── Home: newest tool first ─────────────────────────────────────────────────
+// The project types (Board, Carousel, Grid, Cine Frames) are ordered by when they
+// were last used, creating a project or opening one, newest on top with a "Last used"
+// label, so getting back to what you were doing is one tap. Kept on this device only.
+const TOOL_ORDER_KEY = 'stlls-tool-order';
+function readToolOrder() {
+  try { const a = JSON.parse(localStorage.getItem(TOOL_ORDER_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch (e) { return []; }
+}
+function noteToolUsed(kind) {
+  const order = [kind, ...readToolOrder().filter(k => k !== kind)];
+  try { localStorage.setItem(TOOL_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+}
+// Runs while Home is hidden (every way back to Home draws the project list), so the
+// buttons never visibly jump; they only move when the order changed, because moving a
+// node restarts its CSS mini-animation.
+function applyToolOrder() {
+  const wrap = document.querySelector('.home-newtype');
+  if (!wrap) return;
+  const btns = [...wrap.querySelectorAll('.nt-btn[data-tool]')];
+  const used = readToolOrder();
+  const rank = b => { const i = used.indexOf(b.dataset.tool); return i < 0 ? used.length + btns.indexOf(b) : i; };
+  const want = [...btns].sort((a, b) => rank(a) - rank(b) || btns.indexOf(a) - btns.indexOf(b));
+  if (want.some((b, i) => b !== btns[i])) want.forEach(b => wrap.appendChild(b));
+  wrap.querySelectorAll('.nt-last').forEach(el => el.remove());
+  const top = want[0];
+  if (top && used.includes(top.dataset.tool)) {
+    const tag = document.createElement('span');
+    tag.className = 'nt-last'; tag.textContent = 'Last used';
+    top.appendChild(tag);
+  }
+}
+
 function renderProjectsList() {
+  applyToolOrder();   // Home is about to show: newest tool first
   boardsGrid.innerHTML = '';
   if (projects.length === 0) {
     boardsGrid.innerHTML = '<div style="color:var(--text-dim);font-size:11px;grid-column:1/-1;padding:8px 0;">No projects yet. Tap + to create one.</div>';
@@ -6568,6 +6610,7 @@ function leaveHome(then) {
 
 function openProject(id) {
   const meta = projects.find(p => p.id === id);
+  noteToolUsed(meta?.kind || 'board');
   if (meta?.kind === 'carousel') { openCarouselProject(id); return; }
   if (meta?.kind === 'grid')     { openGridProject(id); return; }
   const isCine = meta?.kind === 'cine';
@@ -6967,11 +7010,18 @@ function addNewBoard() {
   switchToBoard(_projectBoards.length - 1, 'left');
 }
 
+// Worth keeping? Cine Frames boards always hold their empty + frame, so only real media
+// counts there (an untouched new Cine project is discarded like an empty board).
+function projectHasContent() {
+  if (_editorMode === 'cine') return _projectBoards.some(b => (b.images || []).some(it => !it.emptySlot && !it.placeholder));
+  return _projectBoards.some(b => b.images.length > 0);
+}
+
 function goHome() {
   discardDetectedShots();   // release any analysed-video source when leaving the project
   if (_currentProjectId) {
     saveCurrentBoardSnapshot();
-    const hasImages = _projectBoards.some(b => b.images.length > 0);
+    const hasImages = projectHasContent();
     if (hasImages) {
       const thumb = generateThumbnail();
       const project = projects.find(p => p.id === _currentProjectId);
@@ -7022,7 +7072,7 @@ function writeCurrentProjectToDB() {
   if (_carOpen) { saveCarouselToDB(); return; }   // carousel editor open — its own save path
   if (!_projectBoards.length) return;   // boards not loaded (or project closed): nothing to save
   saveCurrentBoardSnapshot();
-  if (!_projectBoards.some(b => b.images.length > 0)) return;
+  if (!projectHasContent()) return;
   const project = projects.find(p => p.id === _currentProjectId);
   if (project) {
     const thumb = generateThumbnail();
@@ -7043,6 +7093,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', writeCurrentProjectToDB);
 
 function createNewBoardProject() {
+  noteToolUsed('board');
   setEditorMode('board');
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, updatedAt: Date.now(), thumbnail: null });
@@ -7119,6 +7170,7 @@ function cineBoardTemplate() {
                               bg: '#000000', boardType: 'photo', clipDuration: 15, images: [] });
 }
 function createNewCineProject() {
+  noteToolUsed('cine');
   setEditorMode('cine');
   cineSelectTab('shots');   // a new project starts by bringing in a shot
   _currentProjectId = genId();
@@ -16359,6 +16411,7 @@ function leaveHomeToCarousel(then) {
 }
 
 function createNewCarouselProject() {
+  noteToolUsed('carousel');
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, kind: 'carousel', updatedAt: Date.now(), thumbnail: null });
   saveProjects();
@@ -17151,6 +17204,7 @@ document.getElementById('gridHomeBtn').addEventListener('click', closeGridAndGoH
 document.getElementById('gridSettingsBtn').addEventListener('click', () => openSettings());
 
 function createNewGridProject() {
+  noteToolUsed('grid');
   _currentProjectId = genId();
   projects.push({ id: _currentProjectId, kind: 'grid', updatedAt: Date.now(), thumbnail: null });
   saveProjects();

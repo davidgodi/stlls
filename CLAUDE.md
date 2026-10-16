@@ -18,10 +18,10 @@ Both copies must be committed together — `Stlls/web/index.html` is what ships 
 
 ## Building & verifying Swift
 ```bash
-xcrun -sdk iphonesimulator swiftc -typecheck -target arm64-apple-ios16.0-simulator Stlls/Subscription.swift Stlls/StllsApp.swift Stlls/ContentView.swift
+xcrun -sdk iphonesimulator swiftc -typecheck -target arm64-apple-ios17.0-simulator Stlls/Subscription.swift Stlls/StllsApp.swift Stlls/ContentView.swift
 xcodebuild build -scheme Stlls -destination 'generic/platform=iOS Simulator' 2>&1 | grep -E "BUILD (SUCCEEDED|FAILED)|error:"
 ```
-Deployment target is iOS 16.0 — check API availability (e.g. `transaction.offerType`, not `.offer` which is 17.2+). Use the SDK typecheck, not `-parse`; plain parsing misses availability errors.
+Deployment target is iOS 17.0 (pinned as a number since Oct 2026 — never `$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)`, which silently rises with each Xcode) — check API availability (e.g. `transaction.offerType`, not `.offer` which is 17.2+). Use the SDK typecheck, not `-parse`; plain parsing misses availability errors.
 
 ### Hand-editing project.pbxproj
 Collision-check every new 24-hex object ID with grep before inserting (a reused ID once corrupted the project). Validate with `xcodebuild -list` + a full build — `plutil -lint` passes on semantically broken files. Scheme `BuildableReference` needs `BuildableIdentifier = "primary"`.

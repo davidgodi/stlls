@@ -15,6 +15,7 @@ Both copies must be committed together — `Stlls/web/index.html` is what ships 
 - **Releases archive from a release branch, never from main** (main carries unreleased work, e.g. STLLS Pro). 1.4 shipped from `release/v1.4`, tag `v1.4-submitted`.
 - ⚠️ The Xcode "Copy web index" build phase copies `../story-layout/index.html` into **every** build. On a release branch, point it at the branch's own repo-root `index.html` before archiving (as `d3c4617` did), or the archive silently ships main's web app.
 - Never commit API keys/secrets into `index.html` — the repo is public and the file ships inside the .ipa. Newsletter/API integrations go through a serverless proxy.
+- TestFlight uploads authenticate with an **App Store Connect API key**, not Xcode's Apple ID sign-in (command-line uploads kept dropping that account a day later). Pass `-allowProvisioningUpdates -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_<KEYID>.p8 -authenticationKeyID <KEYID> -authenticationKeyIssuerID <ISSUER>` to `xcodebuild archive` / `-exportArchive`. The `.p8` stays in `~/.appstoreconnect/private_keys/`, never in this repo (`.gitignore` blocks `*.p8`); the IDs are kept out of this public file.
 
 ## Building & verifying Swift
 ```bash

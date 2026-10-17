@@ -1139,6 +1139,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .nt-btn { position: relative; }
+  .nt-btn[hidden] { display: none !important; }   /* tools hidden in Settings → Project tools */
   .nt-btn:hover { border-color: var(--accent); }
   /* the tool used most recently sits on top with a small label */
   .nt-last {
@@ -3419,6 +3420,7 @@
   }
   .toggle-sw input:checked + .toggle-track { background: #4ade80; }
   .toggle-sw input:checked + .toggle-track::before { transform: translateX(18px); }
+  .toggle-sw input:disabled + .toggle-track { opacity: 0.4; cursor: default; }   /* e.g. the last visible project tool */
 
   /* Photos toggle — desktop: hidden */
   .photos-toggle { display: none; }
@@ -4834,6 +4836,28 @@
           <button class="swatch" data-color="coral"   style="background:#ff7c5c" title="Coral"></button>
           <button class="swatch" data-color="sand"    style="background:#d4b896" title="Sand"></button>
         </div>
+      </div>
+    </div>
+    <div class="sp-section" id="toolsSection">
+      <div class="sp-section-label">Project tools</div>
+      <div class="sp-row">
+        <span class="sp-row-label">Board</span>
+        <label class="toggle-sw"><input type="checkbox" data-tool-toggle="board" aria-label="Show Board on Home"><span class="toggle-track"></span></label>
+      </div>
+      <div class="sp-row">
+        <span class="sp-row-label">Carousel</span>
+        <label class="toggle-sw"><input type="checkbox" data-tool-toggle="carousel" aria-label="Show Carousel on Home"><span class="toggle-track"></span></label>
+      </div>
+      <div class="sp-row">
+        <span class="sp-row-label">Grid</span>
+        <label class="toggle-sw"><input type="checkbox" data-tool-toggle="grid" aria-label="Show Grid on Home"><span class="toggle-track"></span></label>
+      </div>
+      <div class="sp-row">
+        <span class="sp-row-label">Cine Frames</span>
+        <label class="toggle-sw"><input type="checkbox" data-tool-toggle="cine" aria-label="Show Cine Frames on Home"><span class="toggle-track"></span></label>
+      </div>
+      <div class="sp-row" style="border-bottom:none;">
+        <span class="sp-row-sub">Hide the tools you don't use from the Home screen. Projects you made with them stay in My Projects.</span>
       </div>
     </div>
     <div class="sp-section">
@@ -6498,6 +6522,34 @@ function noteToolUsed(kind) {
   const order = [kind, ...readToolOrder().filter(k => k !== kind)];
   try { localStorage.setItem(TOOL_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
 }
+// Settings → Project tools: tools the user hid from Home (at least one always stays).
+// Only the create button goes; existing projects of that kind still list and open.
+const HIDDEN_TOOLS_KEY = 'stlls-hidden-tools';
+const TOOL_KINDS = ['board', 'carousel', 'grid', 'cine'];
+function readHiddenTools() {
+  try { const a = JSON.parse(localStorage.getItem(HIDDEN_TOOLS_KEY) || '[]'); return Array.isArray(a) ? a.filter(k => TOOL_KINDS.includes(k)) : []; }
+  catch (e) { return []; }
+}
+function setToolHidden(kind, hide) {
+  let hidden = readHiddenTools().filter(k => k !== kind);
+  if (hide) hidden.push(kind);
+  if (hidden.length >= TOOL_KINDS.length) { syncToolToggles(); return; }   // never hide the last one
+  try { localStorage.setItem(HIDDEN_TOOLS_KEY, JSON.stringify(hidden)); } catch (e) {}
+  applyToolOrder();
+  syncToolToggles();
+}
+function syncToolToggles() {
+  const hidden = readHiddenTools();
+  const shown = TOOL_KINDS.length - hidden.length;
+  document.querySelectorAll('[data-tool-toggle]').forEach(cb => {
+    const on = !hidden.includes(cb.dataset.toolToggle);
+    cb.checked = on;
+    cb.disabled = on && shown <= 1;   // the last visible tool can't be switched off
+  });
+}
+document.querySelectorAll('[data-tool-toggle]').forEach(cb =>
+  cb.addEventListener('change', () => setToolHidden(cb.dataset.toolToggle, !cb.checked)));
+
 // Runs while Home is hidden (every way back to Home draws the project list), so the
 // buttons never visibly jump; they only move when the order changed, because moving a
 // node restarts its CSS mini-animation.
@@ -6509,8 +6561,10 @@ function applyToolOrder() {
   const rank = b => { const i = used.indexOf(b.dataset.tool); return i < 0 ? used.length + btns.indexOf(b) : i; };
   const want = [...btns].sort((a, b) => rank(a) - rank(b) || btns.indexOf(a) - btns.indexOf(b));
   if (want.some((b, i) => b !== btns[i])) want.forEach(b => wrap.appendChild(b));
+  const hidden = readHiddenTools();
+  want.forEach(b => { b.hidden = hidden.includes(b.dataset.tool); });
   wrap.querySelectorAll('.nt-last').forEach(el => el.remove());
-  const top = want[0];
+  const top = want.find(b => !b.hidden);   // "Last used" goes on the top visible tool
   if (top && used.includes(top.dataset.tool)) {
     const tag = document.createElement('span');
     tag.className = 'nt-last'; tag.textContent = 'Last used';
@@ -13247,6 +13301,7 @@ function openSettings() {
   emailUpdatesToggle.checked = localStorage.getItem('stlls-email-consent') === 'true';
   settingsNameSave.disabled  = true;
   settingsEmailSave.disabled = true;
+  syncToolToggles();
   if (clearCacheBtn) { clearCacheBtn.disabled = false; clearCacheBtn.textContent = 'Clear'; clearCacheSub.textContent = _clearCacheDefaultSub; }
   settingsPanel.hidden = false;
   settingsPanel.classList.remove('leaving');
@@ -13675,10 +13730,15 @@ previewExpandBtn.addEventListener('click', () => {
   // The duration timeline must never ride over the board while it resizes — vanish it
   // now; clearing its stored position makes the final layout's placement appear in
   // place under the new board bounds instead of travelling or fading late.
+  // It must vanish INSTANTLY: a 0.25s fade while its position is cleared showed it fading
+  // out in the middle of the board (its fallback spot) on the way back from fullscreen.
   if (timelineBarEl && !timelineBarEl.hidden) {
     clearTimeout(_tlFadeT); _tlFadeT = null;
+    timelineBarEl.style.transition = 'none';
     timelineBarEl.style.opacity = '0';
+    void timelineBarEl.offsetWidth;               // commit the invisible state first…
     timelineBarEl.style.left = ''; timelineBarEl.style.top = '';
+    timelineBarEl.style.transition = '';          // …so only the reappearance fades
   }
   // Refit the board to the animating preview area every frame.
   // Frame-edit handles would sit at stale positions during the morph — drop them now;
@@ -13711,10 +13771,13 @@ previewExpandBtn.addEventListener('click', () => {
         if (im) positionSlotImage(im, s.item, s.w, s.h);
       });
     }
+    // Cine Frames: the frame line and readouts follow the board at its in-between size
+    // (as in a ratio morph) instead of holding the old size and snapping at the end
+    if (hudOn()) { _hudAnimSize = { w: d.w, h: d.h }; drawHudPreview(); }
     if (now - startT < EC_DUR + 70) {
       _ecRaf = requestAnimationFrame(ecFrame);
     } else {
-      _ecRaf = null; _previewAnimating = false;
+      _ecRaf = null; _previewAnimating = false; _hudAnimSize = null;
       computePreviewSize(); buildLayout();        // clean final render
     }
   }

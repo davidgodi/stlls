@@ -1839,7 +1839,10 @@
   /* ── Cine Frames editor ── its own palette and panel, so it never reads as a board */
   body.cine-mode > :not(#homeScreen) { --accent: #ff453a; --accent-fg: #ffffff; }   /* tally red, editor only */
   body.cine-mode .section-pair,
-  body.cine-mode #psAdjust { display: none !important; }
+  body.cine-mode #psAdjust,
+  body.cine-mode #boardTypeChip { display: none !important; }   /* Cine Frames is always video; Freeze frame makes a still */
+  #cineFreeze[hidden], #cineFreezeMoment[hidden] { display: none !important; }
+  #cineFreezeMoment { margin: 2px 0 4px; }
   #cineTag {
     display: inline-flex; align-items: center; gap: 6px; margin-left: 10px;
     font: 600 9.5px ui-monospace, "SF Mono", Menlo, Consolas, monospace;
@@ -4173,7 +4176,13 @@
         <button role="tab" data-ctab="style" aria-selected="false">Style</button>
       </div>
       <div class="cine-body">
-        <div class="cine-pane" data-cpane="shots" id="cineShots"></div>
+        <div class="cine-pane" data-cpane="shots" id="cineShots">
+          <!-- Cine Frames plays video; Freeze frame holds one moment of the clip and exports a still -->
+          <div id="cineFreeze" hidden>
+            <div class="cine-row cine-sec-first"><span>Freeze frame <em class="bgp-sec-hint">export a still</em></span><button class="hud-switch" id="cineFreezeSw" role="switch" aria-checked="false" aria-label="Freeze frame"><span></span></button></div>
+            <div class="slider-row" id="cineFreezeMoment" hidden><label>Moment</label><input type="range" id="cineFreezeRange" min="0" max="1" step="0.04" value="0" aria-label="Frozen moment"><span class="slider-val" id="cineFreezeVal">0.0s</span></div>
+          </div>
+        </div>
         <div class="cine-pane" data-cpane="frame" hidden>
           <div class="bgp-sec cine-sec-first">Board size</div>
           <div id="cineRatioMount"></div>
@@ -5442,7 +5451,7 @@ function showCoach(key, delay) {
   if (!c || c.shown) return;
   // the board editor's tour points at Layout/Adjust etc. — Cine Frames has none of them
   if (document.body.classList.contains('cine-mode') &&
-      ['editor', 'canvas', 'layout', 'adjust', 'reframe', 'framelines', 'export'].includes(key)) return;
+      ['editor', 'canvas', 'layout', 'adjust', 'reframe', 'framelines', 'export', 'switch'].includes(key)) return;
   c.shown = true;
   const render = () => {
     if (localStorage.getItem(c.storageKey) === '1') return; // pre-empted meanwhile
@@ -7004,7 +7013,7 @@ function addNewBoard() {
     return;
   }
   saveCurrentBoardSnapshot();
-  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, bgMedia: null, hud: state.hud ? { ...state.hud } : null, cam: state.cam ? { ...state.cam } : null,
+  const newBoard = { id: genId(), ratio: state.ratio, customRatio: state.customRatio || null, layout: state.layout, gridCols: state.gridCols, gridRows: state.gridRows, gap: state.gap, padding: state.padding, bg: state.bg, radius: state.radius || 0, boardType: state.boardType, clipDuration: state.clipDuration, clipPlayMode: state.clipPlayMode, presetLayout: false, bgMedia: null, hud: state.hud ? { ...state.hud } : null, cam: state.cam ? camUnfrozen(state.cam) : null,
     images: state.layout === 'camera' ? [{ id: genId(), emptySlot: true, transforms: {} }] : [] };
   _projectBoards.push(newBoard);
   switchToBoard(_projectBoards.length - 1, 'left');
@@ -7130,6 +7139,7 @@ function setEditorMode(mode) {
   document.body.classList.toggle('cine-mode', cine);
   cinePanel.hidden = !cine;
   cineTag.hidden = !cine;
+  _releaseFreezeHelper();
   if (cine) {
     cineMove(document.getElementById('psImages'), document.getElementById('cineShots'));
     cineMove(document.getElementById('psCanvas'), document.getElementById('cineRatioMount'));
@@ -7147,10 +7157,134 @@ function cineSelectTab(tab) {
 }
 cinePanel.querySelectorAll('[data-ctab]').forEach(b => b.addEventListener('click', () => cineSelectTab(b.dataset.ctab)));
 
+// ── Freeze frame ──
+// iOS only draws reliable frames from a PLAYING video (a paused, freshly seeked one can
+// come out black), so a moment is captured by seeking a small hidden helper video, letting
+// it play to the first presented frame, drawing that, and pausing. Freezing on what's on
+// screen draws straight from the playing preview instead.
+function _freezeHelper(item) {
+  const cur = _freezeHelper.vid;
+  if (cur && cur._itemId === item.id) return cur;
+  _releaseFreezeHelper();
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true;
+  v.setAttribute('playsinline', ''); v.setAttribute('muted', '');
+  v.preload = 'auto'; v.src = item.src; v._itemId = item.id;
+  v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0.01;pointer-events:none;z-index:-1';
+  document.body.appendChild(v);
+  _freezeHelper.vid = v;
+  return v;
+}
+function _releaseFreezeHelper() {
+  const v = _freezeHelper.vid;
+  if (!v) return;
+  _freezeHelper.vid = null;
+  try { v.pause(); v.removeAttribute('src'); v.load(); } catch (e) {}
+  v.remove();
+}
+function _frameToJpeg(v) {
+  if (!v || !v.videoWidth) return null;
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  try { c.getContext('2d').drawImage(v, 0, 0); return c.toDataURL('image/jpeg', 0.92); } catch (e) { return null; }
+}
+async function cineCaptureFrame(item, t) {
+  const v = _freezeHelper(item);
+  const wait = (ev, ms) => new Promise(res => { v.addEventListener(ev, () => res(), { once: true }); setTimeout(res, ms); });
+  if (v.readyState < 1) await wait('loadedmetadata', 4000);
+  const at = Math.min(Math.max(0, (item.start || 0) + t), Math.max(0, (v.duration || 1e9) - 0.05));
+  const seeked = wait('seeked', 1500);
+  try { v.currentTime = at; } catch (e) {}
+  await seeked;
+  try { await v.play(); } catch (e) {}
+  await new Promise(res => {
+    if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(() => res()); else v.addEventListener('timeupdate', () => res(), { once: true });
+    setTimeout(res, 800);
+  });
+  v.pause();
+  return _frameToJpeg(v);
+}
+function cineClipLength(it) {
+  const len = (it.end || 0) - (it.start || 0);
+  return len > 0.05 ? len : ((it._videoEl && it._videoEl.duration) || 1);
+}
+// Board loads, clip changes and toggles all land here (via applyBoardTypeUI / the switch)
+function syncCineFreezeUI() {
+  const box = document.getElementById('cineFreeze');
+  if (!box) return;
+  const it = camItem();
+  const isClip = !!(camOn() && it && it.type === 'clip' && !it.placeholder);
+  box.hidden = !isClip;
+  const on = isClip && camFrozen();
+  document.getElementById('cineFreezeSw').setAttribute('aria-checked', String(on || !!setCineFreeze.pending));
+  document.getElementById('cineFreezeMoment').hidden = !on;
+  if (isClip) {
+    const range = document.getElementById('cineFreezeRange');
+    range.max = String(cineClipLength(it));
+    if (on && document.activeElement !== range) range.value = String(Number(state.cam.stillT) || 0);
+    document.getElementById('cineFreezeVal').textContent = (Number(range.value) || 0).toFixed(1) + 's';
+  }
+}
+function _afterFreezeChange() { buildLayout(); applyBoardTypeUI(); drawHudPreview(); }
+async function setCineFreeze(on) {
+  const it = camItem();
+  if (!it || it.type !== 'clip' || it.placeholder) return;
+  if (!on) {
+    state.cam = camUnfrozen(state.cam || camDefaults());
+    _releaseFreezeHelper();
+    _afterFreezeChange();
+    return;
+  }
+  setCineFreeze.pending = true; syncCineFreezeUI();   // the switch answers at once
+  // hold what's on screen: draw straight from the playing preview when it has a frame
+  const v = it._videoEl;
+  let t = 0, src = null;
+  if (v && v.tagName === 'VIDEO' && v.readyState >= 2 && v.videoWidth) {
+    t = Math.max(0, (v.currentTime || 0) - (it.start || 0));
+    src = _frameToJpeg(v);
+  }
+  if (!src) { src = await cineCaptureFrame(it, t); _releaseFreezeHelper(); }
+  setCineFreeze.pending = false;
+  if (!src || camItem() !== it) { syncCineFreezeUI(); return; }   // no frame / clip changed meanwhile
+  state.cam = { ...(state.cam || camDefaults()), still: true, stillT: t, stillSrc: src, stillOf: it.id };
+  _afterFreezeChange();
+}
+// Moment slider: the timecode follows at once; the picture catches up (latest wins).
+// Letting go of the slider frees the helper video once the last capture lands.
+async function freezeToMoment(t) {
+  freezeToMoment.want = t;
+  if (freezeToMoment.running) return;
+  freezeToMoment.running = true;
+  while (freezeToMoment.want != null) {
+    const want = freezeToMoment.want; freezeToMoment.want = null;
+    const it = camItem();
+    if (!it || it.type !== 'clip' || !camFrozen()) break;
+    const src = await cineCaptureFrame(it, want);
+    if (src && camFrozen() && camItem() === it) {
+      state.cam = { ...state.cam, stillSrc: src };
+      buildLayout();
+    }
+  }
+  freezeToMoment.running = false;
+  if (freezeToMoment.letGo) { freezeToMoment.letGo = false; _releaseFreezeHelper(); }
+}
+document.getElementById('cineFreezeSw').addEventListener('click', () => setCineFreeze(!camFrozen()));
+document.getElementById('cineFreezeRange').addEventListener('input', e => {
+  if (!camFrozen()) return;
+  const t = Number(e.target.value) || 0;
+  state.cam = { ...state.cam, stillT: t };
+  document.getElementById('cineFreezeVal').textContent = t.toFixed(1) + 's';
+  drawHudPreview();
+  freezeToMoment(t);
+});
+document.getElementById('cineFreezeRange').addEventListener('change', () => {
+  if (freezeToMoment.running) freezeToMoment.letGo = true; else _releaseFreezeHelper();
+});
+
 // One framed shot per board, readouts set up (fills fields saved boards may lack)
 function cineNormalizeBoard(b) {
   const images = (b.images || []).length ? b.images : [{ id: genId(), emptySlot: true, transforms: {} }];
-  return { ...b, layout: 'camera', images,
+  return { ...b, layout: 'camera', boardType: 'video', images,
            hud: b.hud ? hudRestore(b.hud) : hudDefaults(),
            cam: b.cam ? { ...camDefaults(), ...b.cam } : camDefaults() };
 }
@@ -7167,7 +7301,7 @@ function boardStripCine(b) {
 }
 function cineBoardTemplate() {
   return cineNormalizeBoard({ id: genId(), ratio: '4:5', layout: 'camera', gridCols: 2, gridRows: 2, gap: 6, padding: 0,
-                              bg: '#000000', boardType: 'photo', clipDuration: 15, images: [] });
+                              bg: '#000000', boardType: 'video', clipDuration: 15, images: [] });
 }
 function createNewCineProject() {
   noteToolUsed('cine');
@@ -7684,7 +7818,9 @@ function drawHudLive(ctx, L, t) {
     ctx.fillStyle = L.color;
     ctx.font = `500 ${live.tc.size}px ${HUD_FONT}`;
     ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-    ctx.fillText(hudTcString(L.start + (t == null ? 0 : Math.floor(t * L.base)), L.base), live.tc.x, live.tc.y);
+    // stills read the start value; a frozen clip reads the frame it holds
+    const still = t == null ? (camFrozen() ? Math.floor((Number(state.cam.stillT) || 0) * L.base) : 0) : null;
+    ctx.fillText(hudTcString(L.start + (still != null ? still : Math.floor(t * L.base)), L.base), live.tc.x, live.tc.y);
   }
   if (live.dot && (t == null || (t % 1) < 0.5)) {
     ctx.fillStyle = HUD_REC_COLOR;
@@ -7712,7 +7848,7 @@ function ensureHudLayer() {
 // Video boards follow the board clock, so the preview counts exactly like the
 // export and wraps at the clip duration; stills hold the start timecode.
 function hudPreviewTime() {
-  if (!hasClips() || !_boardClockT0) return null;
+  if (!hasClips() || !_boardClockT0 || camFrozen()) return null;
   return ((performance.now() - _boardClockT0) / 1000) % Math.max(1, state.clipDuration || 15);
 }
 // While the board morphs between ratios, the layer draws at the board's in-between
@@ -7739,7 +7875,7 @@ function drawHudPreview() {
     return;
   }
   const key = [pw, ph, state.padding, state.ratio, JSON.stringify(state.customRatio), JSON.stringify(state.hud),
-               state.layout, JSON.stringify(state.cam), camOn() && camItem() ? camItem().id : '',
+               state.layout, JSON.stringify(state.cam, (k, v) => k === 'stillSrc' ? undefined : v), camOn() && camItem() ? camItem().id : '',
                _camAnimRect ? JSON.stringify(_camAnimRect.rect) : ''].join('|');
   if (!_hudCache || _hudCache.key !== key) {
     const st = _hudStaticCv || (_hudStaticCv = document.createElement('canvas'));
@@ -7785,6 +7921,15 @@ function _hudExportPayload(W, H) {
 // is the media's own shape: imported whole, nothing cropped. The frame is getSlots'
 // only slot, so preview, gestures, clip playback and every export follow it.
 function camDefaults() { return { shape: '16:9', size: 1 }; }
+// Freeze frame (Cine Frames): state.cam.still + stillT (seconds into the clip) + stillSrc
+// (that frame as a full-size JPEG) + stillOf (the clip it belongs to). A frozen clip shows
+// and exports as that still; replace the clip and it plays again.
+function camFrozenItem(it) {
+  const c = state.cam;
+  return !!(camOn() && c && c.still && c.stillSrc && it && it.type === 'clip' && c.stillOf === it.id);
+}
+function camFrozen() { return camFrozenItem(camItem()); }
+function camUnfrozen(cam) { return { ...cam, still: false, stillT: 0, stillSrc: null, stillOf: null }; }
 function camOn() { return state.layout === 'camera'; }
 // The frame shows the board's first real item; extras wait in the media strip
 function camItem() { return state.images.find(it => !it.emptySlot) || state.images[0] || null; }
@@ -8152,6 +8297,11 @@ function createSingleLoopVideo(item) {
 //  • clip (web fallback) → a single <video> that JS sub-range loops
 //  • still              → an <img>
 function createSlotMedia(item) {
+  if (camFrozenItem(item)) {   // Freeze frame: the held moment, as a still (no decoder)
+    const im = document.createElement('img');
+    im.className = 'slot-img'; im.draggable = false; im.src = state.cam.stillSrc;
+    return im;
+  }
   if (item.type === 'clip') {
     const mode = state.clipPlayMode || 'loop';
     // Freeze replaces the looping playback entirely (both native-trimmed and
@@ -8304,7 +8454,7 @@ function camSpillToNewBoard(item) {
   _projectBoards.splice(_camSpillAt++, 0, {
     ...cur, id: genId(), images: [item], usedShotRanges: [], detection: null, bgMedia: null,
     slotFracs: cloneSlotFracs(cur.slotFracs),
-    hud: cur.hud ? { ...cur.hud } : null, cam: cur.cam ? { ...cur.cam } : null,
+    hud: cur.hud ? { ...cur.hud } : null, cam: cur.cam ? camUnfrozen(cur.cam) : null,
   });
   updateBoardNav();
   return true;
@@ -8429,6 +8579,7 @@ function buildLayout() {
     // threshold (double-buffer ↔ single video) OR toggling loop/freeze rebuilds slots.
     const kind = item.placeholder ? 'load'
                : item.emptySlot ? 'empty'
+               : camFrozenItem(item) ? 'frozen'
                : item.type !== 'clip' ? 'media'
                : _clipMode === 'freeze' ? 'freeze'
                : item.nativeLoop ? (clipsUseDoubleBuffer() ? 'clip2' : 'clip1') : 'clip1w';
@@ -8440,7 +8591,9 @@ function buildLayout() {
       slotDiv._item = item;          // refresh live item (undo swaps in new objects)
       slotDiv.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;border-radius:${_slotR}px`;
       mediaEl = slotDiv.querySelector('.slot-img, .slot-loading');
-      if (item.type === 'clip' && !item.placeholder) {
+      if (kind === 'frozen') {
+        if (mediaEl && mediaEl.getAttribute('src') !== state.cam.stillSrc) mediaEl.src = state.cam.stillSrc;   // new moment
+      } else if (item.type === 'clip' && !item.placeholder) {
         const ctl = mediaEl && mediaEl._clipCtl;
         if (ctl) { ctl.item = item; item._videoEl = ctl.cur; }  // native double-buffer
         else {
@@ -8485,7 +8638,7 @@ function buildLayout() {
   // the board's bottom edge and the tools panel below, so it reads as its own element —
   // symmetric spacing above and below.
   if (timelineBarEl) {
-    const showTl = hasClips();
+    const showTl = hasClips() && !camFrozen();
     timelineBarEl.hidden = !showTl;
     if (showTl) {
       const boardBottom = layoutPreview.offsetTop + previewH;
@@ -8503,6 +8656,7 @@ function buildLayout() {
   updateFrameEditBtn();
   renderFrameHandles();
   drawHudPreview();   // camera frame over the slots (removes itself when off)
+  if (document.body.classList.contains('cine-mode')) { syncExportOpts(); syncCineFreezeUI(); }   // a clip or photo just landed in the frame
 }
 
 // ── Frame-edit mode ─────────────────────────────────────────────────────────
@@ -8716,6 +8870,10 @@ async function makeStillItem({ id, name, src, mime, transforms }) {
 async function resolveExportImages(images) {
   const map = new Map();
   await Promise.all(images.map(async it => {
+    // Freeze frame: the held moment, full size
+    if (camFrozenItem(it)) {
+      try { map.set(it, await _loadImg(state.cam.stillSrc)); return; } catch (e) {}
+    }
     // Video clip (Phase 1): export a still snapshot of the live current frame.
     if (it.type === 'clip') {
       const v = it._videoEl;
@@ -10434,6 +10592,15 @@ document.querySelectorAll('#bitrateSeg .br-btn').forEach(btn => {
 });
 
 function hasClips() { return state.images.some(it => it.type === 'clip'); }
+// Export options follow what Export will make: Bitrate for a video, Format/Scale for an
+// image. Cine Frames is always a video board, but a photo in the frame or a frozen clip
+// exports as an image, so it shows the image options then.
+function syncExportOpts() {
+  const cine = document.body.classList.contains('cine-mode');
+  const videoOut = state.boardType === 'video' && !camFrozen() && (!cine || hasClips());
+  if (stillExportOpts) stillExportOpts.hidden = videoOut;
+  if (videoExportOpts) videoExportOpts.hidden = !videoOut;
+}
 // Photo boards use the classic stills import (From Photos / From Video, auto + manual).
 // Video boards use the clip UI with the + → Stills/Clips popup, so stills and clips can be
 // mixed there. The board type is chosen via the switch while the board is still empty.
@@ -10470,9 +10637,8 @@ function applyBoardTypeUI() {
   mAddBtn.classList.remove('disabled');
   mAddBtn.title = isVideo ? 'Add stills or clips' : 'Add images';
 
-  // Export options: Bitrate for video boards, Format/Scale for photo boards.
-  if (stillExportOpts) stillExportOpts.hidden = isVideo;
-  if (videoExportOpts) videoExportOpts.hidden = !isVideo;
+  syncExportOpts();
+  syncCineFreezeUI();
 
   updateClipAddBtnLabel();
   clipLenSlider.value = state.clipDuration;
@@ -13817,7 +13983,7 @@ exportBtn.addEventListener('click', () => {
     document.getElementById('exportChoiceModal').hidden = false;
     return;
   }
-  if (hasClips()) {                              // any clip present → looping-video export
+  if (hasClips() && !camFrozen()) {              // any playing clip → looping-video export
     if (!stllsIsPro()) { stllsAskPro(); return; }   // free tier: test video boards, export with Pro
     doVideoExport(); return;
   }
@@ -13830,7 +13996,7 @@ exportBtn.addEventListener('click', () => {
 
 document.getElementById('exportChoiceCurrent').addEventListener('click', () => {
   document.getElementById('exportChoiceModal').hidden = true;
-  if (hasClips()) { if (!stllsIsPro()) { stllsAskPro(); return; } doVideoExport(); }
+  if (hasClips() && !camFrozen()) { if (!stllsIsPro()) { stllsAskPro(); return; } doVideoExport(); }
   else doExport();
 });
 
@@ -13980,7 +14146,7 @@ async function doCineExportAll() {
         updateBoardNav();
       }
       _exportBatchLabel = `Board ${i + 1} of ${ids.length}`;
-      if (state.images.some(it => it.type === 'clip')) {
+      if (state.images.some(it => it.type === 'clip') && !camFrozen()) {
         ok = await _exportVideoAndWait();
       } else {
         startExportBar();

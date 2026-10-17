@@ -13675,10 +13675,15 @@ previewExpandBtn.addEventListener('click', () => {
   // The duration timeline must never ride over the board while it resizes — vanish it
   // now; clearing its stored position makes the final layout's placement appear in
   // place under the new board bounds instead of travelling or fading late.
+  // It must vanish INSTANTLY: a 0.25s fade while its position is cleared showed it fading
+  // out in the middle of the board (its fallback spot) on the way back from fullscreen.
   if (timelineBarEl && !timelineBarEl.hidden) {
     clearTimeout(_tlFadeT); _tlFadeT = null;
+    timelineBarEl.style.transition = 'none';
     timelineBarEl.style.opacity = '0';
+    void timelineBarEl.offsetWidth;               // commit the invisible state first…
     timelineBarEl.style.left = ''; timelineBarEl.style.top = '';
+    timelineBarEl.style.transition = '';          // …so only the reappearance fades
   }
   // Refit the board to the animating preview area every frame.
   // Frame-edit handles would sit at stale positions during the morph — drop them now;
@@ -13711,10 +13716,13 @@ previewExpandBtn.addEventListener('click', () => {
         if (im) positionSlotImage(im, s.item, s.w, s.h);
       });
     }
+    // Cine Frames: the frame line and readouts follow the board at its in-between size
+    // (as in a ratio morph) instead of holding the old size and snapping at the end
+    if (hudOn()) { _hudAnimSize = { w: d.w, h: d.h }; drawHudPreview(); }
     if (now - startT < EC_DUR + 70) {
       _ecRaf = requestAnimationFrame(ecFrame);
     } else {
-      _ecRaf = null; _previewAnimating = false;
+      _ecRaf = null; _previewAnimating = false; _hudAnimSize = null;
       computePreviewSize(); buildLayout();        // clean final render
     }
   }
